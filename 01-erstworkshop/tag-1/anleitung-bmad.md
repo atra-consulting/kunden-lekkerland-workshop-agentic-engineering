@@ -162,6 +162,7 @@ Beschreibung:
 TICKET>>>
 ```
 
+- **Kein Jira-MCP-Server nötig.** Du kopierst den Ticket-Text selbst in den Befehl. Copilot braucht darum keinen Zugang zu Jira, und es sieht nur, was du einfügst.
 - `<<<` und `>>>` tippst du genau so. Für `<SCHLÜSSEL>` setzt du den Jira-Schlüssel ein.
 - Kommentare und Anhänge lässt du weg. So macht es auch die Fabrik am Dienstag, dort mit englischen Markierungen.
 - Die Markierungen sind keine Sicherheitsgrenze. Lies das Ticket, bevor du es einfügst.

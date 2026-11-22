@@ -321,4 +321,4 @@ Am Dienstag macht die Fabrik dieselben Schritte wie du. Sie läuft unbeaufsichti
 - **Neue Sitzungen an zwei Stellen.** Erst der Vorschlag, dann die Umsetzung. Dazwischen gibt ein Mensch in Jira frei. Jeder Lauf findet den Stand nur in den Dateien im Repo.
 - **Englisch.** Prompts, Regeln und Ticket-Markierungen der Fabrik sind englisch.
 
-Stand: 22. November 2026.
+Version 1.0, final. Stand: 22. November 2026.

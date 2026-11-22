@@ -43,14 +43,47 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 | `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Lekkerland nennt ihn vor Montag. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
 | `<url-eurer-kopie>` | Die Klon-Adresse eurer Kopie, in Bitbucket unter „Clone“. |
 | `<ordner-eurer-kopie>` | Der Ordner, den `git clone` anlegt. |
-| `<branch-mit-openspec>` | Der Branch mit OpenSpec. Karsten Silz nennt ihn um 12:00. |
+| `<branch-mit-openspec>` | Der Branch für OpenSpec in eurer Kopie. Den Namen erfahrt ihr im Workshop. |
 | `<SCHLÜSSEL>` | Der Jira-Schlüssel des Tickets, etwa `ABC-123`. |
 | `<kurzer-name>` | Ein kurzer Name in Kleinbuchstaben mit Bindestrichen für deinen Branch, etwa `abc-123`. |
 | `<name>` | Der Name der Änderung, den OpenSpec beim Vorschlagen vergibt. `ls openspec/changes/` zeigt ihn. |
 
+## Einmalig: OpenSpec installieren
+
+Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor.
+
+Ohne weitere Einstellung installiert OpenSpec nur 6 seiner 12 Workflows (Labortest). `/openspec-verify-change` gehört nicht dazu. Für alle 12 legst du vorher OpenSpecs Benutzer-Einstellungen an, die Datei `~/.config/openspec/config.json`. Ist die Variable `XDG_CONFIG_HOME` gesetzt, liest OpenSpec stattdessen `$XDG_CONFIG_HOME/openspec/config.json` (Quellcode von OpenSpec 2.0.0). Die Datei ist nicht die `openspec/config.yaml` im Repo:
+
+```json
+{
+  "profile": "custom",
+  "workflows": ["propose", "explore", "new", "continue", "apply", "update", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"],
+  "telemetry": { "enabled": false }
+}
+```
+
+Dann:
+
+```bash
+npm install -g @fission-ai/openspec@2.0.0
+export OPENSPEC_TELEMETRY=0
+git clone <url-eurer-kopie>
+cd <ordner-eurer-kopie>
+git switch -c <branch-mit-openspec>
+openspec init --tools github-copilot --no-copilot-cloud --no-animation .
+openspec update .
+git add -A && git commit -m "OpenSpec 2.0.0 mit allen 12 Workflows"
+git push -u origin <branch-mit-openspec>
+```
+
+- `openspec init` legt `openspec/` und die Skills in `.agents/skills/` an. `--tools github-copilot` wählt die Copilot CLI. `--no-copilot-cloud` lässt den Cloud-Agenten von Copilot aus.
+- `openspec update .` richtet die Workflows aus der Datei oben ein.
+- `git push -u origin` legt den Branch in Bitbucket an. Erst danach können die anderen ihn holen.
+- Scheitert `git commit` an den Git-Hooks eures Repos, schalte sie in deinem Klon ab: `git config core.hooksPath /dev/null`. Mehr dazu unter „Einrichten“.
+
 ## Einrichten
 
-Karsten Silz installiert OpenSpec zwischen 11:20 und 12:00 auf einem Branch eurer Kopie und pusht ihn nach Bitbucket. Jede Person der Gruppe klont die Kopie und holt diesen Branch:
+Zuerst installiert eine Person eurer Gruppe OpenSpec auf dem Branch `<branch-mit-openspec>` und pusht ihn nach Bitbucket, siehe „Einmalig: OpenSpec installieren“. Danach klont jede andere Person die Kopie und holt diesen Branch:
 
 ```bash
 git clone <url-eurer-kopie>
@@ -61,6 +94,7 @@ copilot skill list
 <testbefehl>
 ```
 
+- Wer OpenSpec installiert hat, hat Klon und Branch schon und beginnt bei `git status --short`.
 - `git switch` findet den Branch in Bitbucket von selbst. Klappt das nicht, gib vorher `git fetch` ein.
 - `git status --short` gibt nichts aus.
 - `copilot skill list` zeigt die Skills `openspec-*`.
@@ -232,35 +266,6 @@ OpenSpec hat keinen eigenen Weg für Bugs. Der kurze Weg ist derselbe Ablauf ohn
 | Erkunden | 13–36 s | 13,7–14,0 |
 
 Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Das Archivieren kostete dort mehr als das Vorschlagen. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD. Mehr zu Kosten steht in der [gemeinsamen Anleitung](anleitung-copilot-cli.md).
-
-## So installiert Karsten OpenSpec in eure Kopie
-
-Dieselben Befehle wie im Demo-Repo. Du brauchst sie nicht auszuführen. Für ein weiteres eigenes Repo gehst du genauso vor.
-
-Ohne weitere Einstellung installiert OpenSpec nur 6 seiner 12 Workflows (Labortest). `/openspec-verify-change` gehört nicht dazu. Für alle 12 legt Karsten vorher OpenSpecs Benutzer-Einstellungen an, die Datei `$XDG_CONFIG_HOME/openspec/config.json`. Sie ist nicht die `openspec/config.yaml` im Repo:
-
-```json
-{
-  "profile": "custom",
-  "workflows": ["propose", "explore", "new", "continue", "apply", "update", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"],
-  "telemetry": { "enabled": false }
-}
-```
-
-Dann:
-
-```bash
-npm install -g @fission-ai/openspec@2.0.0
-export OPENSPEC_TELEMETRY=0
-cd <ordner-eurer-kopie>
-git switch -c <branch-mit-openspec>
-openspec init --tools github-copilot --no-copilot-cloud --no-animation .
-openspec update .
-git add -A && git commit -m "OpenSpec 2.0.0 mit allen 12 Workflows"
-```
-
-- `openspec init` legt `openspec/` und die Skills in `.agents/skills/` an. `--tools github-copilot` wählt die Copilot CLI. `--no-copilot-cloud` lässt den Cloud-Agenten von Copilot aus.
-- `openspec update .` richtet die Workflows aus der Datei oben ein.
 
 ## Am Dienstag: die Fabrik
 

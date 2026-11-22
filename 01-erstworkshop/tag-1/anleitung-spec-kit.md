@@ -41,13 +41,35 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 | `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Lekkerland nennt ihn vor Montag. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
 | `<url-eurer-kopie>` | Die Klon-Adresse eurer Kopie, in Bitbucket unter „Clone“. |
 | `<ordner-eurer-kopie>` | Der Ordner, den `git clone` anlegt. |
-| `<branch-mit-spec-kit>` | Der Branch mit Spec Kit. Karsten Silz nennt ihn um 12:00. |
+| `<branch-mit-spec-kit>` | Der Branch für Spec Kit in eurer Kopie. Den Namen erfahrt ihr im Workshop. |
 | `<SCHLÜSSEL>` | Der Jira-Schlüssel des Tickets, etwa `ABC-123`. |
 | `<kurzer-name>` | Ein kurzer Name in Kleinbuchstaben mit Bindestrichen, etwa `abc-123` oder `lesezeit`. Spec Kit nutzt ihn in Runde 2 als `slug`. |
 
+## Einmalig: Spec Kit installieren
+
+Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@v1.4.0"
+git clone <url-eurer-kopie>
+cd <ordner-eurer-kopie>
+git switch -c <branch-mit-spec-kit>
+specify init --here --force --non-interactive --integration copilot --script sh
+specify extension add bug
+git add -A && git commit -m "Spec Kit 1.4.0 mit Bug-Erweiterung"
+git push -u origin <branch-mit-spec-kit>
+```
+
+- `uv tool install` installiert die Spec-Kit-CLI `specify` in Version 1.4.0. Zum Arbeiten brauchst du sie nicht.
+- `specify init --here` installiert Spec Kit in den aktuellen Ordner. `--force` erlaubt einen Ordner, in dem schon Dateien liegen. `--integration copilot` richtet die Skills für die Copilot CLI ein, `--script sh` die bash-Skripte.
+- `specify extension add bug` fügt die Bug-Erweiterung hinzu, hier Version 1.0.2.
+- Spec Kit legt `.github/skills/speckit-*` (im Demo-Repo 12 Skills) und `.specify/` an.
+- `git push -u origin` legt den Branch in Bitbucket an. Erst danach können die anderen ihn holen.
+- Scheitert `git commit` an den Git-Hooks eures Repos, schalte sie in deinem Klon ab: `git config core.hooksPath /dev/null`. Mehr dazu unter „Einrichten“.
+
 ## Einrichten
 
-Karsten Silz installiert Spec Kit zwischen 11:20 und 12:00 auf einem Branch eurer Kopie und pusht ihn nach Bitbucket. Jede Person der Gruppe klont die Kopie und holt diesen Branch:
+Zuerst installiert eine Person eurer Gruppe Spec Kit auf dem Branch `<branch-mit-spec-kit>` und pusht ihn nach Bitbucket, siehe „Einmalig: Spec Kit installieren“. Danach klont jede andere Person die Kopie und holt diesen Branch:
 
 ```bash
 git clone <url-eurer-kopie>
@@ -58,6 +80,7 @@ copilot skill list
 <testbefehl>
 ```
 
+- Wer Spec Kit installiert hat, hat Klon und Branch schon und beginnt bei `git status --short`.
 - `git switch` findet den Branch in Bitbucket von selbst. Klappt das nicht, gib vorher `git fetch` ein.
 - `git status --short` gibt nichts aus.
 - `copilot skill list` zeigt die Skills `speckit-*`.
@@ -261,24 +284,6 @@ Runde 2 ist fertig. Gib `/exit` ein.
 | Runde 2, Bug: `bug-assess`, `bug-fix`, `bug-test` | etwa 5,5 Minuten | 33,6 |
 
 Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD. Mehr zu Kosten steht in der [gemeinsamen Anleitung](anleitung-copilot-cli.md).
-
-## So installiert Karsten Spec Kit in eure Kopie
-
-Dieselben Befehle wie im Demo-Repo. Du brauchst sie nicht auszuführen. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür [uv](https://docs.astral.sh/uv/).
-
-```bash
-uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@v1.4.0"
-cd <ordner-eurer-kopie>
-git switch -c <branch-mit-spec-kit>
-specify init --here --force --non-interactive --integration copilot --script sh
-specify extension add bug
-git add -A && git commit -m "Spec Kit 1.4.0 mit Bug-Erweiterung"
-```
-
-- `uv tool install` installiert die Spec-Kit-CLI `specify` in Version 1.4.0. Zum Arbeiten brauchst du sie nicht.
-- `specify init --here` installiert Spec Kit in den aktuellen Ordner. `--force` erlaubt einen Ordner, in dem schon Dateien liegen. `--integration copilot` richtet die Skills für die Copilot CLI ein, `--script sh` die bash-Skripte.
-- `specify extension add bug` fügt die Bug-Erweiterung hinzu, hier Version 1.0.2.
-- Spec Kit legt `.github/skills/speckit-*` (im Demo-Repo 12 Skills) und `.specify/` an.
 
 ## Am Dienstag: die Fabrik
 

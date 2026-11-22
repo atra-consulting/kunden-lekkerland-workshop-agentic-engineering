@@ -22,7 +22,7 @@ Am Montag arbeiten drei Gruppen von Hand mit GitHub Copilot CLI, jede mit einem 
 Laut Agenda (verschickt als [Kurz-Agenda](../vorbereitung/agenda-kurz.md), seitdem angepasst):
 
 - **11:10:** Die Aufgabe: SDD im eigenen Repo oder im Demo-Repo. Die Gruppen bilden sich, eine pro Framework. Du wählst deine Gruppe selbst.
-- **11:20 bis 12:00, Einrichtung:** Alle richten Copilot CLI und die Werkzeuge ein, klonen die Repository-Kopie ihrer Gruppe und melden sich an. Zur gleichen Zeit installiert Karsten Silz die Frameworks in die Repository-Kopien. Ergebnis: Copilot CLI läuft bei allen.
+- **11:20 bis 12:00, Einrichtung:** Alle richten Copilot CLI und die Werkzeuge ein, klonen die Repository-Kopie ihrer Gruppe und melden sich an. Eine Person je Gruppe installiert das Framework auf einem Branch der Kopie. Ergebnis: Copilot CLI läuft bei allen.
 - **12:00:** Es steht fest, ob deine Gruppe in ihrer Kopie oder im Demo-Repo arbeitet. Danach Mittag bis 13:00.
 - **13:00 bis 15:00, Runde 1: Ticket 1,** mit dem Framework deiner Gruppe, von Hand: erst die Spec, dann der Code, mit eurem Testbefehl.
 - **15:15 bis 17:00, Runde 2: Ticket 2,** ein kleineres Ticket, auf dem kurzen Weg des Frameworks. Wieder erst die Spec, dann der Code.
@@ -42,7 +42,7 @@ Vor dem Workshop installierst du nichts (Agenda, Checkliste). Lekkerlands IT sor
 4. Melde dich im Repo-Ordner an. Siehe „Anmelden und prüfen“.
 5. Prüfe die Einrichtung. Siehe „Anmelden und prüfen“.
 
-**11:20 bis 12:00, Karsten Silz:** Er installiert die Frameworks in die Repository-Kopien der Gruppen. Siehe „Dein eigenes Repository: der Hauptweg“.
+**11:20 bis 12:00, eine Person je Gruppe:** Sie installiert das Framework auf einem Branch eurer Kopie und pusht ihn nach Bitbucket. Den Namen des Branches erfahrt ihr im Workshop. Die Befehle stehen im Leitfaden eurer Gruppe: [Spec Kit](anleitung-spec-kit.md), [OpenSpec](anleitung-openspec.md), [BMad](anleitung-bmad.md).
 
 **Um 12:00** steht für deine Gruppe fest:
 
@@ -180,7 +180,7 @@ uv --version
 
 Am Montag arbeitet deine Gruppe in ihrer Repository-Kopie aus der [Checkliste](../vorbereitung/checkliste.md): ein kleines, testbares Repository in Lekkerlands Bitbucket, ohne Secrets in Dateien, Historie und Repository-Variablen, eine Kopie je Gruppe. Ohne Secrets, weil Copilot die Dateien im Ordner liest (abgeleitet). Alles hier ist nur an `symfony/demo` getestet (Kit). Auf Spryker: nicht getestet. Klappt es nicht, nimm den Ausweichweg, das Demo-Repo deiner Gruppe.
 
-**Wer einrichtet:** Am Montag von 11:20 bis 12:00 installiert Karsten Silz die Frameworks in die Repository-Kopien der Gruppen (Agenda). Abgeleitet: Die Schritte 1 und 2 laufen auf einem Branch der Kopie, der Branch kommt nach Bitbucket. Du holst ihn mit `git fetch` und `git switch <branch>`. Läuft das Framework um 12:00 nicht, nimmt deine Gruppe den Ausweichweg.
+**Wer einrichtet:** Am Montag installiert eine Person je Gruppe das Framework selbst. Die Schritte 1 und 2 laufen auf einem Branch der Kopie, den Namen erfahrt ihr im Workshop. Der Branch kommt nach Bitbucket, die anderen holen ihn mit `git fetch` und `git switch <branch>`. Die genauen Befehle stehen im Leitfaden eurer Gruppe. Läuft das Framework um 12:00 nicht, nimmt deine Gruppe den Ausweichweg.
 
 **Vorab von Lekkerland:** Testbefehl und PHP-Version deines Repos. Lekkerland nennt beide vor Montag. [fehlt: Testbefehl und PHP-Version des Spryker-Repos].
 
@@ -225,7 +225,7 @@ npx -y bmad-method@6.12.4 install --directory . --modules bmm \
   --tools github-copilot --user-name Team --yes
 ```
 
-Danach stellt Karsten Deutsch ein, für BMads Antworten und Dokumente, in `_bmad/custom/config.toml`. Diese Datei überschreibt der Installer nie:
+Danach stellst du Deutsch ein, für BMads Antworten und Dokumente, in `_bmad/custom/config.toml`. Diese Datei überschreibt der Installer nie:
 
 ```toml
 [core]

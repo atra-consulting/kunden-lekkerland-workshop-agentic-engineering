@@ -42,13 +42,48 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 | `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Lekkerland nennt ihn vor Montag. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
 | `<url-eurer-kopie>` | Die Klon-Adresse eurer Kopie, in Bitbucket unter „Clone“. |
 | `<ordner-eurer-kopie>` | Der Ordner, den `git clone` anlegt. |
-| `<branch-mit-bmad>` | Der Branch mit BMad. Karsten Silz nennt ihn um 12:00. |
+| `<branch-mit-bmad>` | Der Branch für BMad in eurer Kopie. Den Namen erfahrt ihr im Workshop. |
 | `<SCHLÜSSEL>` | Der Jira-Schlüssel des Tickets, etwa `ABC-123`. |
 | `<kurzer-name>` | Ein kurzer Name in Kleinbuchstaben mit Bindestrichen, etwa `abc-123` oder `lesezeit`. BMad nutzt ihn auch als `slug`. |
 
+## Einmalig: BMad installieren
+
+Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür Node.js, aber nur für die Installation.
+
+```bash
+git clone <url-eurer-kopie>
+cd <ordner-eurer-kopie>
+git switch -c <branch-mit-bmad>
+npx -y bmad-method@6.12.4 install --directory . --modules bmm --tools github-copilot --user-name Team --yes
+```
+
+- `--modules bmm` installiert das Modul `bmm` für Softwareprojekte. Das Modul `core` kommt immer dazu.
+- `--tools github-copilot` richtet die Skills und Agenten für die Copilot CLI ein.
+- `--user-name Team` landet als `user_name` in `_bmad/config.user.toml`.
+- `--yes` nimmt für alle übrigen Fragen die Vorgaben. In `_bmad/config.toml` steht danach `communication_language = "English"`.
+- BMad legt `.agents/skills/bmad-*` (im Demo-Repo 29 Skills), `.github/agents/` (5 Agenten) und `_bmad/` an.
+
+Danach stellst du Deutsch ein, für BMads Antworten und Dokumente. Das geht in `_bmad/custom/config.toml`, unter die Kommentare. Diese Datei überschreibt der Installer nie:
+
+```toml
+[core]
+communication_language = "German"
+document_output_language = "German"
+```
+
+Zum Schluss committest du und pushst den Branch:
+
+```bash
+git add -A && git commit -m "BMad 6.12.4 mit Deutsch als Sprache"
+git push -u origin <branch-mit-bmad>
+```
+
+- `git push -u origin` legt den Branch in Bitbucket an. Erst danach können die anderen ihn holen.
+- Scheitert `git commit` an den Git-Hooks eures Repos, schalte sie in deinem Klon ab: `git config core.hooksPath /dev/null`. Mehr dazu unter „Einrichten“.
+
 ## Einrichten
 
-Karsten Silz installiert BMad zwischen 11:20 und 12:00 auf einem Branch eurer Kopie und pusht ihn nach Bitbucket. Jede Person der Gruppe klont die Kopie und holt diesen Branch:
+Zuerst installiert eine Person eurer Gruppe BMad auf dem Branch `<branch-mit-bmad>` und pusht ihn nach Bitbucket, siehe „Einmalig: BMad installieren“. Danach klont jede andere Person die Kopie und holt diesen Branch:
 
 ```bash
 git clone <url-eurer-kopie>
@@ -59,6 +94,7 @@ copilot skill list
 <testbefehl>
 ```
 
+- Wer BMad installiert hat, hat Klon und Branch schon und beginnt bei `git status --short`.
 - `git switch` findet den Branch in Bitbucket von selbst. Klappt das nicht, gib vorher `git fetch` ein.
 - `git status --short` gibt nichts aus.
 - `copilot skill list` zeigt die Skills `bmad-*`.
@@ -252,32 +288,6 @@ Runde 2 ist fertig. Gib `/exit` ein.
 | Runde 2: `/bmad-build-auto` | 6 Minuten | 69,6 |
 
 Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Beide Läufe von `/bmad-build-auto` zusammen kosteten dort gut drei Viertel aller AI Credits. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD. Mehr zu Kosten steht in der [gemeinsamen Anleitung](anleitung-copilot-cli.md).
-
-## So installiert Karsten BMad in eure Kopie
-
-Dieselben Befehle wie im Demo-Repo. Du brauchst sie nicht auszuführen. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür Node.js, aber nur für die Installation.
-
-```bash
-cd <ordner-eurer-kopie>
-git switch -c <branch-mit-bmad>
-npx -y bmad-method@6.12.4 install --directory . --modules bmm --tools github-copilot --user-name Team --yes
-```
-
-- `--modules bmm` installiert das Modul `bmm` für Softwareprojekte. Das Modul `core` kommt immer dazu.
-- `--tools github-copilot` richtet die Skills und Agenten für die Copilot CLI ein.
-- `--user-name Team` landet als `user_name` in `_bmad/config.user.toml`.
-- `--yes` nimmt für alle übrigen Fragen die Vorgaben. In `_bmad/config.toml` steht danach `communication_language = "English"`.
-- BMad legt `.agents/skills/bmad-*` (im Demo-Repo 29 Skills), `.github/agents/` (5 Agenten) und `_bmad/` an.
-
-Danach stellt Karsten Deutsch ein, für BMads Antworten und Dokumente. Das geht in `_bmad/custom/config.toml`, unter die Kommentare. Diese Datei überschreibt der Installer nie:
-
-```toml
-[core]
-communication_language = "German"
-document_output_language = "German"
-```
-
-Zum Schluss: `git add -A && git commit -m "BMad 6.12.4 mit Deutsch als Sprache"`.
 
 ## Am Dienstag: die Fabrik
 

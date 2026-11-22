@@ -251,9 +251,9 @@ document_output_language = "German"
 
 | Gruppe | Repo | Framework | Skills | Commit, nur zur Kontrolle |
 |---|---|---|---|---|
-| OpenSpec | <https://github.com/atra-consulting/sdd-demo-openspec> | OpenSpec 2.0.0, alle 12 Workflows | 12 | `8ec5748` |
-| Spec Kit | <https://github.com/atra-consulting/sdd-demo-speckit> | Spec Kit 1.4.0, Erweiterung `bug` 1.0.2 | 12 | `2554cd2` |
-| BMad | <https://github.com/atra-consulting/sdd-demo-bmad> | BMad 6.12.4, Module `core` und `bmm` | 29 | `217d6e1` |
+| OpenSpec | <https://github.com/atra-consulting/sdd-demo-openspec> | OpenSpec 2.0.0, alle 12 Workflows | 12 | `0a45cc2` |
+| Spec Kit | <https://github.com/atra-consulting/sdd-demo-speckit> | Spec Kit 1.4.0, Erweiterung `bug` 1.0.2 | 12 | `7b57ab6` |
+| BMad | <https://github.com/atra-consulting/sdd-demo-bmad> | BMad 6.12.4, Module `core` und `bmm` | 29 | `f3946cd` |
 
 Klonen:
 

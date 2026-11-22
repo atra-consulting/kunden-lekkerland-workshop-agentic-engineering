@@ -29,8 +29,9 @@ Spec Kit hat keine eingebaute Freigabe. Nach jeder Phase prüfst du selbst.
 ## Voraussetzungen
 
 - **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet. Siehe [gemeinsame Anleitung](anleitung-copilot-cli.md).
-- **bash und git.** Spec Kits Skills rufen Skripte in `.specify/scripts/bash/` auf. `jq` hilft, ist aber nicht nötig.
-- **Was euer Repo braucht,** etwa PHP in der passenden Version. Lekkerland nennt die PHP-Version und den Testbefehl vor Montag. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
+- **bash und git.** Spec Kits Skills rufen Skripte in `.specify/scripts/bash/` auf.
+- **jq, optional.** Spec Kits Skripte lesen damit JSON. Fehlt jq, nehmen sie python3. Installiere jq mit `brew install jq`.
+- **Was euer Repo braucht,** etwa PHP in der passenden Version. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
 
 ## Platzhalter
 
@@ -38,7 +39,7 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 
 | Platzhalter | Was du einsetzt |
 |---|---|
-| `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Lekkerland nennt ihn vor Montag. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
+| `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
 | `<url-eurer-kopie>` | Die Klon-Adresse eurer Kopie, in Bitbucket unter „Clone“. |
 | `<ordner-eurer-kopie>` | Der Ordner, den `git clone` anlegt. |
 | `<branch-mit-spec-kit>` | Der Branch für Spec Kit in eurer Kopie. Den Namen erfahrt ihr im Workshop. |
@@ -48,7 +49,7 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 
 ## Einmalig: Spec Kit installieren
 
-Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür [uv](https://docs.astral.sh/uv/).
+Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür uv. Installiere es mit `brew install uv`.
 
 ```bash
 uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@v1.4.0"
@@ -253,7 +254,7 @@ Der Bericht zeigt Lücken und Widersprüche zwischen Spezifikation, Plan und Auf
 
 ### 7. Umsetzen
 
-Ab jetzt schreibt Copilot Code und startet Tests. Hänge an jeden Umsetzungs-Prompt die zweite Zeile an, wie hier. Ohne sie sucht sich das Modell selbst einen Testbefehl aus.
+Ab jetzt ändert Copilot euren Code und startet Tests. Bis hier hat es nur gelesen und Dokumente geschrieben. Hänge an jeden Umsetzungs-Prompt die zweite Zeile an, wie hier. Ohne sie sucht sich das Modell selbst einen Testbefehl aus.
 
 ```text
 /speckit-implement

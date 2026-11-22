@@ -24,15 +24,16 @@ OpenSpec hat keine eingebaute Freigabe. Nach jedem Schritt prüfst du selbst.
 ## Voraussetzungen
 
 - **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet. Siehe [gemeinsame Anleitung](anleitung-copilot-cli.md).
-- **Node.js 22.12 oder neuer** und die **OpenSpec-CLI 2.0.0**. Die Skills rufen `openspec` auf. Ohne die CLI fehlt ihnen der Stand der Änderungen.
+- **Node.js 22.12 oder neuer** und die **OpenSpec-CLI 2.0.0**, das Programm `openspec`. Die Skills brauchen es für ihre Arbeit. `openspec new change` legt den Ordner einer Änderung an. `openspec status` zeigt, welche Dateien und Aufgaben einer Änderung schon fertig sind. Ohne das Programm laufen die Skills nicht.
 
   ```bash
+  brew install node
   npm install -g @fission-ai/openspec@2.0.0
   export OPENSPEC_TELEMETRY=0   # schaltet OpenSpecs anonyme Nutzungsdaten ab
   openspec --version            # 2.0.0
   ```
 
-- **Was euer Repo braucht,** etwa PHP in der passenden Version. Lekkerland nennt die PHP-Version und den Testbefehl vor Montag. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
+- **Was euer Repo braucht,** etwa PHP in der passenden Version. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
 
 ## Platzhalter
 
@@ -40,7 +41,7 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 
 | Platzhalter | Was du einsetzt |
 |---|---|
-| `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Lekkerland nennt ihn vor Montag. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
+| `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
 | `<url-eurer-kopie>` | Die Klon-Adresse eurer Kopie, in Bitbucket unter „Clone“. |
 | `<ordner-eurer-kopie>` | Der Ordner, den `git clone` anlegt. |
 | `<branch-mit-openspec>` | Der Branch für OpenSpec in eurer Kopie. Den Namen erfahrt ihr im Workshop. |
@@ -51,36 +52,47 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 
 ## Einmalig: OpenSpec installieren
 
-Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor.
+Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Node.js und die OpenSpec-CLI hast du schon, siehe „Voraussetzungen“.
 
-Ohne weitere Einstellung installiert OpenSpec nur 6 seiner 12 Workflows (Labortest). `/openspec-verify-change` gehört nicht dazu. Für alle 12 legst du vorher OpenSpecs Benutzer-Einstellungen an, die Datei `~/.config/openspec/config.json`. Ist die Variable `XDG_CONFIG_HOME` gesetzt, liest OpenSpec stattdessen `$XDG_CONFIG_HOME/openspec/config.json` (Quellcode von OpenSpec 2.0.0). Die Datei ist nicht die `openspec/config.yaml` im Repo:
+**Schritt 1: Alle 12 Workflows einschalten.** Ohne diesen Schritt richtet OpenSpec nur 6 ein, und `/openspec-verify-change` fehlt (Labortest). Lege dafür in deinem Home-Ordner die Datei `~/.config/openspec/config.json` an. Sie gehört nicht ins Repo. Gib im Terminal ein:
 
-```json
+```bash
+mkdir -p ~/.config/openspec
+cat > ~/.config/openspec/config.json <<'EOF'
 {
   "profile": "custom",
   "workflows": ["propose", "explore", "new", "continue", "apply", "update", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"],
   "telemetry": { "enabled": false }
 }
+EOF
 ```
 
-Dann:
+**Schritt 2: Die Kopie klonen und den Branch anlegen.**
 
 ```bash
-npm install -g @fission-ai/openspec@2.0.0
-export OPENSPEC_TELEMETRY=0
 git clone <url-eurer-kopie>
 cd <ordner-eurer-kopie>
 git switch -c <branch-mit-openspec>
+```
+
+**Schritt 3: OpenSpec ins Repo installieren.**
+
+```bash
 openspec init --tools github-copilot --no-copilot-cloud --no-animation .
 openspec update .
+ls .agents/skills/
+```
+
+`ls` zeigt 12 Ordner `openspec-*`, darunter `openspec-verify-change`. Zeigt es nur 6, prüfe Schritt 1 und gib `openspec update .` noch einmal ein.
+
+**Schritt 4: Committen und pushen.**
+
+```bash
 git add -A && git commit -m "OpenSpec 2.0.0 mit allen 12 Workflows"
 git push -u origin <branch-mit-openspec>
 ```
 
-- `openspec init` legt `openspec/` und die Skills in `.agents/skills/` an. `--tools github-copilot` wählt die Copilot CLI. `--no-copilot-cloud` lässt den Cloud-Agenten von Copilot aus.
-- `openspec update .` richtet die Workflows aus der Datei oben ein.
-- `git push -u origin` legt den Branch in Bitbucket an. Erst danach können die anderen ihn holen.
-- Scheitert `git commit` an den Git-Hooks eures Repos, schalte sie in deinem Klon ab: `git config core.hooksPath /dev/null`. Mehr dazu unter „Einrichten“.
+Erst danach holen die anderen den Branch. Scheitert `git commit` an den Git-Hooks eures Repos, schalte sie in deinem Klon ab: `git config core.hooksPath /dev/null`. Mehr dazu unter „Einrichten“.
 
 ## Einrichten
 
@@ -234,7 +246,7 @@ TICKET>>>
 
 **Was du sehen solltest (im Demo-Repo 2–4 Minuten):**
 
-- Copilot liest den Code und legt die Änderung an, etwa mit `openspec new change "<name>"`.
+- Copilot liest euren Code und legt die Änderung an, etwa mit `openspec new change "<name>"`. Den Code ändert es dabei nicht.
 - Fünf bis acht Rückfragen zu `mkdir` und neuen Dateien.
 - `openspec/changes/<name>/` mit `proposal.md`, `design.md`, `tasks.md` und `specs/…/spec.md`. Noch kein Code.
 
@@ -246,7 +258,7 @@ Lies `proposal.md` und `tasks.md`. Hat Copilot Standardwerte gewählt, die das T
 
 ### 4. Umsetzen
 
-Ab jetzt schreibt Copilot Code und startet Tests. Hänge an jeden Umsetzungs-Prompt die zweite Zeile an, wie hier. Ohne sie sucht sich das Modell selbst einen Testbefehl aus.
+Ab jetzt ändert Copilot euren Code und startet Tests. Bis hier hat es nur gelesen und die Dateien der Änderung geschrieben. Hänge an jeden Umsetzungs-Prompt die zweite Zeile an, wie hier. Ohne sie sucht sich das Modell selbst einen Testbefehl aus.
 
 ```text
 /openspec-apply-change <name>

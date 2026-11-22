@@ -8,16 +8,16 @@ Am Montag arbeitet deine Gruppe mit der **BMad-Methode 6.12.4** und der **GitHub
 
 ## BMad in Kürze
 
-BMad deckt den ganzen Weg ab, von der Idee bis zum geprüften Code. Es kennt zwei Phasen, **Planen** und **Liefern**, dazu Skills für jederzeit. Fünf Agenten mit Rollen helfen dir, etwa John (Product Manager) und Amelia (Developer). Die Ergebnisse schreibt BMad nach `_bmad-output/`.
+BMad deckt den ganzen Weg ab, von der Idee bis zum geprüften Code. Es kennt zwei Phasen, **Planen** und **Liefern**. Dazu kommen Skills, die du in jeder Phase aufrufen kannst, etwa `/bmad-help`. Fünf Agenten mit Rollen helfen dir, etwa John (Product Manager) und Amelia (Developer). Die Ergebnisse schreibt BMad nach `_bmad-output/`.
 
 | Phase | Befehl | Ergebnis |
 |---|---|---|
 | Regeln, einmal pro Repo | `/bmad-project-context` | Block in `AGENTS.md` |
 | Planen: Anforderungen | `/bmad-prd` | `prd.md` |
-| Jederzeit: Spezifikation | `/bmad-spec` | `SPEC.md` |
+| In jeder Phase: Spezifikation | `/bmad-spec` | `SPEC.md` |
 | Liefern: umsetzen | `/bmad-build` (im Gespräch) oder `/bmad-build-auto` (ohne Gespräch) | Code, Tests, Prüfbefunde, Commit |
 | Liefern: prüfen, optional | `/bmad-walkthrough`, `/bmad-code-review` | Rundgang, Befunde |
-| Jederzeit: Hilfe | `/bmad-help` | Empfehlung für den nächsten Skill |
+| In jeder Phase: Hilfe | `/bmad-help` | Empfehlung für den nächsten Skill |
 
 Für größere Vorhaben kennt BMad weitere Skills, etwa für Architektur, Epics und Sprints. Am Montag brauchst du sie nicht.
 
@@ -30,8 +30,8 @@ Freigeben musst du trotzdem selbst. Nach jedem Schritt prüfst du.
 ## Voraussetzungen
 
 - **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet. Siehe [gemeinsame Anleitung](anleitung-copilot-cli.md).
-- **uv.** Die Skills starten Python-Skripte mit `uv run`. uv holt sich das passende Python selbst. Node.js brauchst du zum Arbeiten nicht.
-- **Was euer Repo braucht,** etwa PHP in der passenden Version. Lekkerland nennt die PHP-Version und den Testbefehl vor Montag. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
+- **uv.** Die Skills starten Python-Skripte mit `uv run`. uv holt sich das passende Python selbst. Installiere uv mit `brew install uv`. Node.js brauchst du zum Arbeiten nicht.
+- **Was euer Repo braucht,** etwa PHP in der passenden Version. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
 
 ## Platzhalter
 
@@ -39,7 +39,7 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 
 | Platzhalter | Was du einsetzt |
 |---|---|
-| `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Lekkerland nennt ihn vor Montag. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
+| `<testbefehl>` | Der Befehl, mit dem ihr eure Tests startet. Laufen eure Tests in Docker, nimm den ganzen Befehl, den du dafür im Terminal tippst. Dauert der ganze Lauf lange, nimm einen Befehl nur für das betroffene Modul. |
 | `<url-eurer-kopie>` | Die Klon-Adresse eurer Kopie, in Bitbucket unter „Clone“. |
 | `<ordner-eurer-kopie>` | Der Ordner, den `git clone` anlegt. |
 | `<branch-mit-bmad>` | Der Branch für BMad in eurer Kopie. Den Namen erfahrt ihr im Workshop. |
@@ -49,7 +49,7 @@ In Befehlen und Prompts stehen Platzhalter in spitzen Klammern. Setze dort deine
 
 ## Einmalig: BMad installieren
 
-Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür Node.js, aber nur für die Installation.
+Das macht eine Person eurer Gruppe, vor allen anderen Schritten. Es sind dieselben Befehle wie im Demo-Repo. Für ein weiteres eigenes Repo gehst du genauso vor. Du brauchst dafür Node.js, aber nur für die Installation. Installiere es mit `brew install node`.
 
 ```bash
 git clone <url-eurer-kopie>
@@ -251,7 +251,7 @@ Lies `SPEC.md` und committe. Damit gibst du die Spezifikation frei, und dein Sta
 
 `/bmad-build-auto` setzt ohne Gespräch um, prüft mit Subagenten und committet. Es braucht einen eigenen Branch. Den hast du zu Beginn der Runde angelegt.
 
-Ab jetzt schreibt Copilot Code und startet Tests. Hänge an den Prompt die beiden Zeilen unter dem Befehl an, wie hier. Ohne „Arbeite jede Schrittdatei…“ kürzte das Modell im Vortest den Ablauf ab und übersprang die Prüfung. Ohne die Zeile mit dem Testbefehl sucht es sich selbst einen aus.
+Ab jetzt ändert Copilot euren Code und startet Tests. Bis hier hat es nur gelesen und Dokumente geschrieben. Hänge an den Prompt die beiden Zeilen unter dem Befehl an, wie hier. Ohne „Arbeite jede Schrittdatei…“ kürzte das Modell im Vortest den Ablauf ab und übersprang die Prüfung. Ohne die Zeile mit dem Testbefehl sucht es sich selbst einen aus.
 
 ```text
 /bmad-build-auto Die freigegebene Spezifikation ist _bmad-output/specs/spec-<kurzer-name>/SPEC.md.

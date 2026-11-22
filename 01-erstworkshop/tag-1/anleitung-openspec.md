@@ -3,7 +3,6 @@
 Am Montag arbeitet deine Gruppe mit **OpenSpec 2.0.0** und der **GitHub Copilot CLI** in ihrer eigenen Repository-Kopie, an euren eigenen Jira-Tickets. Das ist Plan A.
 
 - **Plan B:** Läuft OpenSpec um 12:00 nicht in eurer Kopie, wechselt ihr ins Demo-Repo [`sdd-demo-openspec`](https://github.com/atra-consulting/sdd-demo-openspec). Sein README führt durch dieselben Schritte, mit fertigen Aufgaben.
-- **Grundlagen:** Zugang, Installation von Copilot CLI, Werkzeuge, Anmelden und Kosten stehen in der [gemeinsamen Anleitung zu Copilot CLI](anleitung-copilot-cli.md). Dieser Leitfaden zeigt nur, was OpenSpec betrifft.
 - **Getestet:** Alle Werte stammen aus dem Demo-Repo, einer Symfony-App mit 53 Tests, mit Copilot CLI 1.0.112 und 1.0.114. In eurem Repo hat niemand OpenSpec getestet.
 
 ## OpenSpec in Kürze
@@ -23,7 +22,7 @@ OpenSpec hat keine eingebaute Freigabe. Nach jedem Schritt prüfst du selbst.
 
 ## Voraussetzungen
 
-- **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet. Siehe [gemeinsame Anleitung](anleitung-copilot-cli.md).
+- **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet.
 - **Node.js 22.12 oder neuer** und die **OpenSpec-CLI 2.0.0**, das Programm `openspec`. Die Skills brauchen es für ihre Arbeit. `openspec new change` legt den Ordner einer Änderung an. `openspec status` zeigt, welche Dateien und Aufgaben einer Änderung schon fertig sind. Ohne das Programm laufen die Skills nicht.
 
   ```bash
@@ -312,7 +311,7 @@ OpenSpec hat keinen eigenen Weg für Bugs. Der kurze Weg ist derselbe Ablauf ohn
 | Runde 2: Archivieren | etwa 1 Minute | 36,3 |
 | Erkunden | 13–36 s | 13,7–14,0 |
 
-Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Das Archivieren kostete dort mehr als das Vorschlagen. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD. Mehr zu Kosten steht in der [gemeinsamen Anleitung](anleitung-copilot-cli.md).
+Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Das Archivieren kostete dort mehr als das Vorschlagen. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD.
 
 ## Am Dienstag: die Fabrik
 

@@ -3,7 +3,6 @@
 Am Montag arbeitet deine Gruppe mit **Spec Kit 1.4.0** und der **GitHub Copilot CLI** in ihrer eigenen Repository-Kopie, an euren eigenen Jira-Tickets. Das ist Plan A.
 
 - **Plan B:** Läuft Spec Kit um 12:00 nicht in eurer Kopie, wechselt ihr ins Demo-Repo [`sdd-demo-speckit`](https://github.com/atra-consulting/sdd-demo-speckit). Sein README führt durch dieselben Schritte, mit fertigen Aufgaben.
-- **Grundlagen:** Zugang, Installation von Copilot CLI, Werkzeuge, Anmelden und Kosten stehen in der [gemeinsamen Anleitung zu Copilot CLI](anleitung-copilot-cli.md). Dieser Leitfaden zeigt nur, was Spec Kit betrifft.
 - **Getestet:** Alle Werte stammen aus dem Demo-Repo, einer Symfony-App mit 53 Tests, mit Copilot CLI 1.0.112 und 1.0.114. In eurem Repo hat niemand Spec Kit getestet.
 
 ## Spec Kit in Kürze
@@ -28,7 +27,7 @@ Spec Kit hat keine eingebaute Freigabe. Nach jeder Phase prüfst du selbst.
 
 ## Voraussetzungen
 
-- **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet. Siehe [gemeinsame Anleitung](anleitung-copilot-cli.md).
+- **Copilot CLI:** Du hast sie eingerichtet und dich angemeldet.
 - **bash und git.** Spec Kits Skills rufen Skripte in `.specify/scripts/bash/` auf.
 - **jq, optional.** Spec Kits Skripte lesen damit JSON. Fehlt jq, nehmen sie python3. Installiere jq mit `brew install jq`.
 - **Was euer Repo braucht,** etwa PHP in der passenden Version. Dieser Leitfaden schreibt `<testbefehl>` für euren Testbefehl, siehe „Platzhalter“.
@@ -319,7 +318,7 @@ Runde 2 ist fertig. Gib `/exit` ein.
 | Runde 1, optional: Klären, Checkliste, Analysieren, Nachziehen mit zweitem Umsetzen | etwa 7 Minuten | 33,9 |
 | Runde 2, Bug: `bug-assess`, `bug-fix`, `bug-test` | etwa 5,5 Minuten | 33,6 |
 
-Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD. Mehr zu Kosten steht in der [gemeinsamen Anleitung](anleitung-copilot-cli.md).
+Die Werte stammen aus einem Test am 21. November 2026 mit Copilot CLI 1.0.114, an zwei kleinen Aufgaben in einer Symfony-App. Euer Repo ist vermutlich größer. Größerer Kontext kostet mehr AI Credits (abgeleitet). Deinen Verbrauch zeigt Copilot unten rechts als „Session: … AIC used“ und nach `/exit`. Über das Kontingent eurer Firma hinaus kostet ein AI Credit 0,01 USD.
 
 ## Am Dienstag: die Fabrik
 

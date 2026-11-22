@@ -222,11 +222,19 @@ BMad:
 
 ```bash
 npx -y bmad-method@6.12.4 install --directory . --modules bmm \
-  --tools github-copilot --user-name kit --yes
+  --tools github-copilot --user-name Team --yes
+```
+
+Danach stellt Karsten Deutsch ein, für BMads Antworten und Dokumente, in `_bmad/custom/config.toml`. Diese Datei überschreibt der Installer nie:
+
+```toml
+[core]
+communication_language = "German"
+document_output_language = "German"
 ```
 
 - Das Kit installiert die Werkzeuge in seinen Ordner `.tools/`, nicht global. Wohin sie bei dir kommen, wählst du selbst (nicht getestet).
-- `--user-name kit` stammt aus dem Kit.
+- So ist auch das Demo-Repo `sdd-demo-bmad` eingerichtet. Im Labortest lief nur die Variante des Kits, mit `--user-name kit` und ohne die deutsche Einstellung.
 
 | Framework | Neue Dateien im Repo (Kit) |
 |---|---|

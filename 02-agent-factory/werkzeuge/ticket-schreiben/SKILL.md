@@ -92,6 +92,7 @@ Gib dem Framework die Absicht und deinen Befund aus Schritt 3 mit. Für alle Fra
 | `openspec` | `openspec-explore` als Denkpartner, bis die Person sagt, dass es klar ist. Dann die Schritte von `openspec-propose`, aber nur `proposal.md` und die Spec-Deltas. `design.md` und `tasks.md` schreibt später die Factory. | `openspec/changes/<name>/` |
 | `bmad` | `bmad-forge-idea` mit dem Ziel „besser machen“, für eine Änderung an diesem Projekt. Ende „Hardened“ schreibt `forged-idea.md`. Den HTML-Bericht brauchst du nicht. Dann `bmad-spec` im Express-Modus mit `forged-idea.md` als Eingabe. | `_bmad-output/.../SPEC.md` |
 
+Danach zeigst du die **Annahmen**, die das Framework ohne Rückfrage getroffen hat, als kurze Liste. Beispiele: Lesegeschwindigkeit, betroffene Sprachen, Seiten oder Rollen. Lass die Person jede bestätigen oder ändern.
 Fragt das Framework nicht nach einem Punkt, der in Schritt 5 offen wäre, frag selbst nach.
 
 ## Schritt 5: Reife-Check
@@ -140,7 +141,7 @@ Schreib `ticket-entwurf.md` ins Wurzelverzeichnis des Repos, in genau diesem For
 - Kein Markdown außer `#`, `##`, `-` und `` `Code` ``. Keine Links in der Form `[x]: y`.
 - Keine internen Namen, Kundendaten oder Zugangsdaten.
 
-Zeig der Person den ganzen Text. Frag: „Soll ich das Ticket so in <jira_project> anlegen?“ Ändere den Entwurf, bis sie zustimmt.
+Zeig der Person im Chat die Reife-Tabelle aus Schritt 5 und den ganzen Ticket-Text, nicht nur den Dateinamen. Erst dann frag: „Soll ich das Ticket so in <jira_project> anlegen?“ Ändere den Entwurf, bis sie zustimmt.
 
 ## Schritt 7: In Jira anlegen
 
@@ -159,8 +160,8 @@ Das Ticket startet im ersten Status des Projekts, bei der Factory „Definition�
 
 ## Schritt 8: Aufräumen
 
-1. Führe `python3 -I SKILL_DIR/arbeitsstand.py zeigen` aus. Zeig der Person die Liste.
-2. Führe `python3 -I SKILL_DIR/arbeitsstand.py aufraeumen --ja` aus.
+1. Führe `python3 -I SKILL_DIR/arbeitsstand.py zeigen` aus. Zeig der Person die Liste im Chat.
+2. Führe `python3 -I SKILL_DIR/arbeitsstand.py aufraeumen --ja` aus, als eigenen Befehl.
 3. Führe `git status --short` aus. Es muss so aussehen wie in Schritt 1.
 
 Endet `aufraeumen` mit Exit-Code 1, sag der Person, was übrig ist. Lösche nichts von Hand.

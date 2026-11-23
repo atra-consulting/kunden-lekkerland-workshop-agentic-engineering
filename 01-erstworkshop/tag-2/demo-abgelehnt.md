@@ -2,7 +2,7 @@
 
 Tag 2, 09:15. Karsten setzt ein vages Ticket auf „Bereit“. Die Bereitschaftsprüfung lehnt es ab. Dann macht er es konkret, und es kommt durch.
 
-- Ticket: [FLAB-40 „Suche verbessern“](https://betterprojectsfaster.atlassian.net/browse/FLAB-40), Label `sdd-openspec`
+- Ticket: [FLAB-42 „Suche verbessern“](https://betterprojectsfaster.atlassian.net/browse/FLAB-42), Label `sdd-openspec`
 - Läufe: [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines)
 - Die Kriterien: [`factory/readiness.md`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/readiness.md), erklärt in [Ticket-Bereitschaft](../../02-agent-factory/bedienung/ticket-bereitschaft.md)
 
@@ -12,10 +12,10 @@ Den Status ändert ihr im Ticket über den Statusknopf neben dem Titel. Direkte 
 
 | Schritt | Status danach | Wer | Was passiert | Wo ihr es seht |
 |---|---|---|---|---|
-| 1 | Definition | Mensch | Das Ticket: „Die Suche im Blog soll besser werden. Leser finden oft nicht, was sie suchen.“ | [FLAB-40](https://betterprojectsfaster.atlassian.net/browse/FLAB-40) |
+| 1 | Definition | Mensch | Das Ticket: „Die Suche im Blog soll besser werden. Leser finden oft nicht, was sie suchen.“ | [FLAB-42](https://betterprojectsfaster.atlassian.net/browse/FLAB-42) |
 | 2 | Bereit | Mensch | Übergang **„Bereit“**. Flow 1 startet `factory-spec` | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
 | 3 | Bereit | Factory | Lauf 1: Copilot prüft Ticket und Code. Urteil: nicht bereit. OpenSpec läuft gar nicht erst | das Protokoll des Laufs |
-| 4 | In Arbeit, dann Klärung nötig | `factory-bot` | Kommentar `FACTORY-NOT-READY v1`, erwartet: `missing_detail` und `untestable`, dazu Fragen. Keine Spec, kein Code, kein Branch | Kommentar in [FLAB-40](https://betterprojectsfaster.atlassian.net/browse/FLAB-40) |
+| 4 | In Arbeit, dann Klärung nötig | `factory-bot` | Kommentar `FACTORY-NOT-READY v1`, erwartet: `missing_detail` und `untestable`, dazu Fragen. Keine Spec, kein Code, kein Branch | Kommentar in [FLAB-42](https://betterprojectsfaster.atlassian.net/browse/FLAB-42) |
 
 Das dauert etwa eine bis zwei Minuten und kostet etwa 10 Credits.
 

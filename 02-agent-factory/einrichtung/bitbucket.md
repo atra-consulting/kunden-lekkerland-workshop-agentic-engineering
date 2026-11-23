@@ -7,7 +7,7 @@ Reihenfolge: Schritte 1 bis 3 hier, dann [Jira, Teil A](jira.md#teil-a-workflow-
 ## Vor dem Start
 
 - [ ] Vor Schritt 4: [Jira, Teil A](jira.md#teil-a-workflow-einrichten) erledigt. Daraus brauchst du: Projektschlüssel, acht Status-IDs, fünf Übergangs-IDs, Account-IDs der Freigabe-Personen und von `factory-bot`.
-- [ ] Bitbucket Cloud, Pipelines an, ein Repo für alle Gruppen. Ein Lauf gleichzeitig, über alle Gruppen. Ein parallel gestarteter Lauf bleibt an der Umgebungssperre stehen und läuft nicht weiter: nach dem ersten neu starten.
+- [ ] Bitbucket Cloud, Pipelines an, ein Repo für alle Gruppen. Alle Gruppen dürfen gleichzeitig starten. Die Schritte mit Secrets laufen nacheinander: Ein zweiter Lauf wartet („Queued“) und startet von selbst.
 - [ ] Schritte 1 bis 10 einmal für das Repo. Ein Image, eine `config.json` mit Repo und Reviewern.
 - [ ] Du hast Admin-Rechte für den Bitbucket-Workspace und das Repo. Teilnehmende bekommen kein Admin-Recht: Repository-Admins können Branch-Regeln aufheben. Prüfe, wer heute schon Admin im Repo ist.
 - [ ] Konto `factory-bot`: technischer Benutzer, einer für alle Gruppen, angelegt in [Jira, Teil A, Schritt 1](jira.md#schritt-1-factory-konto-anlegen-und-berechtigen). In Jira nur die Projektrolle „Factory“, in Bitbucket „Write“ auf das Repo, keine Standardgruppe. Offen, wie es ohne Standardgruppe Zugriff bekommt: siehe [Jira, Vor dem Start](jira.md#vor-dem-start).
@@ -44,7 +44,7 @@ Schütze `factory-base` sofort: Direkt pushen darf niemand. Zusammenführen nur 
 Ziel: Skripte, Konfiguration, Image-Dateien und Regel-Vorlagen aus dem Beispiel `factory-lab`, fester Commit. Im Ordner deines Repos. `../factory-lab` darf noch nicht existieren.
 ```bash
 git switch -c factory-setup factory-base
-H=0313c9776447516c51983789969148499c12c7c9
+H=feb39f5ec3bedfad04c028e52a02864c5545eb69
 git clone --no-checkout https://bitbucket.org/factory-lab/factory-lab.git ../factory-lab \
   && git -C ../factory-lab checkout --detach "$H" \
   && test "$(git -C ../factory-lab rev-parse HEAD)" = "$H" \
@@ -113,7 +113,7 @@ Ziel: Pipeline-Datei nur auf `factory-base`. Hat der Entwicklungs-Branch schon e
 - `__RUNSON__`, in jedem Schritt: eigener Runner `runs-on: [<Labels deines Runners>]`, etwa `runs-on: [self.hosted, linux.arm64]`. Cloud-Runner: Zeile löschen. Sie verbrauchen Build-Minuten des Plans, eigene Runner nicht.
 - Nie auf den Entwicklungs-Branch committen. Nie den Entwicklungs-Branch in `factory-base` zusammenführen, auch nicht per „Sync now“. Das kann die Pipeline-Datei löschen oder überschreiben; die Factory stoppt.
 
-**Prüfen:** Datei nicht leer. Nur `factory-spec` und `factory-build`, je mit `JIRA_KEY` und `FRAMEWORK`. Keine Default- oder Branch-Pipeline. Jeder Schritt mit eigenem `auth`-Block (Leserecht) und `max-time`.
+**Prüfen:** Datei nicht leer. Nur `factory-spec` und `factory-build`, je mit `JIRA_KEY` und `FRAMEWORK`. Keine Default- oder Branch-Pipeline. Jeder Schritt mit eigenem `auth`-Block (Leserecht) und `max-time`. Jeder Schritt mit `deployment:` hat `concurrency-group: factory`. Fester Name, keine Variablen: Bitbucket setzt sie dort nicht ein (getestet). Ohne diese Zeile hält ein zweiter Lauf dauerhaft an.
 
 ## Schritt 7: Per Pull Request nach factory-base bringen
 
@@ -217,9 +217,8 @@ unset TOKEN
 
 ## Wenn die Einrichtung nicht klappt
 
-Sind Blockaden aus „Vor dem Start“ noch offen: Teilnehmende nutzen das Lab von atra. Repository `factory-lab/factory-lab`, Jira-Projekt `FLAB`, App `symfony/demo`. Kein Code von Lekkerland im Lab. Ein Lauf gleichzeitig, denn alle Gruppen teilen ein Repository.
+Sind Blockaden aus „Vor dem Start“ noch offen: Teilnehmende nutzen das Lab von atra. Repository `factory-lab/factory-lab`, Jira-Projekt `FLAB`, App `symfony/demo`. Kein Code von Lekkerland im Lab. Läufe warten aufeinander wie oben.
 - **Nur Leserecht, nie „Write“.** „Write“ legt die Tokens der Factory offen. Repository und `FLAB` öffentlich lesbar, das Board nicht.
 - **Alles im Lab ist öffentlich:** keine internen Anforderungen, Namen oder Daten in Tickets.
-- **Runner muss laufen.** Er läuft auf einem Mac von atra, der wach bleiben muss. **Offen:** ob er während des Workshops läuft.
-- **Build-Minuten:** Ohne den Mac müsste atra die Pipeline-Datei auf Cloud-Runner umstellen. Dann reichen die 50 Build-Minuten des Free-Plans für etwa 10 Tickets.
+- **Cloud-Runner von Atlassian.** Ein Lauf braucht dort etwa 2 Build-Minuten. Die 50 Build-Minuten des Free-Plans im Monat reichen für etwa 10 Tickets mit Spec und Bau.
 - **Nur die Freigabe-Person von atra gibt frei.** In `FLAB` hat nur atra Schreibrechte: Tickets bewegen, freigeben, starten macht atra. Soll eine Freigabe-Person von Lekkerland freigeben, braucht es eine neue `config.json`, ein neues Image, einen neuen Digest (Schritte 4 bis 7) und die Regel in Jira.

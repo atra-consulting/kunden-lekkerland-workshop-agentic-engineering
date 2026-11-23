@@ -91,7 +91,7 @@ Ziel: Nur Freigabe-Personen geben frei, nie `factory-bot`. Setze beide Regeln au
 Ziel: Das Label am Ticket wählt das SDD-Framework. In Jira nichts vorab anlegen; Teilnehmende setzen das Label am Ticket. Labels: `sdd-openspec` (OpenSpec), `sdd-speckit` (Spec Kit), `sdd-bmad` (BMad). Gib den Teilnehmenden diese Regeln mit:
 
 - Genau ein Label am Ticket, oder `FRAMEWORK` beim Start per curl. Kein Label, zwei Labels oder ein unbekanntes `sdd-`-Label: Spec-Lauf stoppt.
-- Ein Lauf gleichzeitig, über alle Gruppen. Ein parallel gestarteter Lauf bleibt stehen und muss nach dem ersten neu gestartet werden. Mit Flows: nie zwei Tickets gleichzeitig auf „Bereit“ oder „Spec freigegeben“.
+- Mehrere Tickets dürfen gleichzeitig starten. Die Läufe warten aufeinander („Queued“) und starten von selbst.
 - Nach der Freigabe nichts an Beschreibung oder Labels ändern. Sonst bricht der Bau ab.
 - Beim Start per curl hat die Pipeline-Variable `FRAMEWORK` Vorrang vor dem Label.
 - Risiko: Wer Tickets bearbeiten darf, wählt das Framework. BMad erlaubt beliebiges Python (`shell(uv:*)`).

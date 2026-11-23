@@ -4,11 +4,11 @@
 
 **Frechen, 1. Juli 2027**
 
-Im November 2026 haben wir im Workshop Agentic Engineering eine Pressemitteilung aus der Zukunft geschrieben. Ihr Datum: 1. Juli 2027. Ihre Überschrift: „Lekkerland etabliert Agent Factories in allen Unternehmensbereichen“. Heute ist dieser Tag. Jeder Unternehmensbereich arbeitet mit mindestens einer eigenen Agent Factory. Zeit für eine offene Bilanz: was sich verändert hat, was wir messen und was schwierig war.
+Vor einem halben Jahr ist das Spryker-Team als Pilot mit der Agent Factory gestartet. Heute arbeitet jeder Unternehmensbereich mit mindestens einer eigenen Agent Factory. Zeit für eine offene Bilanz: was sich verändert hat, was wir messen und was schwierig war.
 
 ## Von einem Team zu allen Bereichen
 
-Am 1. Januar ist das Spryker-Team als Pilot gestartet. In Phase 2 folgten Frontend mit dem Angular-Monorepo, Microservices, das Plattform-Team sowie SAP und Java. Danach kamen die übrigen Bereiche dazu.
+Nach dem Spryker-Team folgten in Phase 2 Frontend mit dem Angular-Monorepo, Microservices, das Plattform-Team sowie SAP und Java. Danach kamen die übrigen Bereiche dazu.
 
 Nicht überall sieht die Factory gleich aus. Bei ABAP haben wir mit den Schritten von der Anforderung bis zur freigegebenen Spezifikation begonnen. Bauen, Prüfen und Transport blieben zunächst beim SAP-Team.
 

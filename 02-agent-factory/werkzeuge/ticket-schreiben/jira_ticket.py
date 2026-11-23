@@ -252,8 +252,25 @@ def als_wiki(text):
     return "\n\n".join(teile)
 
 
-def labels_fuer(cfg, extra):
-    labels = [f"sdd-{cfg['framework']}"] + list(cfg["labels"]) + list(extra or [])
+def adf_text(node):
+    """Klartext eines ADF-Knotens, wie ihn die Factory liest (factory/common.py, adf_text)."""
+    if node is None:
+        return ""
+    if isinstance(node, list):
+        return "".join(adf_text(n) for n in node)
+    t = node.get("type")
+    if t == "text":
+        return node.get("text", "")
+    if t == "hardBreak":
+        return "\n"
+    inner = adf_text(node.get("content", []))
+    if t in ("paragraph", "heading", "codeBlock", "listItem", "blockquote", "rule"):
+        return inner + "\n"
+    return inner
+
+
+def labels_fuer(cfg, extra, sdd=True):
+    labels = ([f"sdd-{cfg['framework']}"] if sdd else []) + list(cfg["labels"]) + list(extra or [])
     for x in labels:
         if not LABEL_RE.fullmatch(x):
             raise Fehler(f"Ungültiges Label: {x!r} (keine Leerzeichen)")
@@ -263,12 +280,12 @@ def labels_fuer(cfg, extra):
     return list(dict.fromkeys(labels))
 
 
-def payload(cfg, summary, beschreibung, cloud, extra_labels=None, typ=None, parent=None):
+def payload(cfg, summary, beschreibung, cloud, extra_labels=None, typ=None, parent=None, sdd=True):
     felder = {
         "project": {"key": cfg["jira_project"]},
         "issuetype": {"name": typ or cfg["issue_type"]},
         "summary": summary,
-        "labels": labels_fuer(cfg, extra_labels),
+        "labels": labels_fuer(cfg, extra_labels, sdd),
         "description": als_adf(beschreibung) if cloud else als_wiki(beschreibung),
     }
     if parent:
@@ -294,6 +311,8 @@ def cmd_pruefen(args, env=None):
     if typen and cfg["issue_type"] not in typen:
         raise Fehler(f"Vorgangstyp {cfg['issue_type']!r} fehlt im Projekt. Vorhanden: {', '.join(typen)}")
     print(f"Vorgangstyp: {cfg['issue_type']}")
+    if typen:
+        print(f"Alle Vorgangstypen: {', '.join(typen)}")
     print(f"Labels beim Anlegen: {', '.join(labels_fuer(cfg, []))}")
     print("OK")
     return 0
@@ -302,14 +321,15 @@ def cmd_pruefen(args, env=None):
 def cmd_anlegen(args, env=None):
     cfg = lade_config(args.config)
     summary, beschreibung = lese_entwurf(args.entwurf)
+    sdd = not args.ohne_sdd_label
     if args.dry_run:
         cloud = bool((os.environ if env is None else env).get("JIRA_EMAIL", "").strip())
-        daten = payload(cfg, summary, beschreibung, cloud, args.label, args.typ, args.parent)
+        daten = payload(cfg, summary, beschreibung, cloud, args.label, args.typ, args.parent, sdd)
         print(json.dumps(daten, ensure_ascii=False, indent=2))
         print("Probelauf: nichts angelegt.", file=sys.stderr)
         return 0
     z = Zugang(env)
-    daten = payload(cfg, summary, beschreibung, z.cloud, args.label, args.typ, args.parent)
+    daten = payload(cfg, summary, beschreibung, z.cloud, args.label, args.typ, args.parent, sdd)
     antwort = z.aufruf("POST", "/issue", daten, ok=(200, 201))
     key = antwort.get("key")
     if not key:
@@ -325,6 +345,23 @@ def cmd_anlegen(args, env=None):
     return 0
 
 
+def cmd_pruefdatei(args, env=None):
+    """Schreibt den Entwurf als JSON für `factory/local.py assess --ticket-file`. Braucht kein Jira."""
+    cfg = lade_config(args.config)
+    summary, beschreibung = lese_entwurf(args.entwurf)
+    daten = {
+        "key": f"{cfg['jira_project']}-0",  # Platzhalter: das Ticket gibt es noch nicht
+        "summary": summary,
+        "description": adf_text(als_adf(beschreibung)).strip(),
+        "labels": labels_fuer(cfg, args.label),
+    }
+    out = args.out or os.path.splitext(args.entwurf)[0] + ".json"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(daten, f, ensure_ascii=False, indent=1)
+    print(f"Prüfdatei: {out}")
+    return 0
+
+
 def parser():
     p = argparse.ArgumentParser(prog="jira_ticket.py", description="Legt ein Ticket für die Agent Factory in Jira an.")
     sub = p.add_subparsers(dest="befehl", required=True)
@@ -336,7 +373,13 @@ def parser():
     an.add_argument("--label", action="append", default=[], help="weiteres Label, mehrfach möglich")
     an.add_argument("--typ", help="Vorgangstyp statt dem aus der Konfiguration, z. B. Epic")
     an.add_argument("--parent", help="übergeordnetes Ticket, z. B. das Epic")
+    an.add_argument("--ohne-sdd-label", action="store_true", help="kein sdd-Label, etwa für ein Epic")
     an.add_argument("--dry-run", action="store_true", help="nur die Anfrage zeigen, nichts anlegen")
+    pd = sub.add_parser("pruefdatei", help="Entwurf als JSON für factory/local.py assess --ticket-file")
+    pd.add_argument("--config", default=".github/ticket-schreiben.json")
+    pd.add_argument("--entwurf", default="ticket-entwurf.md")
+    pd.add_argument("--label", action="append", default=[])
+    pd.add_argument("--out", help="Zieldatei, Standard: Entwurf mit .json")
     return p
 
 
@@ -348,7 +391,8 @@ def main(argv=None, env=None):
         pass
     args = parser().parse_args(argv)
     try:
-        return (cmd_pruefen if args.befehl == "pruefen" else cmd_anlegen)(args, env)
+        befehl = {"pruefen": cmd_pruefen, "anlegen": cmd_anlegen, "pruefdatei": cmd_pruefdatei}[args.befehl]
+        return befehl(args, env)
     except Fehler as e:
         print(f"Fehler: {e}", file=sys.stderr)
         return e.code

@@ -183,6 +183,29 @@ class PayloadTest(Basis):
         self.assertEqual(felder["issuetype"], {"name": "Epic"})
         self.assertEqual(felder["parent"], {"key": "FLAB-1"})
 
+    def test_epic_ohne_sdd_label(self):
+        FakeJira.antworten[("POST", "/rest/api/3/issue")] = (201, {"key": "FLAB-3"})
+        self.run_main(["anlegen", "--config", self.config, "--entwurf", self.entwurf, "--typ", "Epic",
+                       "--ohne-sdd-label"], self.env())
+        self.assertEqual(FakeJira.anfragen[0]["body"]["fields"]["labels"], ["test-nacht"])
+
+    def test_pruefdatei_fuer_local_py(self):
+        out = os.path.join(self.tmp.name, "pruef.json")
+        code, stdout, err = self.run_main(["pruefdatei", "--config", self.config, "--entwurf", self.entwurf,
+                                           "--out", out], {})
+        self.assertEqual(code, 0, err)
+        self.assertEqual(FakeJira.anfragen, [])
+        with open(out, encoding="utf-8") as f:
+            d = json.load(f)
+        self.assertEqual(sorted(d), ["description", "key", "labels", "summary"])
+        self.assertRegex(d["key"], r"^[A-Z][A-Z0-9]+-[0-9]+$")
+        self.assertEqual(d["summary"], "Lesezeit auf der Artikelseite anzeigen")
+        self.assertEqual(d["labels"], ["sdd-speckit", "test-nacht"])
+        # Klartext wie ihn die Factory aus ADF liest: Überschriften und Listenpunkte als eigene Zeilen
+        self.assertTrue(d["description"].startswith("Ziel\nLeser sehen vor dem Lesen"))
+        self.assertIn("\nWenn ein Artikel 400 Wörter hat, dann zeigt die Seite 2 Min. Lesezeit.\n", d["description"])
+        self.assertNotIn("##", d["description"])
+
     def test_zweites_sdd_label_wird_abgelehnt(self):
         code, _, err = self.run_main(["anlegen", "--config", self.config, "--entwurf", self.entwurf,
                                       "--label", "sdd-bmad"], self.env())

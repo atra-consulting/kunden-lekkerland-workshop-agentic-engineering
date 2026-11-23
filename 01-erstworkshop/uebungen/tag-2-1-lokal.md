@@ -51,10 +51,11 @@ copilot mcp list
 - Fehlt er, legt `~/.copilot/mcp-config.json` an. Gibt es die Datei schon, ergänzt den Server unter `mcpServers`:
 
   ```json
-  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v1/mcp", "tools": ["*"]}}}
+  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v2/mcp", "tools": ["getAccessibleAtlassianResources", "getJiraIssue", "createJiraIssue"]}}}
   ```
 
-- Habt ihr ihn an Tag 1 mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `createJiraIssue`.
+- Habt ihr ihn an Tag 1 mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `createJiraIssue`. Mehr Werkzeuge braucht ihr nicht; ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
+- Getestet ist der Abruf im Lab mit `https://mcp.atlassian.com/v1/mcp`. `/v2/mcp` ist der Nachfolger und noch nicht getestet. Klappt v2 nicht, nehmt `/v1/mcp`; Atlassian schaltet v1 am 1. März 2027 ab.
 - Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Danach `/exit`. Ein Aufruf mit `-p` kann die Anmeldung im Browser nicht abschließen.
 
 ## 4. Ticket über den Jira-MCP holen

@@ -237,4 +237,4 @@ Dieser Weg ist nur mit Unit-Tests geprüft, nicht im Lab gegen Jira.
 - Windows. Die Befehle für PowerShell sind nicht gelaufen.
 - Jira Data Center. Nur mit Unit-Tests gegen einen Fake-Server geprüft.
 - Epic und `--parent` gegen echtes Jira.
-- Ob die Prüfung der Factory die Tickets aus dem Skill als bereit durchlässt.
+- Die Prüfung der Factory in der Pipeline. Lokal lief sie mit `local.py assess` (siehe [Lokal ausführen](lokal-ausfuehren.md)) auf FLAB-30: Urteil „ready“, 11,08 Credits, 11 Sekunden. FLAB-28 und FLAB-29 liefen nicht durch die Prüfung.

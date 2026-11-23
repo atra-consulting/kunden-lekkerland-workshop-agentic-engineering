@@ -87,6 +87,11 @@ Nicht bereit ist ein Ticket, wenn mindestens eines von sechs Kriterien zutrifft:
 
 Steht ein Ticket in „Klärung nötig“, beantwortet ihr die Fragen in der Beschreibung und setzt es wieder auf „Bereit“. Das startet einen neuen Lauf mit einer neuen Prüfung.
 
+Zwei Beispiele aus dem Lab:
+
+- [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31) „Suche findet Beiträge auch über den Autornamen“: Die erste Fassung wollte nur eine „bessere Suche“. Die Prüfung lehnte ab (`missing_detail`, `untestable`) und nannte die drei Stellen im Code, an denen gesucht wird. Die zweite Fassung widersprach einem bestehenden Test (`contradicts_code`). Die dritte bestand die Prüfung und lief durch bis zum [Pull Request #26](https://bitbucket.org/factory-lab/factory-lab/pull-requests/26).
+- [FLAB-37](https://betterprojectsfaster.atlassian.net/browse/FLAB-37) „RSS-Feed für Blogbeiträge“: Den Feed gibt es schon. Die Prüfung lehnte ab (`already_exists`) und nannte Route, Template und den bestehenden Test.
+
 Die Kriterien stehen in einer einzigen Datei: [`factory/readiness.md`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/readiness.md). Ihr passt sie an euer Team an: [So passt ihr die Kriterien an](../../02-agent-factory/bedienung/ticket-bereitschaft.md#so-passt-ihr-die-kriterien-an).
 
 ### Freigabe 1: Die Spec

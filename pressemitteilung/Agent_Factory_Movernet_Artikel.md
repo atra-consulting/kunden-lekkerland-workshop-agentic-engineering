@@ -2,6 +2,9 @@
 
 **Frechen, 26. November 2026**
 
+
+![img.png](img.png)
+
 Künstliche Intelligenz wird bei Lekkerland zunehmend Teil des Arbeitsalltags. Damit alle Entwicklungsteams die Möglichkeiten von KI sicher, effizient und nach gemeinsamen Standards nutzen können, wurde die neue **Agent Factory** eingeführt.
 
 Was vor einem Jahr noch aus vielen einzelnen Experimenten bestand, ist heute eine gemeinsame Plattform für alle Entwicklungsteams. Die Agent Factory bündelt Regeln, Best Practices, Skills und automatisierte Qualitätsprüfungen in einem einheitlichen Ansatz. So entsteht eine verlässliche Grundlage, um KI erfolgreich in der Softwareentwicklung einzusetzen.

@@ -4,15 +4,15 @@ Tag 2, 24. November 2026. Dieses Dokument führt euch durch die Agent Factory im
 
 Das Lab arbeitet mit [`symfony/demo`](https://github.com/symfony/demo), einem kleinen PHP-Blog, nicht mit eurem Code. Eure eigene Factory richtet ihr später in eurem Bitbucket ein: [Einrichtung](../../02-agent-factory/einrichtung/README.md).
 
-Stand: 23. November 2026. Bilder ergänzen wir bis zum Workshop.
+Stand: 23. November 2026.
 
 ## Die Bausteine auf einen Blick
 
 | Baustein | Wo | Ohne Login sichtbar |
 |---|---|---|
 | Jira-Space „Factory Lab Public“ (FLAB) | Ticket-Seiten, z. B. [FLAB-22](https://betterprojectsfaster.atlassian.net/browse/FLAB-22) | Ja |
-| Kanban-Board | [FLAB board](https://betterprojectsfaster.atlassian.net/jira/software/c/projects/FLAB/boards/3) | Nein. Bild folgt |
-| Jira-Workflow und zwei Automation-Regeln | Space-Einstellungen | Nein. Bild folgt |
+| Kanban-Board | [FLAB board](https://betterprojectsfaster.atlassian.net/jira/software/c/projects/FLAB/boards/3) | Nein. [Bild](#so-sieht-es-in-jira-aus) |
+| Jira-Workflow und zwei Automation-Regeln | Space-Einstellungen | Nein. [Bilder](#so-sieht-es-in-jira-aus) |
 | Bitbucket-Repository `factory-lab/factory-lab`, Start-Branch `factory-base` | [Quellcode](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/) | Ja |
 | Pipeline-Definition | [`bitbucket-pipelines.yml`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/bitbucket-pipelines.yml) | Ja |
 | Die Skripte der Factory | [`factory/`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/), mit [README](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/README.md) | Ja |
@@ -23,6 +23,22 @@ Stand: 23. November 2026. Bilder ergänzen wir bis zum Workshop.
 
 Die Factory nutzt Copilot CLI mit dem Modell Claude Sonnet 5.5. Spec Kit, OpenSpec und BMad liegen fertig im Image. Welches Framework ein Lauf nutzt, bestimmt das Label am Ticket.
 
+### So sieht es in Jira aus
+
+Das Board mit der neuen Spalte „Klärung nötig“:
+
+![Das Kanban-Board von FLAB](bilder/board.png)
+
+Der Workflow. „Start“, „Spec fertig“, „Klärung nötig“ und „Bau fertig“ löst nur `factory-bot` aus. Den Notaus „Factory stoppen“ gibt es aus jedem Status; diese Ansicht zeigt ihn nicht.
+
+![Die Übergänge des Workflows](bilder/workflow.png)
+
+Die zwei Automation-Flows. Jeder startet bei einem Statuswechsel einen Lauf in Bitbucket Pipelines. Das Start-Token steht in einem versteckten Header.
+
+| Flow 1: Spec starten | Flow 2: Bau starten |
+|---|---|
+| ![Flow 1: von Definition oder Klärung nötig nach Bereit](bilder/flow-spec-starten.png) | ![Flow 2: von Wartet nach Bau](bilder/flow-bau-starten.png) |
+
 ## Der Ablauf an einem echten Ticket: FLAB-22
 
 FLAB-22 „Current year in the page footer“ lief am 23. November mit OpenSpec durch die Factory. Öffnet die Links nebeneinander und folgt dem Ticket.
@@ -30,7 +46,7 @@ FLAB-22 „Current year in the page footer“ lief am 23. November mit OpenSpec 
 | Schritt | Status in Jira | Wer | Was passiert | Wo ihr es seht |
 |---|---|---|---|---|
 | 1 | Definition | Mensch | Ticket mit Akzeptanzkriterien und genau einem Label, hier `sdd-openspec` | [FLAB-22](https://betterprojectsfaster.atlassian.net/browse/FLAB-22) |
-| 2 | Bereit | Mensch | Das Ticket auf „Bereit“ setzen. Eine Jira-Automation startet die Pipeline `factory-spec` | Bild folgt |
+| 2 | Bereit | Mensch | Das Ticket auf „Bereit“ setzen. Eine Jira-Automation startet die Pipeline `factory-spec` | [Bild: Flow 1](bilder/flow-spec-starten.png) |
 | 3 | Bereit | Factory | Lauf 1: Copilot schreibt die Spec mit OpenSpec. Die Factory prüft sie | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
 | 4 | In Arbeit, dann Wartet | `factory-bot` | Die Spec steht als Kommentar `FACTORY-SPEC v1` am Ticket und auf dem Branch `factory/FLAB-22` | Kommentar in [FLAB-22](https://betterprojectsfaster.atlassian.net/browse/FLAB-22) |
 | 5 | Bau | Mensch | **Freigabe 1:** Ein Mensch aus der Freigabegruppe setzt „Spec freigegeben“. Die zweite Automation startet `factory-build`. Lauf 2: Copilot setzt die Spec um, die Tests laufen | [Lauf #85](https://bitbucket.org/factory-lab/factory-lab/pipelines/results/85). Im Lab gibt nur Karsten frei |

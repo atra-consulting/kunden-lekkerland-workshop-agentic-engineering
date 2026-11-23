@@ -37,6 +37,8 @@ FLAB-22 „Current year in the page footer“ lief am 23. November mit OpenSpec 
 | 6 | Review | `factory-bot` | Die Factory öffnet einen Pull Request und verlinkt ihn am Ticket | [Pull Request #19](https://bitbucket.org/factory-lab/factory-lab/pull-requests/19) |
 | 7 | Erledigt | Mensch | **Freigabe 2:** Ein Mensch prüft den Pull Request und führt ihn zusammen. Die Factory führt nie selbst zusammen | Pull Request #19 |
 
+FLAB-22 lief vor der neuen Bereitschaftsprüfung. Heute prüft die Factory in Schritt 3 zuerst, ob das Ticket bereit ist: [Ist das Ticket bereit?](#neu-ist-das-ticket-bereit)
+
 Dieselbe Strecke mit den anderen Frameworks:
 
 - Spec Kit: [FLAB-18](https://betterprojectsfaster.atlassian.net/browse/FLAB-18), [Pull Request #13](https://bitbucket.org/factory-lab/factory-lab/pull-requests/13). Das Ticket hat zwei Spec-Kommentare, weil es zweimal lief.
@@ -49,7 +51,7 @@ Jeder Lauf besteht aus mehreren Schritten. Jeder Schritt sieht nur die Secrets, 
 **`factory-spec`, Lauf 1:**
 
 1. **Guard und Vorbereitung:** Stimmen Ticket-Schlüssel, Status und Label? Ist die Factory gestoppt? Dann holt die Factory das Ticket aus Jira.
-2. **Agent:** Copilot CLI schreibt die Spec mit dem gewählten Framework. Dieser Schritt sieht nur den Copilot-Token. Copilot läuft als eigener Benutzer ohne Rechte, und nur ein Patch verlässt den Schritt.
+2. **Agent:** Copilot CLI prüft zuerst, ob das Ticket bereit ist. Nur dann schreibt es die Spec mit dem gewählten Framework. Dieser Schritt sieht nur den Copilot-Token. Copilot läuft als eigener Benutzer ohne Rechte, und nur ein Patch verlässt den Schritt.
 3. **Prüfung, ohne Secrets:** Hat der Agent nur Spec-Dateien geändert? Stecken Token-Muster oder unsichtbare Zeichen im Patch?
 4. **Veröffentlichen:** Die Factory prüft alles noch einmal, pusht den Branch, kommentiert die Spec und setzt den Status.
 
@@ -67,7 +69,25 @@ Geschützt sind unter anderem die Pipeline-Definition, `factory/`, `AGENTS.md`, 
 
 ### Neu: Ist das Ticket bereit?
 
-Folgt.
+Bevor die Factory eine Spec schreibt, prüft sie das Ticket. Ein eigener Copilot-Aufruf liest Ticket und Code und urteilt: bereit oder nicht bereit.
+
+- **Bereit:** Lauf 1 geht weiter wie oben. Der Spec-Kommentar nennt die bestandene Prüfung.
+- **Nicht bereit:** Die Factory schreibt keine Spec, keinen Code und keinen Branch. `factory-bot` kommentiert `FACTORY-NOT-READY v1` mit Gründen und Fragen und setzt das Ticket auf den neuen Status „Klärung nötig“.
+
+Nicht bereit ist ein Ticket, wenn mindestens eines von sechs Kriterien zutrifft:
+
+| ID | Nicht bereit, wenn … |
+|---|---|
+| `missing_detail` | Ziel, betroffene Seite oder erwartetes Ergebnis unklar sind |
+| `untestable` | ein Akzeptanzkriterium in keinem Test scheitern kann |
+| `already_exists` | der Code schon tut, was das Ticket verlangt |
+| `contradicts_code` | das Ticket bestehendem Code widerspricht, ohne zu sagen, dass das gewollt ist |
+| `protected_paths` | das Ticket Änderungen an geschützten Dateien braucht, etwa neue Pakete |
+| `too_big` | das Ticket nicht in einen Pull Request passt |
+
+Steht ein Ticket in „Klärung nötig“, beantwortet ihr die Fragen in der Beschreibung und setzt es wieder auf „Bereit“. Das startet einen neuen Lauf mit einer neuen Prüfung.
+
+Die Kriterien stehen in einer einzigen Datei: [`factory/readiness.md`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/readiness.md). Ihr passt sie an euer Team an: [So passt ihr die Kriterien an](../../02-agent-factory/bedienung/ticket-bereitschaft.md#so-passt-ihr-die-kriterien-an).
 
 ### Freigabe 1: Die Spec
 
@@ -90,7 +110,8 @@ Die Factory stoppt lieber, als etwas Falsches zu schreiben. Ihr seht drei Arten:
 | Art | Beispiel | Was ihr tut |
 |---|---|---|
 | Kommentar `FACTORY-STOP v1`: Der Lauf passt nicht, etwa falscher Status oder kein Label | [FLAB-21](https://betterprojectsfaster.atlassian.net/browse/FLAB-21): „no framework chosen“ | Den Grund beheben, Ticket wieder auf „Bereit“ |
-| Kommentar `FACTORY-QUESTIONS v1`: Das Ticket ist zu vage für eine Spec. Das Ticket geht zurück nach „Definition“ | [FLAB-6](https://betterprojectsfaster.atlassian.net/browse/FLAB-6): „Make the blog better“ | Die Fragen in der Beschreibung beantworten, neu starten |
+| Kommentar `FACTORY-NOT-READY v1`: Die Bereitschaftsprüfung lehnt das Ticket ab. Es geht nach „Klärung nötig“ | siehe [Ist das Ticket bereit?](#neu-ist-das-ticket-bereit) | Die Fragen in der Beschreibung beantworten, Ticket wieder auf „Bereit“ |
+| Kommentar `FACTORY-QUESTIONS v1`: Das Framework findet das Ticket zu vage für eine Spec. Es geht nach „Klärung nötig“ | [FLAB-6](https://betterprojectsfaster.atlassian.net/browse/FLAB-6): „Make the blog better“, damals noch zurück nach „Definition“ | Die Fragen in der Beschreibung beantworten, Ticket wieder auf „Bereit“ |
 | Kein Kommentar | – | Das Protokoll unter [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) lesen |
 
 **Notaus:** Jede Person kann ein Ticket auf „Factory gestoppt“ setzen. Jeder Lauf zu diesem Ticket bricht dann ab, beim Start und vor jedem Schreiben. Weiter geht es nur mit „Fortsetzen“ durch eine Freigabe-Person.
@@ -105,7 +126,8 @@ Gemessen im Lab mit `symfony/demo`, je Ticket. Das sind Einzelwerte aus wenigen 
 | Lauf 2, Bau | 12 bis 27 Credits | 34 Credits | 63 Credits |
 | **Je Ticket** | **etwa 25 bis 50 Credits** | **etwa 76 Credits** | **etwa 89 Credits** |
 
-- Ein zu vages Ticket kostete 4 Credits und 42 Sekunden, bis die Fragen am Ticket standen.
+- Die Bereitschaftsprüfung kostete 6 bis 11 Credits und dauerte 12 bis 60 Sekunden. Sie stoppt bei 40 Credits.
+- Ein zu vages Ticket kostete 4 Credits und 42 Sekunden, bis die Fragen des Frameworks am Ticket standen.
 - Lauf 1 dauerte 75 bis 147 Sekunden, Lauf 2 115 bis 211 Sekunden. Dazu kommen Wartezeit und die Zeit bis zur Freigabe.
 - Jeder Copilot-Aufruf stoppt bei 150 Credits.
 - Läufe warten aufeinander. „Queued“ in Bitbucket heißt warten, nicht neu starten.
@@ -118,7 +140,7 @@ Gemessen im Lab mit `symfony/demo`, je Ticket. Das sind Einzelwerte aus wenigen 
 
 ### Mit Konto
 
-Der Zugang ist für eure DevOps-Ansprechperson gedacht. Damit legt sie Tickets in FLAB an, setzt Labels und schiebt Tickets auf „Bereit“. Spec freigeben und zusammenführen kann im Lab nur Karsten.
+Der Zugang ist für eure DevOps-Ansprechperson gedacht. Damit legt sie Tickets in FLAB an, setzt Labels und schiebt Tickets auf „Bereit“. Spec freigeben und zusammenführen kann im Lab nur Karsten. Die Status „In Arbeit“, „Wartet“, „Klärung nötig“ und „Review“ setzt nur `factory-bot`.
 
 So schreibt ihr ein Ticket:
 

@@ -13,7 +13,7 @@ Die Factory schreibt zu eurem Jira-Ticket eine Spec und baut sie nach der Freiga
 1. Ticket in Jira anlegen, Status „Definition“. Beschreibung mit Akzeptanzkriterien.
 2. Genau ein Framework-Label: `sdd-openspec`, `sdd-speckit` oder `sdd-bmad`.
 3. Ticket auf „Bereit“ setzen. Ohne Automation: `factory-spec` starten (unten).
-4. Warten, bis das Ticket in „Wartet“ steht. Spec im Kommentar von `factory-bot` lesen.
+4. Warten, bis das Ticket in „Wartet“ steht. Spec im Kommentar von `factory-bot` lesen. Ticket in „Klärung nötig“: Gründe und Fragen im Kommentar lesen, Beschreibung ergänzen, wieder auf „Bereit“, siehe [Ticket-Bereitschaft](ticket-bereitschaft.md).
 5. Spec passt: Eine Freigabe-Person setzt „Spec freigegeben“. Spec passt nicht: „Zurück“, Ticket überarbeiten, weiter bei 3.
 6. Ohne Automation: `factory-build` starten.
 7. `factory-bot` öffnet einen Pull Request und setzt „Review“. Prüfen, eine benannte Person führt zusammen. Dann „Erledigt“.
@@ -42,7 +42,7 @@ unset TOKEN
 - Alle Gruppen dürfen gleichzeitig starten. Die Läufe warten aufeinander: „Queued“ in Bitbucket heißt warten, nicht neu starten. Im Lab war ein Lauf nach 1,5 bis 2 Minuten fertig; im Lekkerland-Repo und mit Wartezeit dauert es länger.
 - Die Factory läuft nur auf `factory-base`, nicht auf euren Branches `workshop-<framework>-local`. Das Label wählt das Framework.
 - Nach der Freigabe Beschreibung und Labels nicht ändern, Kommentare nicht bearbeiten. Sonst bricht der Bau ab.
-- „In Arbeit“, „Wartet“ und „Review“ setzt nur `factory-bot`.
+- „In Arbeit“, „Wartet“, „Klärung nötig“ und „Review“ setzt nur `factory-bot`.
 - Notaus: „Factory stoppen“. Laufende Läufe brechen ab. Weiter geht es nur mit „Fortsetzen“ durch eine Freigabe-Person.
 - BMad darf im Lauf beliebiges Python ausführen. Nur Tickets aus vertrauenswürdiger Quelle.
 

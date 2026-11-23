@@ -14,7 +14,7 @@ KI-Assistenten nutzen viele von uns schon länger. GitHub Copilot ist im Einsatz
 
 Im September 2026 hat sich das Spryker-Team selbst eingeschätzt: Wie weit helfen Agenten in den zehn Schritten von der Anforderung bis zur Auslieferung? Beim Bauen ließ das Team die KI schon ganze Aufgaben erledigen. Bei Anforderung und Spezifikation half sie teilweise. Für die übrigen sieben Schritte, etwa Verstehen, Kritik und Laufzeitprüfung, stand noch kein Wert.
 
-Im November folgten zwei Schulungen mit atra: am 4. November „Basic: Einstieg in Agentic Engineering“ und am 5. November „Advanced: Agent Factory bauen & betreiben“. Vom 23. bis 25. November haben wir mit atra in Frechen einen dreitägigen Workshop veranstaltet. Drei Gruppen probierten die Frameworks Spec Kit, OpenSpec und BMad Method an echten Tickets aus. Jede Gruppe schloss ihr Framework an eine erste Factory an.
+Im November folgten zwei Schulungen: am 4. November „Basic: Einstieg in Agentic Engineering“ und am 5. November „Advanced: Agent Factory bauen & betreiben“. Vom 23. bis 25. November haben wir in Frechen einen dreitägigen Workshop veranstaltet. Drei Gruppen probierten die Frameworks Spec Kit, OpenSpec und BMad Method an echten Tickets aus. Jede Gruppe schloss ihr Framework an eine erste Factory an.
 
 ## So arbeitet die Factory
 

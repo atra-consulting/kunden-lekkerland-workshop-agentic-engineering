@@ -29,7 +29,7 @@ cp ~/factory-lab/factory/{local.py,config.json,readiness.md,local.example.json} 
 cp factory/local.example.json factory/local.json
 ```
 
-- Die Referenz nennt als Ordner `tools/factory-lokal/`, als Beispiel. Wir nehmen `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
+- Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
 - Öffnet `factory/local.json`. Dort steht schon `"test_command": "make test"`. Passt den Wert an, wenn euer Testbefehl anders lautet.
 - Achtung: Daraus wird die Freigabe `shell(make:*)`. Sie erlaubt dem Agenten **jedes** Make-Ziel, nicht nur `make test`.
 

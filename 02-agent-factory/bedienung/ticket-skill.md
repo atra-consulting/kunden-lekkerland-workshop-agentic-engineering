@@ -241,6 +241,7 @@ Spätere Läufe mit der aktuellen Fassung, im Lab-Repo mit `factory/local.py`:
 | Spec Kit, Absicht mit drei Funktionen | Epic FLAB-32, Tickets FLAB-33 bis FLAB-35 | 60,72 für den Skill, dazu 28,03 für drei Prüfungen (13,19, 6,28 und 8,56) | Aufteilung vorgeschlagen, alle drei Tickets „ready“, `parent` und Labels in Jira geprüft. |
 | Nur Schritt 8 über Jira-MCP, ohne Token | FLAB-36 | 14,03 | Ticket in „Definition“ mit `sdd-openspec` und `test-nacht`. |
 | Nur die Prüfung, `local.py assess --key` | FLAB-30 | 11,08 | „ready“ in 11 Sekunden. |
+| Spec Kit, ganzer Lauf, Absicht „Kommentaranzahl in der Artikelliste“ | FLAB-38 | 37,33 | Annahmen, Reife-Tabelle und Ticket-Text standen im Frageformular. Eigener Check, weil `factory/local.py` im Demo-Repo fehlt. |
 
 Dazu kommt die Zeit, in der du liest und antwortest. Im Lab dauerte ein Lauf mit einem Ticket insgesamt etwa 5 bis 10 Minuten, der Lauf mit Epic und drei Tickets etwa 20 Minuten.
 

@@ -1,6 +1,6 @@
 # Übung 1: Ein Ticket lokal durch die Factory-Schritte
 
-Tag 2, 10:15 bis 11:45. Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `local.py`. Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
+Tag 2, 10:15 bis 12:00. Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `local.py`. Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
 
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Getestet ist alles nur auf dem Mac. Windows ist nicht getestet; die PowerShell-Befehle stehen in der Referenz, Abschnitt [Windows](../../02-agent-factory/bedienung/lokal-ausfuehren.md#windows).
 - **Euer Branch** ist der Framework-Branch von Tag 1, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite schreibt ihn als `<framework-branch>`.

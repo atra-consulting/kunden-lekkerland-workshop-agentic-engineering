@@ -53,13 +53,19 @@ Achtung: `shell(make:*)` erlaubt dem Agenten **jedes** Make-Ziel, nicht nur `mak
 
 ### Ticket über den Jira-MCP holen
 
-**Nicht getestet.** Im Lab gab es keinen Jira-MCP-Server in Copilot CLI. Den Aufbau des Aufrufs haben wir mit einem Test-Server geprüft, nicht mit dem von Atlassian.
+Getestet am 23. November im Lab, auf dem Mac, mit Copilot CLI 1.0.114 und dem Ticket FLAB-33. Der Aufruf hat 10,8 Credits gekostet. Die Datei hatte denselben Text wie der Abruf per API-Token, Wort für Wort. Nur die Leerzeilen zwischen Listenpunkten fehlten. Windows ist nicht getestet.
 
 Voraussetzungen:
 
-- Der Server ist in Copilot CLI eingerichtet. `copilot mcp list` zeigt ihn, hier unter dem Namen `atlassian`. Nutzt du ihn bisher nur in VS Code, liest Copilot CLI ihn nicht. Richte ihn dann mit `copilot mcp add` ein. Die Adresse steht in der Anleitung von Atlassian.
-- Du bist angemeldet. Copilot öffnet beim ersten Aufruf den Browser, oder du startest einmal `copilot` und dort `/mcp auth atlassian`.
-- Die Werkzeug-Namen `getAccessibleAtlassianResources` und `getJiraIssue` stammen aus der Beschreibung von Atlassian, nicht aus einem Test. Prüfe sie in einer interaktiven Copilot-Sitzung mit `/mcp get atlassian`. Weichen sie ab, ersetze sie im Befehl.
+- Der Server ist in Copilot CLI eingerichtet, unter dem Namen `atlassian`. `copilot mcp list` zeigt ihn. Nutzt du ihn bisher nur in VS Code, liest Copilot CLI ihn nicht. Leg dann `~/.copilot/mcp-config.json` mit diesem Inhalt an. Im Lab stand er in einer eigenen Datei, die Copilot mit `--additional-mcp-config @<Datei>` bekam. Copilot lädt den Server dann genauso wie aus `mcp-config.json`:
+
+  ```json
+  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v1/mcp", "tools": ["*"]}}}
+  ```
+
+  Atlassian meldet `/v1/mcp` als veraltet. Ab 1. März 2027 gilt nur noch `https://mcp.atlassian.com/v2/mcp`. Die neue Adresse haben wir nicht getestet.
+- Du bist einmal interaktiv angemeldet: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Ein Aufruf mit `-p` kann keine Browser-Anmeldung abschließen. Im Lab hat er die Anmeldung aus der interaktiven Sitzung übernommen.
+- Die Werkzeuge heißen `getAccessibleAtlassianResources` und `getJiraIssue`. Copilot lädt sie bei Bedarf über seine Werkzeug-Suche. Das braucht keine eigene Freigabe.
 
 Der Aufruf, Mac (bash oder zsh). Er läuft in einem leeren Ordner außerhalb deines Projekts. So kann er nur dort schreiben:
 

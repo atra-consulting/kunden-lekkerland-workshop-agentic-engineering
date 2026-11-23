@@ -1,5 +1,11 @@
 # Workshop Agentic Engineering bei Lekkerland
 
+> **Vertraulich: nur für Lekkerland und atra.consulting.**
+> Dieses Repository ist nur aus technischen Gründen öffentlich. Wenn Sie hier nicht als Collaborator eingetragen sind, schließen Sie bitte diese Seite. Sie haben keine Lizenz, etwas hiervon zu nutzen, zu kopieren oder weiterzugeben. Siehe [LICENSE](LICENSE).
+>
+> **Confidential: for Lekkerland and atra.consulting only.**
+> This repository is public for technical reasons only. If you aren't a listed collaborator, please close this page. You have no license to use, copy, or share anything here. See [LICENSE](LICENSE).
+
 Unterlagen von atra für Lekkerland: Erstworkshop vom 23. bis 25. November 2026 in Frechen, die Agent Factory und die Folgetermine.
 
 ## Aufbau
@@ -31,3 +37,7 @@ Diese Dateien stehen hier unverändert so, wie sie per E-Mail verschickt wurden.
 ## Stand
 
 November 2026. Dateien mit „Folgt.“ werden nach und nach gefüllt.
+
+## Lizenz
+
+Alle Rechte vorbehalten. Nur eingetragene Collaborators dürfen dieses Repository nutzen. Siehe [LICENSE](LICENSE).

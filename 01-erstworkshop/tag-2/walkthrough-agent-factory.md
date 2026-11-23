@@ -159,6 +159,23 @@ Gemessen im Lab mit `symfony/demo`, je Ticket. Das sind Einzelwerte aus wenigen 
 
 Öffnet die Links oben: Ticket, Pipeline-Lauf, Pull Request. Im Protokoll eines Laufs seht ihr jeden Schritt, auch den Copilot-Aufruf mit seinen Optionen.
 
+### Die Blog-App lokal starten
+
+Das Lab-Repository ist öffentlich. Ihr braucht Git, PHP 8.4 oder neuer mit der Erweiterung PDO-SQLite und Composer. Die Datenbank liegt schon im Repository.
+
+```bash
+git clone -b factory-base https://bitbucket.org/factory-lab/factory-lab.git
+cd factory-lab
+composer install
+echo "APP_SECRET=$(openssl rand -hex 16)" > .env.local
+php -S 127.0.0.1:8000 -t public
+```
+
+- Dann im Browser: <http://127.0.0.1:8000/de/blog>. Stoppen mit Strg+C. Die Tests laufen mit `./bin/phpunit`.
+- Die Zeile mit `.env.local` setzt einmalig ein zufälliges `APP_SECRET`. Ohne sie bricht die App mit „A non-empty secret is required“ ab. Git ignoriert `.env.local`.
+- Was die Factory für ein Ticket gebaut hat, seht ihr auf dessen Branch, etwa die Suche nach dem Autornamen aus [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31): `git fetch origin`, dann `git checkout origin/factory/FLAB-31` und den Server neu starten. Zurück mit `git checkout factory-base`.
+- Getestet auf dem Mac. Unter Windows ist der `echo`-Befehl anders; dort legt ihr `.env.local` mit einer Zeile `APP_SECRET=` und einer beliebigen Zeichenkette von Hand an.
+
 ### Mit Konto
 
 Der Zugang ist für eure DevOps-Ansprechperson gedacht. Damit legt sie Tickets in FLAB an, setzt Labels und schiebt Tickets auf „Bereit“. Spec freigeben und zusammenführen kann im Lab nur Karsten. Die Status „In Arbeit“, „Wartet“, „Klärung nötig“ und „Review“ setzt nur `factory-bot`.

@@ -7,6 +7,21 @@ Tag 2, 09:15. Karsten schickt ein Ticket durch die Factory im Lab, von „Defini
 - Ergebnis: [Pull Requests](https://bitbucket.org/factory-lab/factory-lab/pull-requests/)
 - Wie ein Lauf aufgebaut ist: [Walkthrough, „Was in einem Lauf passiert“](walkthrough-agent-factory.md#was-in-einem-lauf-passiert)
 
+## Das Label wählt das Framework
+
+Welches SDD-Framework die Factory nutzt, bestimmt ein Label am Ticket. Ihr setzt es im Ticket rechts unter „Details“ → „Labels“, bevor das Ticket auf „Bereit“ geht.
+
+| Label | Framework | Im Lab je Ticket |
+|---|---|---|
+| `sdd-openspec` | OpenSpec | etwa 25 bis 50 Credits |
+| `sdd-speckit` | Spec Kit | etwa 76 Credits |
+| `sdd-bmad` | BMad Method | etwa 89 Credits |
+
+- **Genau ein Label.** Kein Label, zwei Labels oder ein unbekanntes: Der Lauf stoppt mit dem Kommentar `FACTORY-STOP v1`, etwa „no framework chosen“. Ein Beispiel ist [FLAB-21](https://betterprojectsfaster.atlassian.net/browse/FLAB-21).
+- **Andere Labels stören nicht.** Nur Labels mit `sdd-` am Anfang zählen.
+- **Nach der Freigabe nichts mehr ändern.** Ein geändertes Label nach „Spec freigegeben“ bricht den Bau ab, wie jede Änderung am Ticket.
+- Die Demo nutzt OpenSpec, weil es im Lab am schnellsten war.
+
 ## Die Schritte
 
 Den Status ändert ihr im Ticket über den Statusknopf neben dem Titel. Direkte Links auf einen Übergang gibt es in Jira Cloud nicht: Jira verlangt dafür einen Klick im Ticket.

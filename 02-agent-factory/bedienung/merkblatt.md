@@ -7,16 +7,15 @@ Die Factory schreibt zu eurem Jira-Ticket eine Spec und baut sie nach der Freiga
 - Workspace und Name eures Repos.
 - Ein Start-Token, nur für euch, gültig bis Workshop-Ende. Nie weitergeben, nie in Tickets, Chats oder Dateien.
 - Die Namen der Freigabe-Personen.
-- Nur mit Jira-Automation: die Komponente eurer Gruppe.
 
 ## Ablauf
 
 1. Ticket in Jira anlegen, Status „Definition“. Beschreibung mit Akzeptanzkriterien.
-2. Genau ein Framework-Label: `sdd-openspec`, `sdd-speckit` oder `sdd-bmad`. Mit Automation zusätzlich die Komponente eurer Gruppe.
-3. Ticket auf „Bereit“ setzen. Ohne Automation: `factory-spec` starten (unten).
+2. Genau ein Framework-Label: `sdd-openspec`, `sdd-speckit` oder `sdd-bmad`.
+3. Prüfen, dass gerade kein Lauf läuft (unten). Ticket auf „Bereit“ setzen. Ohne Automation: `factory-spec` starten (unten).
 4. Warten, bis das Ticket in „Wartet“ steht. Spec im Kommentar von `factory-bot` lesen.
 5. Spec passt: Eine Freigabe-Person setzt „Spec freigegeben“. Spec passt nicht: „Zurück“, Ticket überarbeiten, weiter bei 3.
-6. Ohne Automation: `factory-build` starten.
+6. Prüfen, dass gerade kein Lauf läuft. Ohne Automation: `factory-build` starten.
 7. `factory-bot` öffnet einen Pull Request und setzt „Review“. Prüfen, eine benannte Person führt zusammen. Dann „Erledigt“.
 
 ## Lauf starten
@@ -40,7 +39,8 @@ unset TOKEN
 ## Regeln
 
 - Genau ein `sdd-`-Label. Kein, zwei oder ein unbekanntes Label: Der Lauf stoppt.
-- Pro Gruppe ein Ticket gleichzeitig in Arbeit. Ein zweiter Lauf bleibt stehen.
+- Ein Lauf gleichzeitig, für alle Gruppen zusammen: Alle arbeiten im selben Repo. Vor jedem Start in Bitbucket unter „Pipelines“ schauen. Ein parallel gestarteter Lauf bleibt dauerhaft stehen: nach dem anderen neu starten.
+- Die Factory läuft nur auf `factory-base`, nicht auf euren Branches `workshop-<framework>-local`. Das Label wählt das Framework.
 - Nach der Freigabe Beschreibung und Labels nicht ändern, Kommentare nicht bearbeiten. Sonst bricht der Bau ab.
 - „In Arbeit“, „Wartet“ und „Review“ setzt nur `factory-bot`.
 - Notaus: „Factory stoppen“. Laufende Läufe brechen ab. Weiter geht es nur mit „Fortsetzen“ durch eine Freigabe-Person.
@@ -53,7 +53,7 @@ unset TOKEN
 
 ## Ergebnisse
 
-Was ihr von `factory-base` in euren Entwicklungs-Branch übernehmt, entscheidet ihr.
+Was ihr von `factory-base` in andere Branches übernehmt, entscheidet ihr.
 
 ## Lab von atra
 

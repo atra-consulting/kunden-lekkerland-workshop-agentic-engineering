@@ -7,9 +7,9 @@ Reihenfolge: Schritte 1 bis 3 hier, dann [Jira, Teil A](jira.md#teil-a-workflow-
 ## Vor dem Start
 
 - [ ] Vor Schritt 4: [Jira, Teil A](jira.md#teil-a-workflow-einrichten) erledigt. Daraus brauchst du: Projektschlüssel, acht Status-IDs, fünf Übergangs-IDs, Account-IDs der Freigabe-Personen und von `factory-bot`.
-- [ ] Bitbucket Cloud, Pipelines an, ein Repo für alle Gruppen. Pro Repo nur ein Lauf gleichzeitig. Ein zweiter bleibt an der Umgebungssperre stehen.
-- [ ] Schritte 1 bis 10 einmal für das Repo. Ein Image für das Repo: `config.json` nennt Repo und Reviewer.
-- [ ] Du hast Admin-Rechte für den Bitbucket-Workspace und das Repo. Teilnehmende bekommen kein Admin-Recht: Repository-Admins können Branch-Regeln aufheben.
+- [ ] Bitbucket Cloud, Pipelines an, ein Repo für alle Gruppen. Ein Lauf gleichzeitig, über alle Gruppen. Ein parallel gestarteter Lauf bleibt an der Umgebungssperre stehen und läuft nicht weiter: nach dem ersten neu starten.
+- [ ] Schritte 1 bis 10 einmal für das Repo. Ein Image, eine `config.json` mit Repo und Reviewern.
+- [ ] Du hast Admin-Rechte für den Bitbucket-Workspace und das Repo. Teilnehmende bekommen kein Admin-Recht: Repository-Admins können Branch-Regeln aufheben. Prüfe, wer heute schon Admin im Repo ist.
 - [ ] Konto `factory-bot`: technischer Benutzer, einer für alle Gruppen, angelegt in [Jira, Teil A, Schritt 1](jira.md#schritt-1-factory-konto-anlegen-und-berechtigen). In Jira nur die Projektrolle „Factory“, in Bitbucket „Write“ auf das Repo, keine Standardgruppe. Offen, wie es ohne Standardgruppe Zugriff bekommt: siehe [Jira, Vor dem Start](jira.md#vor-dem-start).
 - [ ] GitHub-Benutzer mit Copilot-Platz und Budget. Token: Fine-grained PAT eines persönlichen Kontos, nur „Copilot Requests“, gültig bis 4. Dezember, sofort widerrufbar. Wer den Copilot-Platz hat, legt das Token an und gibt es dir über den Passwortmanager. Vor Ablauf: neues Token, neu eingeben, altes Token sofort widerrufen. Kein Classic PAT. Copilot über eine Organisation: dort die Richtlinie für Copilot CLI aktivieren.
 - [ ] Docker mit buildx, auf einem Rechner mit Zugang zu `bitbucket.org`. Dazu eine Registry, aus der die Pipeline das Image zieht.
@@ -18,13 +18,13 @@ Reihenfolge: Schritte 1 bis 3 hier, dann [Jira, Teil A](jira.md#teil-a-workflow-
 - **Offen:** Quelle der Dateien aller drei Frameworks, oder getestete Befehle, die alle drei in ein Repository installieren. Blockiert Schritt 3.
 - **Offen:** Spryker-Werte (Testbefehl, Installationsbefehl, auszulassende Ordner, geschützte Pfade) und wo du die Bitbucket-Account-UUIDs der Reviewer abliest. Blockiert Schritt 4 und 5.
 - **Offen:** Klickpfade für `factory-bot` mit „Write“ auf das Repo und für Repository Access Tokens. Dazu: wo du die Cloud-ID der Jira-Site abliest, und ob Leserecht in einem privaten Repo für Pull Requests und Läufe reicht. Blockiert Schritt 8. Ohne Cloud-ID schlägt jeder Lauf fehl. Ungetestet: `https://<site>.atlassian.net/_edge/tenant_info` liefert `cloudId`.
-- **Offen:** Umgang mit bestehenden Workspace- oder Repository-Variablen, und Syntax, um `factory/*` in bestehenden Pipelines auszuschließen. Blockiert Schritt 9, nur wenn es solche Variablen oder Pipelines gibt.
+- **Offen:** Umgang mit bestehenden Workspace- oder Repository-Variablen, und Syntax, um `factory/*` in bestehenden Pipelines auszuschließen. Im echten Repo wahrscheinlich nötig. Blockiert Schritt 9.
 
 Offene Punkte klärst du mit atra.
 
 ## Schritt 1: Start-Branch anlegen und schützen
 
-Ziel: `factory-base`, abgezweigt vom Entwicklungs-Branch. Dort starten beide Pipelines, dorthin gehen die Pull Requests der Factory.
+Ziel: `factory-base`, abgezweigt vom Entwicklungs-Branch oder von `workshop-sdd-local`. Dort starten beide Pipelines, dorthin gehen die Pull Requests der Factory. Ein Start-Branch für alle Gruppen: Die Factory läuft nur auf `factory-base`, nie auf den Gruppen-Branches `workshop-<framework>-local`. Das Framework wählt das Label am Ticket.
 ```bash
 git switch <Entwicklungs-Branch>
 git pull
@@ -34,7 +34,8 @@ git push -u origin factory-base
 Schütze `factory-base` sofort: Direkt pushen darf niemand. Zusammenführen nur per Pull Request, nur benannte Personen, nie `factory-bot`. Löschen und Historie umschreiben verboten. Kein Schreibrecht für Pipelines.
 - Nicht `factory` nennen: Git kann ihn nicht neben `factory/<KEY>` speichern.
 - Ab jetzt gehen auch deine Änderungen nur per Pull Request nach `factory-base`. Schritte 2 bis 6 auf dem Hilfs-Branch `factory-setup`.
-- Ergebnisse zurück in den Entwicklungs-Branch: entscheiden die Teilnehmenden, nicht Teil der Einrichtung.
+- Ergebnisse in andere Branches übernehmen: entscheiden die Teilnehmenden, nicht Teil der Einrichtung.
+- Die Factory legt im Repo Branches `factory/<KEY>` und Pull Requests an. Nach dem Workshop aufräumen: `factory/*`, offene Pull Requests, Start-Tokens.
 
 **Prüfen:** Direkter Push auf `factory-base` scheitert, auch mit Admin-Token.
 
@@ -135,7 +136,7 @@ Ziel: `factory-bot` schreibt in das Repo. Jeder Schritt sieht nur die Factory-To
 
 **1. `factory-bot` einladen:** „Write“ nur auf dieses Repo, keine Workspace-Gruppe. Blockiert, solange der Klickpfad offen ist (siehe „Vor dem Start“).
 
-„Write“ nur für benannte Personen. Wer „Write“ auf das Repo hat, kann die Tokens der Factory lesen, auch das Copilot-Token. Damit erreicht er alles, wohin `factory-bot` schreibt.
+**Risiko, bewusst in Kauf genommen:** Wer „Write“ auf das Repo hat, kann die Tokens der Factory lesen, auch das Copilot-Token: mit eigenem Pipeline-YAML auf einem eigenen Branch. Im echten Repo sind das alle mit „Write“, nicht nur die Teilnehmenden. Mit den Tokens handelt man als `factory-bot` in Jira und im Repo und verbraucht das Copilot-Budget. Begrenzt durch: kurze Laufzeiten, Widerruf nach dem Workshop, „Deployment permissions“ auf `factory-base` (Punkt 3, falls der Plan sie hat).
 
 **2. Tokens anlegen:**
 
@@ -159,12 +160,17 @@ Bei jeder Erneuerung: altes Token sofort widerrufen.
 
 ## Schritt 9: Andere Pipelines prüfen
 
-Ziel: Factory-Tokens erreichen keine fremden Secrets, `factory-bot` keine anderen Branches.
-1. **Andere Branches:** Beschränke die Rechte auf Entwicklungs-Branch, `main` und `release/*`. `factory-bot` darf dort weder pushen noch zusammenführen.
+Ziel: Factory-Tokens erreichen keine fremden Secrets, `factory-bot` keine anderen Branches, der Agent keine Secrets im Code.
+1. **Andere Branches, Pflicht:** `factory-bot` hat „Write“ auf das ganze Repo. Beschränke die Rechte auf Entwicklungs-Branch, `main`, `release/*`, `workshop-*` und alle weiteren geschützten Branches. `factory-bot` darf dort weder pushen noch zusammenführen.
 2. **Bestehende Variablen:** Prüfe „Workspace Settings“ → „Pipelines“ → „Workspace variables“ und „Repository Settings“ → „Pipelines“ → „Repository variables“. Sie gelten für alle Builds, auch den Agent-Schritt. Factory-Schritte brechen bei unbekannten Variablennamen ab. Verschiebe, was der bestehende Build braucht, in eine Umgebung, die der Agent-Schritt nicht nutzt.
-3. **Custom-Pipelines auf allen Branches:** Ein Token mit „Pipelines: Write“ startet jede davon, auch Deploy-Pipelines mit ihren Secrets. Liste sie mit dem Befehl unten auf, für Branches und Tags (ungetestet). Deploy-Pipelines mit Secrets: Beschränke ihre Umgebungen per „Deployment permissions“ auf ihre Branches. Sonst gib nur wenige Start-Tokens aus und notiere ihre Besitzer.
+3. **Custom-Pipelines auf allen Branches:** Ein Token mit „Pipelines: Write“ startet jede davon, auch Deploy-Pipelines mit ihren Secrets. Liste sie mit dem zweiten Befehl unten auf, für Branches und Tags (ungetestet). Deploy-Pipelines mit Secrets: Beschränke ihre Umgebungen per „Deployment permissions“ auf ihre Branches. Sonst gib nur wenige Start-Tokens aus und notiere ihre Besitzer.
 4. **Branches `factory/<KEY>`:** Ersetzt die Factory-Datei die bisherige, startet dort kein Push einen Lauf. Kommen bestehende Pipelines in die Factory-Datei, schließe `factory/*` dort aus.
 5. **`auth`-Block in jedem Schritt:** auch in bestehenden Build- und Testschritten (dort ungetestet). Ohne ihn: Schreibrechte für Repository und Pipelines bis 30. April 2027 (von Atlassian nicht bestätigt).
+6. **Secrets im Code:** Der Agent liest den ganzen Stand von `factory-base` und schickt Code an Copilot, bei offenem Netz. Suche vor dem ersten Lauf nach eingecheckten Secrets und entferne sie aus `factory-base`, etwa mit dem ersten Befehl unten, auf `factory-base`. Risiko bleibt: Der Code des Repos geht an Copilot.
+
+```bash
+git ls-files | grep -iE '(^|/)\.env|\.pem$|\.key$|\.p12$|id_rsa|credentials|secret'
+```
 
 ```bash
 git fetch origin --tags

@@ -1,6 +1,6 @@
 # Jira für die Factory einrichten
 
-Diese Anleitung richtet das Jira-Projekt für die Factory ein: Konto `factory-bot`, acht Status, Übergänge mit Freigabe (Gate 1). Optional: je Gruppe zwei Automation-Flows, die die Bitbucket-Pipelines starten. Ohne Flows startet ihr die Läufe per curl. Teil A braucht die Factory immer: Der Guard liest Status und Freigabe aus Jira. Alles hier erledigt ein Admin von Lekkerland zusammen mit atra, auch das Anlegen von `factory-bot`.
+Diese Anleitung richtet das Jira-Projekt für die Factory ein: Konto `factory-bot`, acht Status, Übergänge mit Freigabe (Gate 1). Optional: zwei Automation-Flows, die die Bitbucket-Pipelines starten. Ohne Flows startet ihr die Läufe per curl. Teil A braucht die Factory immer: Der Guard liest Status und Freigabe aus Jira. Alles hier erledigt ein Admin von Lekkerland zusammen mit atra, auch das Anlegen von `factory-bot`.
 
 Pipeline: [Bitbucket-Anleitung](bitbucket.md). Gesamtbild: [Überblick](../ueberblick.md).
 
@@ -15,7 +15,6 @@ Pipeline: [Bitbucket-Anleitung](bitbucket.md). Gesamtbild: [Überblick](../ueber
 - **Offen:** Klickpfad für ein Atlassian-API-Token mit Scopes. Blockiert Schritt 1 und `JIRA_API_TOKEN` in der Bitbucket-Anleitung.
 - **Offen:** Wo Lekkerland die Cloud-ID abliest. Blockiert Schritt 1 (Prüfen), Schritt 6 und Teil C, Probe 3. Ungetestet: `https://<site>.atlassian.net/_edge/tenant_info` liefert `cloudId`.
 - **Offen:** Bietet der Jira-Plan die zwei Regeln aus Schritt 4? Blockiert Schritt 4. Ohne sie gibt es keinen getesteten Weg.
-- **Offen:** Hat das team-managed Projekt Komponenten? Blockiert Teil B.
 - **Offen:** Monatliches Automation-Limit des Jira-Plans. Betrifft Teil B.
 - **Offen:** Namen der Freigabe-Personen. Blockiert Schritt 4 und 6.
 
@@ -92,7 +91,7 @@ Ziel: Nur Freigabe-Personen geben frei, nie `factory-bot`. Setze beide Regeln au
 Ziel: Das Label am Ticket wählt das SDD-Framework. In Jira nichts vorab anlegen; Teilnehmende setzen das Label am Ticket. Labels: `sdd-openspec` (OpenSpec), `sdd-speckit` (Spec Kit), `sdd-bmad` (BMad). Gib den Teilnehmenden diese Regeln mit:
 
 - Genau ein Label am Ticket, oder `FRAMEWORK` beim Start per curl. Kein Label, zwei Labels oder ein unbekanntes `sdd-`-Label: Spec-Lauf stoppt.
-- Nie zwei Tickets derselben Gruppe gleichzeitig auf „Bereit“: Der zweite Lauf bleibt stehen.
+- Ein Lauf gleichzeitig, über alle Gruppen. Ein parallel gestarteter Lauf bleibt stehen und muss nach dem ersten neu gestartet werden. Mit Flows: nie zwei Tickets gleichzeitig auf „Bereit“ oder „Spec freigegeben“.
 - Nach der Freigabe nichts an Beschreibung oder Labels ändern. Sonst bricht der Bau ab.
 - Beim Start per curl hat die Pipeline-Variable `FRAMEWORK` Vorrang vor dem Label.
 - Risiko: Wer Tickets bearbeiten darf, wählt das Framework. BMad erlaubt beliebiges Python (`shell(uv:*)`).
@@ -136,15 +135,12 @@ Bist du selbst Freigabe-Person, macht eine andere Freigabe-Person Zeile 4. Wer �
 
 Optional. Ohne Flows startet ihr die Läufe per curl: Bitbucket-Anleitung, [Läufe starten](bitbucket.md#läufe-starten).
 
-Ziel: je Gruppe eine Komponente und zwei Flows, die die Pipelines im Repo für die Gruppe starten. Vorher nötig: die Pipeline-Datei auf `factory-base` (sonst scheitern beide Flows) und zwei Auslöser-Tokens, eins pro Flow, aus der Bitbucket-Anleitung, [Schritt 8](bitbucket.md#schritt-8-benutzer-tokens-und-umgebungen-anlegen). Jedes: Repository Access Token nur mit „Pipelines: Write“, kurze Laufzeit, im Passwortmanager. Vor Ablauf: neues anlegen und im Flow neu eingeben. Altes Token sofort widerrufen.
-
-**Komponenten:** Lege je Gruppe eine an. Teilnehmende geben jedem Ticket die Komponente ihrer Gruppe. Ohne Komponente schickt jeder Flow jedes Ticket an die Pipeline im Repo. Ungetestet als Ersatz: ein Label je Gruppe, das nicht mit `sdd-` beginnt.
+Ziel: zwei Flows für das Projekt, die die Pipelines im Repo starten. Alle Gruppen teilen sie; Komponenten braucht es nicht. Vorher nötig: die Pipeline-Datei auf `factory-base` (sonst scheitern beide Flows) und zwei Auslöser-Tokens, eins pro Flow, aus der Bitbucket-Anleitung, [Schritt 8](bitbucket.md#schritt-8-benutzer-tokens-und-umgebungen-anlegen). Jedes: Repository Access Token nur mit „Pipelines: Write“, kurze Laufzeit, im Passwortmanager. Vor Ablauf: neues anlegen und im Flow neu eingeben. Altes Token sofort widerrufen.
 
 | Einstellung | Flow 1 | Flow 2 |
 |---|---|---|
 | Name | „Factory: Spec starten“ | „Factory: Bau starten“ |
 | Auslöser | „Work item transitioned“, Definition → Bereit | „Work item transitioned“, Wartet → Bau |
-| Bedingung | Komponente der Gruppe | Komponente der Gruppe |
 | Aktion | „Send web request“ | „Send web request“ |
 | `pattern` im Body | `factory-spec` | `factory-build` |
 | Token | Auslöser-Token 1 | Auslöser-Token 2 |
@@ -176,18 +172,18 @@ Content-Type: application/json
 
 ## Teil C: Probelauf
 
-Ohne Flows: nach „Bereit“ `factory-spec` starten, nach „Spec freigegeben“ `factory-build`, jeweils per curl ([Läufe starten](bitbucket.md#läufe-starten)). Mit Flows: Jedes Probe-Ticket bekommt die Komponente einer Gruppe, die Läufe starten von selbst. Probe 3 und 4 nutzen das Ticket aus Probe 2.
+Ohne Flows: nach „Bereit“ `factory-spec` starten, nach „Spec freigegeben“ `factory-build`, jeweils per curl ([Läufe starten](bitbucket.md#läufe-starten)). Mit Flows starten die Läufe von selbst. Probe 3 und 4 nutzen das Ticket aus Probe 2.
 
 1. **Ticket ohne `sdd-`-Label auf „Bereit“.** Erwartet: Guard stoppt den Lauf, Kommentar `FACTORY-STOP v1 …` mit „no framework chosen“.
 2. **Ticket mit genau einem `sdd-`-Label auf „Bereit“.** Erwartet: Spec-Kommentar von `factory-bot`, Status „Wartet“.
-3. **`factory-bot` versucht „Spec freigegeben“.** Mit Flows: Schalte vor der Probe jeden Flow 2 aus, dessen Komponente zum Ticket passt. Ohne Komponenten, oder solange unklar ist, ob es Komponenten gibt: alle Flows 2 aus. Dann mit dem Token von `factory-bot` (`$JIRA` wie in Schritt 1):
+3. **`factory-bot` versucht „Spec freigegeben“.** Mit Flows: Schalte vor der Probe Flow 2 aus. Dann mit dem Token von `factory-bot` (`$JIRA` wie in Schritt 1):
 
    ```bash
    curl -s -w '\nHTTP %{http_code}\n' -u "<FACTORY-BOT-E-MAIL>" -X POST -H "Content-Type: application/json" \
      -d '{"transition":{"id":"<ID von Spec freigegeben>"}}' "$JIRA/rest/api/3/issue/<KEY>/transitions"
    ```
 
-   Erwartet: HTTP 400 „Can't move“. Erst dann Flows 2 wieder an. Klappt der Aufruf: kein Bau-Lauf, Flows 2 bleiben aus. Ticket auf „Factory stoppen“ setzen, zurück zu Schritt 4.
+   Erwartet: HTTP 400 „Can't move“. Erst dann Flow 2 wieder an. Klappt der Aufruf: kein Bau-Lauf, Flow 2 bleibt aus. Ticket auf „Factory stoppen“ setzen, zurück zu Schritt 4.
 4. **Bau ohne Freigabe.** Ticket in „Wartet“, `factory-build` per curl starten. Erwartet: Guard stoppt mit `build runs start only from status Bau`. Mit Flows zusätzlich: Kommentar „Freigegeben“ ohne Übergang startet nichts.
 5. **Freigabe-Person setzt „Spec freigegeben“, Bau startet.** Erwartet: `factory-bot` öffnet einen Pull Request, kommentiert den Link, setzt „Review“. Freigabe-Person prüft und führt zusammen (Gate 2). Dann setzt eine Person „Erledigt“.
 6. **„Factory stoppen“ während eines Laufs.** Erwartet: Der Lauf bricht vor jedem Schreiben ab. Er legt keinen Kommentar und keinen Branch an. „Fortsetzen“ (nur Freigabe-Personen) führt zurück nach „Definition“.

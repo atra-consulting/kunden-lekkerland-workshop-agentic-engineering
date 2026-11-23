@@ -61,7 +61,7 @@ Jeder Lauf besteht aus mehreren Schritten. Jeder Schritt sieht nur die Secrets, 
 4. **Build und Tests, ohne Secrets:** frischer Checkout, `composer install`, Testbefehl.
 5. **Veröffentlichen:** Branch pushen, Build-Status setzen, Pull Request öffnen.
 
-Geschützt sind unter anderem die Pipeline-Definition, `factory/`, `AGENTS.md`, `.github/`, die Ordner der Frameworks, `composer.json` und `composer.lock`, `bin/`, die PHPUnit- und PHPStan-Konfiguration und `.env*`. Neue Pakete kann der Agent also nicht einbauen. Die vollständige Liste steht unter `protected_paths` in [`factory/config.json`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/config.json).
+Geschützt sind unter anderem die Pipeline-Definition, `factory/`, `AGENTS.md`, `.github/`, die Ordner der Frameworks, `composer.json` und `composer.lock`, `bin/`, die PHPUnit- und PHPStan-Konfiguration und `.env*`. Der Agent kann also keine neuen Pakete einbauen. Die vollständige Liste steht unter `protected_paths` in [`factory/config.json`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/config.json).
 
 ## Die Prüfpunkte
 
@@ -103,10 +103,10 @@ Gemessen im Lab mit `symfony/demo`, je Ticket. Das sind Einzelwerte aus wenigen 
 |---|---|---|---|
 | Lauf 1, Spec | 12 bis 21 Credits | 42 Credits | 26 Credits |
 | Lauf 2, Bau | 12 bis 27 Credits | 34 Credits | 63 Credits |
-| **Je Ticket** | **etwa 30 bis 50 Credits** | **etwa 76 Credits** | **etwa 89 Credits** |
+| **Je Ticket** | **etwa 25 bis 50 Credits** | **etwa 76 Credits** | **etwa 89 Credits** |
 
 - Ein zu vages Ticket kostete 4 Credits und 42 Sekunden, bis die Fragen am Ticket standen.
-- Ein Lauf 1 dauerte 75 bis 147 Sekunden, ein Lauf 2 115 bis 211 Sekunden. Dazu kommen Wartezeit und die Zeit bis zur Freigabe.
+- Lauf 1 dauerte 75 bis 147 Sekunden, Lauf 2 115 bis 211 Sekunden. Dazu kommen Wartezeit und die Zeit bis zur Freigabe.
 - Jeder Copilot-Aufruf stoppt bei 150 Credits.
 - Läufe warten aufeinander. „Queued“ in Bitbucket heißt warten, nicht neu starten.
 
@@ -118,7 +118,7 @@ Gemessen im Lab mit `symfony/demo`, je Ticket. Das sind Einzelwerte aus wenigen 
 
 ### Mit Konto
 
-Der Zugang ist für eure DevOps-Ansprechperson gedacht. Damit legt ihr Tickets in FLAB an, setzt Labels und schiebt Tickets auf „Bereit“. Spec freigeben und zusammenführen kann im Lab nur Karsten.
+Der Zugang ist für eure DevOps-Ansprechperson gedacht. Damit legt sie Tickets in FLAB an, setzt Labels und schiebt Tickets auf „Bereit“. Spec freigeben und zusammenführen kann im Lab nur Karsten.
 
 So schreibt ihr ein Ticket:
 
@@ -139,7 +139,7 @@ Hinweise
 - Genau ein Label: `sdd-openspec`, `sdd-speckit` oder `sdd-bmad`.
 - Klein: ein Pull Request, etwa eine Stunde Arbeit für einen Menschen.
 - Prüfbar: Jedes Kriterium kann in einem Test scheitern.
-- Vollständig: Der Agent fragt nicht nach. Was nicht im Ticket steht, rät er.
+- Vollständig: Während eines Laufs fragt der Agent nicht nach. Was nicht im Ticket steht, rät er.
 - **Öffentlich:** FLAB und das Repository sind öffentlich. Keine internen Anforderungen, Namen oder Daten.
 
 ### Lokal, ohne Pipeline

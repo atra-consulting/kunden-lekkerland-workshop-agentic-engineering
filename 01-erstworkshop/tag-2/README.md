@@ -28,6 +28,11 @@ Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereit
 
 [Die Agent Factory im Lab](walkthrough-agent-factory.md): ein echtes Ticket von Jira bis zum Pull Request, die Prüfpunkte und was ihr ohne Konto ansehen könnt.
 
+Die zwei Live-Demos um 09:15, Schritt für Schritt:
+
+- [Live-Demo 1: Ein Ticket läuft durch](demo-durchlauf.md), mit [FLAB-39](https://betterprojectsfaster.atlassian.net/browse/FLAB-39)
+- [Live-Demo 2: Zu vage, dann konkret](demo-abgelehnt.md), mit [FLAB-40](https://betterprojectsfaster.atlassian.net/browse/FLAB-40)
+
 ## Übungen
 
 Jede Gruppe arbeitet in ihrem eigenen Repo, auf ihrem Framework-Branch von Tag 1:

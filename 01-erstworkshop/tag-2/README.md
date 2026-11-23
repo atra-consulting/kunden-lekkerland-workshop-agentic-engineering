@@ -30,8 +30,8 @@ Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereit
 
 Die zwei Live-Demos um 09:15, Schritt für Schritt:
 
-- [Live-Demo 1: Ein Ticket läuft durch](demo-durchlauf.md), mit [FLAB-39](https://betterprojectsfaster.atlassian.net/browse/FLAB-39)
-- [Live-Demo 2: Zu vage, dann konkret](demo-abgelehnt.md), mit [FLAB-40](https://betterprojectsfaster.atlassian.net/browse/FLAB-40)
+- [Live-Demo 1: Ein Ticket läuft durch](demo-durchlauf.md), mit [FLAB-41](https://betterprojectsfaster.atlassian.net/browse/FLAB-41)
+- [Live-Demo 2: Zu vage, dann konkret](demo-abgelehnt.md), mit [FLAB-42](https://betterprojectsfaster.atlassian.net/browse/FLAB-42)
 
 Die Blog-App des Labs startet ihr auf eurem Rechner mit fünf Befehlen: [Die Blog-App lokal starten](walkthrough-agent-factory.md#die-blog-app-lokal-starten).
 

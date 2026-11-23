@@ -4,7 +4,7 @@ Tag 2, 24. November 2026. Dieses Dokument führt euch durch die Agent Factory im
 
 Das Lab arbeitet mit [`symfony/demo`](https://github.com/symfony/demo), einem kleinen PHP-Blog, nicht mit eurem Code. Eure eigene Factory richtet ihr später in eurem Bitbucket ein: [Einrichtung](../../02-agent-factory/einrichtung/README.md).
 
-Stand: 23. November 2026, Entwurf. Abschnitte mit „Folgt.“ ergänzen wir bis zum Workshop.
+Stand: 23. November 2026. Bilder ergänzen wir bis zum Workshop.
 
 ## Die Bausteine auf einen Blick
 
@@ -166,11 +166,41 @@ Hinweise
 
 ### Lokal, ohne Pipeline
 
-Folgt.
+Dieselben Copilot-Aufrufe wie die Factory startet ihr auch im Terminal, in eurem eigenen Repository: mit `local.py`. Prompts, Werkzeuge und Optionen kommen aus derselben `factory/config.json`, die Kriterien aus derselben `readiness.md`. Ein Test stellt sicher, dass beide Wege dieselben Aufrufe machen.
+
+```bash
+python3 tools/factory-lokal/local.py assess --ticket-file ~/factory-tickets/LL-123.json               # nur die Bereitschaftsprüfung
+python3 tools/factory-lokal/local.py spec   --ticket-file ~/factory-tickets/LL-123.json --print-only  # nur die Copilot-Befehle zeigen
+python3 tools/factory-lokal/local.py spec   --ticket-file ~/factory-tickets/LL-123.json               # Prüfung, dann Spec
+python3 tools/factory-lokal/local.py build  --ticket-file ~/factory-tickets/LL-123.json               # Code nach der Spec, mit euren Tests
+```
+
+- **Das Ticket** holt ein eigener Copilot-Aufruf über euren Jira-MCP-Server in eine Datei. Ein API-Token braucht ihr dafür nicht.
+- **Euer Testbefehl,** etwa `make test`, kommt in `local.json` unter `test_command`.
+- **Anders als in der Factory:** kein Kommentar und kein Status in Jira, keine Freigabe zwischen Spec und Bau, keine Prüfung der geänderten Dateien. Den Diff prüft ihr selbst.
+- **`--print-only`** zeigt die Befehle, die DevOps später in Bitbucket Pipelines übernimmt.
+- **Im Lab** kostete OpenSpec etwa 27 Credits für die Spec und 17 für den Bau, je etwa eine Minute. Windows ist nicht getestet.
+
+Einrichten und alle Befehle: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
 
 ### Ein Ticket schreiben lassen
 
-Folgt.
+Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Tickets:
+
+```text
+/ticket-schreiben Leser sollen sehen, wie lange sie für einen Artikel brauchen.
+```
+
+1. **Erst der Code:** Der Skill liest Code und Modul-Doku. Gibt es das schon? Widerspricht es dem Code? Auf Wunsch liest er auch eure Domänen in Confluence; das ist noch nicht getestet.
+2. **Dann das Framework:** Es fragt nach, mit Spec Kit (`specify` und `clarify`), OpenSpec (`explore`) oder BMad (`forge-idea`).
+3. **Zu groß?** Dann schlägt er ein Epic mit mehreren Tickets vor.
+4. **Die Prüfung der Factory:** Jeder Entwurf geht durch dieselbe Bereitschaftsprüfung wie im Spec-Lauf.
+5. **Euer „Ja“:** Ihr seht Annahmen, Prüfergebnis und den vollen Text. Erst dann legt der Skill die Tickets in Jira an, im Status „Definition“ und mit dem Label des Frameworks. Über den Jira-MCP-Server braucht ihr kein API-Token.
+6. **Aufräumen:** Die Dateien, die das Framework beim Nachfragen anlegt, löscht der Skill wieder.
+
+Im Lab kostete ein Ticket 29 bis 43 Credits und 4 bis 5 Minuten. Bei der Absicht „RSS-Feed“ fand der Skill den Feed schon im Code, bevor das Framework die erste Frage stellte. Der Skill ist freiwillig: Die Factory startet erst bei „Bereit“.
+
+Einrichten und Ablauf: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
 
 ## Für eure eigene Factory
 
@@ -182,4 +212,5 @@ Was das Lab nicht zeigt und ihr mit eurem DevOps-Team klärt:
 
 - Euer Testbefehl läuft in Docker, etwa `make test`. In Bitbucket Pipelines braucht der Testschritt dann Docker.
 - Tokens: ein technischer GitHub-Benutzer mit Copilot-Lizenz, ein Jira-Konto und ein Bitbucket-Zugang für die Factory.
+- Login im Browser reicht der Pipeline nicht. Ihr nutzt Jira, Confluence und vielleicht Bitbucket über einen Login im Browser. Die Pipeline braucht aber API-Tokens oder einen Service-Account. Prüft zuerst, ob eure Atlassian-Organisation API-Tokens erlaubt.
 - Runner: Atlassians Cloud-Runner oder eigene Runner. Das Lab nutzt einen eigenen Runner, um Build-Minuten zu sparen.

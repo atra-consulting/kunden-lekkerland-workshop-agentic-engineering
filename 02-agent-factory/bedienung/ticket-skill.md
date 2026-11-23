@@ -130,7 +130,7 @@ Starte `copilot` im Projekt und gib die Absicht direkt hinter dem Befehl ein:
 
 Brichst du ab, springt der Skill direkt zu Schritt 8.
 
-Copilot fragt vor jedem Befehl. Lies die Befehle. Der Skill selbst ändert keinen Produktcode und committet nichts. Schreibt Copilot in `src/`, `templates/` oder `tests/`, lehn ab.
+Copilot fragt vor jedem Befehl. Lies die Befehle. Der Skill selbst ändert keinen Produktcode und committet nichts. Schreibt Copilot in `src/`, `templates/` oder `tests/`, lehne ab.
 
 ## Was jedes Framework liefert
 
@@ -156,7 +156,7 @@ angezeigt werden? (Wichtig, damit die Tests einen festen Wert prüfen können.) 
 200 Wörter pro Minute, aufgerundet, mindestens 1, Text „5 Min. Lesezeit“.
 ```
 
-Spec Kit fragte nur dieses eine Mal. Die Übersetzung in „die Sprache des Besuchers“ hatte es selbst angenommen. Erst auf Nachfrage wurde daraus „nur Deutsch und Englisch“. Seitdem zeigt der Skill solche Annahmen ausdrücklich. Ticket: FLAB-28.
+Spec Kit fragte nur dieses eine Mal. Die Übersetzung in „die Sprache des Besuchers“ hatte es selbst angenommen. Erst die Antwort des Product Owners machte daraus „nur Deutsch und Englisch“. Seitdem zeigt der Skill solche Annahmen ausdrücklich. Ticket: FLAB-28.
 
 **OpenSpec**, Absicht „Wir brauchen einen RSS-Feed, damit Leser neue Artikel abonnieren können.“ Die Code-Erkundung schlug vor jeder Framework-Frage an:
 
@@ -204,11 +204,11 @@ Dazu kommt die Zeit, in der du liest und antwortest. Im Lab dauerte ein Lauf ins
 
 ## Die Kriterien ändern
 
-Der Skill prüft dieselben Kriterien wie die Factory vor dem Spec-Lauf. Liegt `factory/readiness.md` im Projekt, liest der Skill diese Datei. Ändert ihr die Kriterien dort, gilt die Änderung für beide. Wie das geht, steht in [Ticket-Bereitschaft](ticket-bereitschaft.md), Abschnitt „So passt ihr die Kriterien an“.
+Der Skill prüft dieselben Kriterien wie die Factory vor dem Spec-Lauf. Liegt `factory/readiness.md` im Projekt, liest der Skill diese Datei. Änderst du die Kriterien dort, gilt die Änderung für beide. Wie das geht, steht in [Ticket-Bereitschaft](ticket-bereitschaft.md), Abschnitt „So passt ihr die Kriterien an“.
 
 Ohne `factory/readiness.md` nutzt der Skill die sechs Kriterien aus seiner `SKILL.md`: `missing_detail`, `untestable`, `already_exists`, `contradicts_code`, `protected_paths`, `too_big`.
 
-Besteht jemand auf einem Ticket mit offenen Punkten, schreibt der Skill den Abschnitt „Offene Punkte“ dazu. Die Factory schickt so ein Ticket sehr wahrscheinlich nach „Klärung nötig“.
+Willst du ein Ticket trotz offener Punkte anlegen, schreibt der Skill den Abschnitt „Offene Punkte“ dazu. Die Factory schickt so ein Ticket sehr wahrscheinlich nach „Klärung nötig“.
 
 ## Zu groß: mehrere Tickets und ein Epic
 
@@ -230,7 +230,7 @@ Dieser Weg ist nur mit Unit-Tests geprüft, nicht im Lab gegen Jira.
 | `Vorgangstyp 'Story' fehlt im Projekt` | `issue_type` in der Konfiguration anpassen. Die Meldung nennt die vorhandenen Typen. |
 | `HTTP 400` beim Anlegen | Jira lehnt ein Feld ab, die Meldung nennt es. Oft ein Pflichtfeld im Projekt, das der Skill nicht setzt. |
 | `arbeitsstand.py` endet mit Exit-Code 1 | Es gibt neue Commits, oder eine Datei ließ sich nicht zurücksetzen. Das Skript fasst Commits nie an. Prüf mit `git log` und `git status` selbst. |
-| `arbeitsstand.py merken` endet mit Exit-Code 3 | Es gab schon Änderungen. Sie bleiben unberührt. Besser: vorher committen oder stashen. |
+| `arbeitsstand.py merken` endet mit Exit-Code 3 | Es gab schon Änderungen. Sie bleiben unberührt. Besser: vorher committen oder mit `git stash` sichern. |
 
 ## Was nicht getestet ist
 

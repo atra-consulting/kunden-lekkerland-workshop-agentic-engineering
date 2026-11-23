@@ -1,0 +1,7 @@
+{
+  "framework": "speckit",
+  "jira_project": "FLAB",
+  "issue_type": "Task",
+  "labels": [],
+  "test_command": "./bin/phpunit"
+}

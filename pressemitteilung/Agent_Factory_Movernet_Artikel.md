@@ -29,7 +29,7 @@ Auf diese Weise profitieren alle Teams von gemeinsamen Standards, einer hohen Qu
 
 ## Erste Erfolge sichtbar
 
-Die bisherigen Ergebnisse zeigen bereits das Potenzial des Ansatzes. Standardaufgaben können deutlich schneller umgesetzt werden, die Qualität der Ergebnisse bleibt hoch und neue Teams lassen sich in kurzer Zeit an die Plattform anbinden. Das zuletzt integrierte Team wurde am 14. September 2027 erfolgreich angeschlossen.
+Die bisherigen Ergebnisse zeigen bereits das Potenzial des Ansatzes. Standardaufgaben können deutlich schneller umgesetzt werden, die Qualität der Ergebnisse bleibt hoch und neue Teams lassen sich in kurzer Zeit an die Plattform anbinden. Das zuletzt integrierte Team wurde am 26. November 2026 erfolgreich angeschlossen.
 
 ## Lernen statt Experimentieren
 

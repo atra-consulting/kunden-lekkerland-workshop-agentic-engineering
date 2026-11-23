@@ -2,6 +2,10 @@
 
 Folien, Übungen und Ergebnisse von Tag 1.
 
+## Folien
+
+[Workshop Agentic Engineering – Tag 1](Workshop%20Agentic%20Engineering%20%E2%80%93%20Tag%201.pdf) (PDF, 37 Seiten)
+
 ## Anleitungen
 
 Ein Leitfaden je Gruppe, für die Arbeit in eurem Repo:

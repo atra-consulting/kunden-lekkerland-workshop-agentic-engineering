@@ -11,7 +11,9 @@ Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereit
 | 09:00 | Rückblick und Fragen | Plan für den Tag |
 | 09:15 | Demo: die Factory im Lab, die Bereitschaftsprüfung, lokal ausführen | Ihr habt gesehen, wie aus einem Ticket Spec und Pull Request werden |
 | 10:00 | Pause | |
-| 10:15 | [Übung 1: Ein Ticket lokal durch](../uebungen/tag-2-1-lokal.md) | Je Gruppe ein Ticket mit Spec und Code, oder die Hindernisse notiert |
+| 10:15 | [Übung 1, Teil 1](../uebungen/tag-2-1-lokal.md): einrichten, die erste Spec mit eurem Framework | `local.py` läuft, eine Spec |
+| 11:00 | Pause | |
+| 11:15 | [Übung 1, Teil 2](../uebungen/tag-2-1-lokal.md#teil-2-1115-bis-1200-bauen-und-ein-zweites-framework): bauen, dann dasselbe Ticket mit dem anderen Framework | Ein Ticket mit Spec und Code, ein Vergleich von Spec Kit und OpenSpec |
 | 12:00 | Mittag | |
 | 13:00 | [Übung 2: Ein Ticket ablehnen lassen, Kriterien anpassen](../uebungen/tag-2-2-bereitschaft.md) | Ein abgelehntes Ticket, eure eigenen Kriterien |
 | 14:00 | Pause | |
@@ -43,7 +45,7 @@ Die Blog-App des Labs startet ihr auf eurem Rechner mit fünf Befehlen: [Die Blo
 
 Jede Gruppe arbeitet in ihrem eigenen Repo, auf ihrem Framework-Branch von Tag 1:
 
-- [Übung 1: Ein Ticket lokal durch die Factory-Schritte](../uebungen/tag-2-1-lokal.md), 10:15 bis 12:00
+- [Übung 1: Ein Ticket lokal durch die Factory-Schritte](../uebungen/tag-2-1-lokal.md), 10:15 bis 12:00, in zwei Teilen mit Pause von 11:00 bis 11:15
 - [Übung 2: Ein Ticket ablehnen lassen und die Kriterien anpassen](../uebungen/tag-2-2-bereitschaft.md), 13:00 bis 14:00
 - [Übung 3: Tickets mit dem Skill schreiben](../uebungen/tag-2-3-ticket-schreiben.md), 14:15 bis 15:00
 

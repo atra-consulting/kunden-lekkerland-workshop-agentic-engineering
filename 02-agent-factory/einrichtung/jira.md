@@ -1,6 +1,6 @@
 # Jira für die Factory einrichten
 
-Diese Anleitung richtet das Jira-Projekt für die Factory ein: Konto `factory-bot`, acht Status, Übergänge mit Freigabe (Gate 1). Optional: zwei Automation-Flows, die die Bitbucket-Pipelines starten. Ohne Flows startet ihr die Läufe per curl. Teil A braucht die Factory immer: Der Guard liest Status und Freigabe aus Jira. Alles hier erledigt ein Admin von Lekkerland zusammen mit atra, auch das Anlegen von `factory-bot`.
+Diese Anleitung richtet das Jira-Projekt für die Factory ein: Konto `factory-bot`, neun Status, Übergänge mit Freigabe (Gate 1) und Prüfung der Ticket-Bereitschaft. Optional: zwei Automation-Flows, die die Bitbucket-Pipelines starten. Ohne Flows startet ihr die Läufe per curl. Teil A braucht die Factory immer: Der Guard liest Status und Freigabe aus Jira. Alles hier erledigt ein Admin von Lekkerland zusammen mit atra, auch das Anlegen von `factory-bot`.
 
 Pipeline: [Bitbucket-Anleitung](bitbucket.md). Gesamtbild: [Überblick](../ueberblick.md).
 
@@ -40,12 +40,13 @@ Tokens mit Scopes gehen nicht über `https://<site>.atlassian.net`. Für alle Au
 
 ### Schritt 2: Status anlegen
 
-Ziel: ein Workflow für alle Ticket-Typen (Epic, Subtask, Task, Story) mit diesen acht Status. Der Guard prüft IDs, nicht Namen. Englische Namen: ungetestet.
+Ziel: ein Workflow für alle Ticket-Typen (Epic, Subtask, Task, Story) mit diesen neun Status. Der Guard prüft IDs, nicht Namen. Englische Namen: ungetestet.
 
 | Status | Kategorie | Bedeutung |
 |---|---|---|
 | Definition | „To Do“ | Eine Person schreibt das Ticket. |
 | Bereit | „To Do“ | Startet den Spec-Lauf. |
+| Klärung nötig | „To Do“ | Ticket ist nicht bereit für eine Spec. Eine Person ergänzt es. Siehe [Ticket-Bereitschaft](../bedienung/ticket-bereitschaft.md). |
 | In Arbeit | „In Progress“ | Nur kurz, im Spec-Lauf. |
 | Wartet | „In Progress“ | Spec wartet auf Freigabe. |
 | Bau | „In Progress“ | Freigegeben. Startet den Bau-Lauf. |
@@ -55,21 +56,22 @@ Ziel: ein Workflow für alle Ticket-Typen (Epic, Subtask, Task, Story) mit diese
 
 ### Schritt 3: Übergänge anlegen
 
-Ziel: diese neun Übergänge. Nur „Factory stoppen“ ist global. Neue Tickets starten in „Definition“.
+Ziel: diese zehn Übergänge. Nur „Factory stoppen“ ist global. Neue Tickets starten in „Definition“.
 
 | Übergang | Von | Nach | Wer |
 |---|---|---|---|
-| Bereit | Definition | Bereit | eine Person |
+| Bereit | Definition oder Klärung nötig | Bereit | eine Person |
 | Start | Bereit | In Arbeit | `factory-bot` |
 | Spec fertig | In Arbeit | Wartet | `factory-bot` |
+| Klärung nötig | In Arbeit | Klärung nötig | `factory-bot`: Ticket nicht bereit oder Rückfragen des Frameworks |
 | Spec freigegeben | Wartet | Bau | nur Freigabe-Personen (Schritt 4) |
-| Zurück | Wartet | Definition | `factory-bot` bei Rückfragen, oder eine Person |
+| Zurück | Wartet | Definition | eine Person, wenn die Spec nicht passt |
 | Bau fertig | Bau | Review | `factory-bot` |
 | Erledigt | Review | Erledigt | eine Person, nach dem Zusammenführen |
 | Factory stoppen | jeder Status | Factory gestoppt | jede Person, auch `factory-bot` |
 | Fortsetzen | Factory gestoppt | Definition | nur Freigabe-Personen (Schritt 4) |
 
-Nur Schritt 4 erzwingt die Spalte „Wer“. Den Rest regelt die Absprache.
+Schritt 4 erzwingt die Spalte „Wer“ für die Freigabe und für die vier Übergänge von `factory-bot`. Den Rest regelt die Absprache.
 
 ### Schritt 4: Freigabe absichern
 
@@ -81,6 +83,7 @@ Ziel: Nur Freigabe-Personen geben frei, nie `factory-bot`. Setze beide Regeln au
 | „Restrict users who have previously updated a work item's status“ | Übergang In Arbeit → Wartet | Wer „Spec fertig“ gesetzt hat (`factory-bot`), gibt nicht frei. |
 
 - „Fortsetzen“: erste Regel ebenso, mit den Freigabe-Personen.
+- „Start“, „Spec fertig“, „Klärung nötig“ und „Bau fertig“: erste Regel mit der Projektrolle „Factory“ aus Schritt 1. So setzt nur `factory-bot` diese Status. Im Lab getestet in einem company-managed Projekt (Bedingung „User Is In Project Role“); in einem team-managed Projekt ungetestet. Setze diese Regel erst nach Schritt 6: Sonst kann der Admin die vier Übergänge am Testticket weder setzen noch ihre IDs ablesen.
 - Freigabe-Personen setzen nie „Spec fertig“. Sonst können sie dieses Ticket nicht freigeben.
 - Mache nur benannte Personen zu Projekt-Admins. Jeder Projekt-Admin kann diese Regeln ändern.
 
@@ -103,8 +106,8 @@ Ziel: die Werte für `factory/config.json`, siehe Bitbucket-Anleitung, [Schritt 
 | Config-Schlüssel | Wert | Quelle |
 |---|---|---|
 | `project_key` | Projektschlüssel | vorne im Ticket-Schlüssel |
-| `jira.status.definition`, `ready`, `working`, `waiting`, `build`, `review`, `done`, `stopped` | IDs der acht Status, Reihenfolge wie in Schritt 2 | Aufruf 1 |
-| `jira.transition.start`, `spec_done`, `back`, `approve`, `build_done` | IDs von Start, Spec fertig, Zurück, Spec freigegeben, Bau fertig. Nur diese fünf braucht die Config. | Aufruf 2, Testticket |
+| `jira.status.definition`, `ready`, `working`, `waiting`, `build`, `review`, `done`, `stopped`, `clarify` | IDs der neun Status; `clarify` ist „Klärung nötig“ | Aufruf 1 |
+| `jira.transition.start`, `spec_done`, `clarify`, `approve`, `build_done` | IDs von Start, Spec fertig, Klärung nötig, Spec freigegeben, Bau fertig. Nur diese fünf braucht die Config. | Aufruf 2, Testticket |
 | `jira.approver_account_ids` | Account-IDs der Freigabe-Personen, als Liste | Aufruf 3 |
 | `jira.factory_account_id` | Account-ID von `factory-bot` | Aufruf 3 |
 
@@ -124,8 +127,8 @@ Aufruf 2 zeigt nur Übergänge, die die aufrufende Person machen darf. Lies die 
 | # | Wer | Was, in dieser Reihenfolge | Ticket steht in | Abgelesene ID |
 |---|---|---|---|---|
 | 1 | Admin | erst Ticket anlegen und „Bereit“ setzen, dann Aufruf 2 | Bereit | Start |
-| 2 | Admin | erst „Start“ setzen, dann Aufruf 2 | In Arbeit | Spec fertig |
-| 3 | Admin | erst „Spec fertig“ setzen, dann Aufruf 2 | Wartet | Zurück |
+| 2 | Admin | erst „Start“ setzen, dann Aufruf 2 | In Arbeit | Spec fertig, Klärung nötig |
+| 3 | Admin | erst „Spec fertig“ setzen, dann Aufruf 2 | Wartet | (nichts, weiter zu Zeile 4) |
 | 4 | Freigabe-Person | erst Aufruf 2, dann „Spec freigegeben“ setzen | Wartet | Spec freigegeben |
 | 5 | Admin | erst Aufruf 2 (Bau fertig ablesen), dann zum Aufräumen „Factory stoppen“ setzen | Bau | Bau fertig |
 
@@ -140,7 +143,7 @@ Ziel: zwei Flows für das Projekt, die die Pipelines im Repo starten. Alle Grupp
 | Einstellung | Flow 1 | Flow 2 |
 |---|---|---|
 | Name | „Factory: Spec starten“ | „Factory: Bau starten“ |
-| Auslöser | „Work item transitioned“, Definition → Bereit | „Work item transitioned“, Wartet → Bau |
+| Auslöser | „Work item transitioned“, Von: Definition und Klärung nötig, Nach: Bereit | „Work item transitioned“, Wartet → Bau |
 | Aktion | „Send web request“ | „Send web request“ |
 | `pattern` im Body | `factory-spec` | `factory-build` |
 | Token | Auslöser-Token 1 | Auslöser-Token 2 |
@@ -175,7 +178,8 @@ Content-Type: application/json
 Ohne Flows: nach „Bereit“ `factory-spec` starten, nach „Spec freigegeben“ `factory-build`, jeweils per curl ([Läufe starten](bitbucket.md#läufe-starten)). Mit Flows starten die Läufe von selbst. Probe 3 und 4 nutzen das Ticket aus Probe 2.
 
 1. **Ticket ohne `sdd-`-Label auf „Bereit“.** Erwartet: Guard stoppt den Lauf, Kommentar `FACTORY-STOP v1 …` mit „no framework chosen“.
-2. **Ticket mit genau einem `sdd-`-Label auf „Bereit“.** Erwartet: Spec-Kommentar von `factory-bot`, Status „Wartet“.
+2. **Ticket mit genau einem `sdd-`-Label auf „Bereit“.** Erwartet: Spec-Kommentar von `factory-bot` mit „Readiness check: passed“, Status „Wartet“.
+   - **Vages Ticket mit Label, nur ein Titel wie „Suche verbessern“, auf „Bereit“.** Erwartet: Kommentar `FACTORY-NOT-READY v1 …` mit Gründen und Fragen, Status „Klärung nötig“, kein Branch. Beschreibung ergänzen, zurück auf „Bereit“: ein neuer Spec-Lauf startet. Siehe [Ticket-Bereitschaft](../bedienung/ticket-bereitschaft.md).
 3. **`factory-bot` versucht „Spec freigegeben“.** Mit Flows: Schalte vor der Probe Flow 2 aus. Dann mit dem Token von `factory-bot` (`$JIRA` wie in Schritt 1):
 
    ```bash

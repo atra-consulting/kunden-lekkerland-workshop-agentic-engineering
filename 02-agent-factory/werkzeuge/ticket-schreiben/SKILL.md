@@ -187,7 +187,7 @@ Zeig der Person pro Ticket das Urteil und, bei „not_ready“, Gründe und Frag
 - **Ein Ticket mit „not_ready“ legst du nie an,** außer die Person sagt ausdrücklich „trotzdem anlegen“. Dann bekommt es den Abschnitt „Offene Punkte“ mit den Gründen der Prüfung.
 - **Fehler oder kein `factory/local.py`:** Sag das. Dann gilt dein eigener Check aus Schritt 5.
 
-Zeig danach im Chat alle Entwürfe zusammen: die Reife-Tabelle aus Schritt 5, das Urteil aus Schritt 7 und den ganzen Text jedes Tickets, nicht nur die Dateinamen. Erst dann frag einmal für alle: „Soll ich diese Tickets so in <jira_project> anlegen?“ Ändere die Entwürfe, bis die Person zustimmt. Ändert sich ein Ticket inhaltlich, prüf es neu.
+Stell danach alle Entwürfe zusammen **in den Text des Frageformulars selbst**, so wie die Annahmen in Schritt 4: die Reife-Tabelle aus Schritt 5, das Urteil aus Schritt 7 und den ganzen Text jedes Tickets, nicht nur die Dateinamen. Text außerhalb des Formulars und die Ausgabe von `cat` sieht die Person oft nicht. Darunter frag einmal für alle: „Soll ich diese Tickets so in <jira_project> anlegen?“ Ändere die Entwürfe, bis die Person zustimmt. Ändert sich ein Ticket inhaltlich, prüf es neu.
 
 ## Schritt 8: In Jira anlegen
 

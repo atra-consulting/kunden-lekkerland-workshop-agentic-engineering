@@ -76,6 +76,16 @@ class ArbeitsstandTest(unittest.TestCase):
         with open(os.path.join(self.root, "src/App.php"), encoding="utf-8") as f:
             self.assertEqual(f.read(), "alt\n")
 
+    def test_neue_leere_ordner_werden_entfernt(self):
+        os.makedirs(os.path.join(self.root, ".specify/leer-vorher"))
+        self.lauf("merken")
+        os.makedirs(os.path.join(self.root, "specs/001-x/checklists"))   # nur Ordner, keine Datei
+        schreibe(self.root, "specs/001-x/spec.md")
+        code, out = self.lauf("aufraeumen", "--ja")
+        self.assertEqual(code, 0, out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "specs")))
+        self.assertTrue(os.path.isdir(os.path.join(self.root, ".specify/leer-vorher")), "alte leere Ordner bleiben")
+
     def test_ohne_ja_nur_zeigen(self):
         self.lauf("merken")
         schreibe(self.root, "specs/001/spec.md")

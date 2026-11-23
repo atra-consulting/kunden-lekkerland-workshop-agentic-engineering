@@ -83,6 +83,29 @@ def framework_dateien(root):
     return out
 
 
+def framework_unterordner(root):
+    """Alle Ordner in den Framework-Ordnern, einschließlich der Framework-Ordner selbst."""
+    out = set()
+    for ordner in FRAMEWORK_ORDNER:
+        basis = os.path.join(root, ordner)
+        if not os.path.isdir(basis):
+            continue
+        for d, _, _ in os.walk(basis):
+            out.add(os.path.relpath(d, root).replace(os.sep, "/"))
+    return out
+
+
+def neue_leere_ordner(root, alt):
+    """Neue Ordner in den Framework-Ordnern, in denen keine Datei liegt. Git zeigt sie nicht an."""
+    vorher = set(alt.get("framework_ordner", []))
+    leer = []
+    for d in sorted(framework_unterordner(root) - vorher, key=len, reverse=True):
+        voll = os.path.join(root, d)
+        if not any(dateien for _, _, dateien in os.walk(voll)):
+            leer.append(d)
+    return leer
+
+
 def getrackt(root):
     return set(git("ls-files", "-z", cwd=root).split("\0")) - {""}
 
@@ -105,6 +128,7 @@ def aufnehmen(root):
         "branches": branches(root),
         "status": status_eintraege(root),
         "framework_dateien": sorted(framework_dateien(root)),
+        "framework_ordner": sorted(framework_unterordner(root)),
     }
 
 
@@ -209,6 +233,12 @@ def aufraeumen(root, alt, p):
             os.remove(voll)
         leere_ordner_entfernen(root, x)
         print(f"Gelöscht: {x}")
+    for d in neue_leere_ordner(root, alt):  # tiefste zuerst
+        try:
+            os.rmdir(os.path.join(root, d))
+            print(f"Leeren Ordner gelöscht: {d}")
+        except OSError:
+            pass
     for b in p["neue_branches"]:
         r = subprocess.run(["git", "branch", "-d", b], cwd=root, capture_output=True)
         print(f"Branch gelöscht: {b}" if r.returncode == 0

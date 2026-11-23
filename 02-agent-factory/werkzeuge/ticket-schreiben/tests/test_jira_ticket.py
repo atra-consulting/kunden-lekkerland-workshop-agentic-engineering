@@ -114,6 +114,13 @@ class AuthTest(Basis):
         self.assertIn("Status: Definition", out)
         self.assertNotIn(TOKEN, out + err)
 
+    def test_link_nutzt_site_aus_serverinfo(self):
+        FakeJira.antworten[("POST", "/rest/api/3/issue")] = (201, {"key": "FLAB-5"})
+        FakeJira.antworten[("GET", "/rest/api/3/serverInfo")] = (200, {"baseUrl": "https://lab.atlassian.net"})
+        code, out, err = self.run_main(["anlegen", "--config", self.config, "--entwurf", self.entwurf], self.env())
+        self.assertEqual(code, 0, err)
+        self.assertIn("URL: https://lab.atlassian.net/browse/FLAB-5", out)
+
     def test_data_center_nutzt_bearer_und_api2(self):
         FakeJira.antworten[("POST", "/rest/api/2/issue")] = (201, {"key": "FLAB-7"})
         FakeJira.antworten[("GET", "/rest/api/2/issue/FLAB-7")] = (200, {"fields": {"status": {"name": "Definition"}}})

@@ -88,6 +88,16 @@ class Zugang:
         self.cloud = bool(self.email)
         self.api = "3" if self.cloud else "2"
 
+    def site_url(self):
+        """Die Adresse für Browser-Links. Bei Scoped Tokens ist JIRA_BASE_URL das Gateway
+        https://api.atlassian.com/ex/jira/<cloud-id>, und /browse/ funktioniert dort nicht.
+        /serverInfo nennt dann die echte Site."""
+        try:
+            url = str(self.aufruf("GET", "/serverInfo").get("baseUrl", "")).rstrip("/")
+        except Fehler:
+            url = ""
+        return url if url.lower().startswith("https://") else self.base
+
     @property
     def art(self):
         return "Jira Cloud (Basic-Auth, API 3)" if self.cloud else "Jira Data Center (Bearer-Token, API 2)"
@@ -274,6 +284,8 @@ def cmd_pruefen(args, env=None):
     cfg = lade_config(args.config)
     z = Zugang(env)
     print(f"Jira: {z.base} ({z.art})")
+    if z.site_url() != z.base:
+        print(f"Site für Links: {z.site_url()}")
     ich = z.aufruf("GET", "/myself")
     print(f"Angemeldet als: {ich.get('displayName') or ich.get('name') or '(ohne Namen)'}")
     projekt = z.aufruf("GET", f"/project/{cfg['jira_project']}")
@@ -303,7 +315,7 @@ def cmd_anlegen(args, env=None):
     if not key:
         raise Fehler("Jira hat keinen Ticket-Schlüssel zurückgegeben", code=1)
     print(f"Angelegt: {key}")
-    print(f"URL: {z.base}/browse/{key}")
+    print(f"URL: {z.site_url()}/browse/{key}")
     try:
         status = z.aufruf("GET", f"/issue/{key}?fields=status,labels")["fields"]
         print(f"Status: {status['status']['name']}")

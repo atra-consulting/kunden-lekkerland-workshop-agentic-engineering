@@ -92,7 +92,7 @@ Gib dem Framework die Absicht und deinen Befund aus Schritt 3 mit. Für alle Fra
 | `openspec` | `openspec-explore` als Denkpartner, bis die Person sagt, dass es klar ist. Dann die Schritte von `openspec-propose`, aber nur `proposal.md` und die Spec-Deltas. `design.md` und `tasks.md` schreibt später die Factory. | `openspec/changes/<name>/` |
 | `bmad` | `bmad-forge-idea` mit dem Ziel „besser machen“, für eine Änderung an diesem Projekt. Ende „Hardened“ schreibt `forged-idea.md`. Den HTML-Bericht brauchst du nicht. Dann `bmad-spec` im Express-Modus mit `forged-idea.md` als Eingabe. | `_bmad-output/.../SPEC.md` |
 
-Danach zeigst du die **Annahmen**, die das Framework ohne Rückfrage getroffen hat, als kurze Liste. Beispiele: Lesegeschwindigkeit, betroffene Sprachen, Seiten oder Rollen. Lass die Person jede bestätigen oder ändern.
+Danach zeigst du die **Annahmen**, die das Framework ohne Rückfrage getroffen hat, als nummerierte Liste in der Frage selbst. Beispiele: Lesegeschwindigkeit, betroffene Sprachen, Seiten oder Rollen. Lass die Person jede bestätigen oder ändern.
 Fragt das Framework nicht nach einem Punkt, der in Schritt 5 offen wäre, frag selbst nach.
 
 ## Schritt 5: Reife-Check

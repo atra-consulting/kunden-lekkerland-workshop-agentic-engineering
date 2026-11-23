@@ -11,7 +11,7 @@ Was „nicht bereit“ heißt, legt ihr selbst fest: [So passt ihr die Kriterien
 3. **Bereit:** Der Spec-Lauf geht weiter wie bisher. Der Spec-Kommentar nennt die bestandene Prüfung.
 4. **Nicht bereit:** Die Factory überspringt das SDD-Framework. Der Check-Schritt lässt nur die Datei `FACTORY-ASSESSMENT.json` durch und prüft ihr Format. `factory-bot` kommentiert Gründe und Fragen und setzt das Ticket auf „Klärung nötig“.
 
-Die Prüfung kostet im Lab etwa 6 bis 10 Credits und 15 bis 60 Sekunden. Die Obergrenze pro Prüfung steht in `factory/config.json` unter `assess.max_ai_credits` (40).
+Die Prüfung kostet im Lab etwa 6 bis 14 Credits und 10 bis 25 Sekunden. Ein ganzer Spec-Lauf, der mit „Klärung nötig“ endet, dauert etwa 50 Sekunden. Die Obergrenze pro Prüfung steht in `factory/config.json` unter `assess.max_ai_credits` (40).
 
 ## Die sechs Kriterien
 
@@ -32,19 +32,21 @@ Ein Ticket, das schon fertig ist, schreibst du am besten gar nicht erst. Der Cop
 
 ## So sieht der Kommentar aus
 
-Der feste Text ist Englisch, wie bei allen Factory-Kommentaren. Gründe und Fragen stehen in der Sprache des Tickets.
+Echter Kommentar aus dem Lab, Ticket „Suche verbessern“ ohne weitere Beschreibung. Der feste Text ist Englisch, wie bei allen Factory-Kommentaren. Gründe und Fragen stehen in der Sprache des Tickets.
 
 ```text
-FACTORY-NOT-READY v1 key=FLAB-31 run=152 reasons=missing_detail
+FACTORY-NOT-READY v1 key=FLAB-31 run=87 reasons=missing_detail,untestable
 The readiness check found that this ticket is not ready for a spec. The factory wrote no spec, no code, and no branch.
 Reasons:
-• missing_detail: Das Ticket nennt weder die Seite noch das gewünschte Ergebnis der Suche. …
+• missing_detail: Das Ticket sagt nicht, was an der Suche besser werden soll. Es gibt mehrere Stellen: die Suche in src/Repository/PostRepository.php, src/Controller/BlogController.php und die Live-Komponente src/Twig/Components/BlogSearch.php. Ein Entwickler müsste Ziel und erwartetes Ergebnis raten.
+• untestable: "Besser" ist kein Kriterium, das in einem automatisierten Test fehlschlagen kann. Es gibt keine überprüfbare Abnahmebedingung.
 Questions:
-• Welche Suche ist gemeint: die Blog-Suche unter /blog/search oder eine andere?
-• …
+• Welche Suche ist gemeint (Blog-Suche im Header, Suchseite, Live-Suche) und was funktioniert dort heute nicht wie gewünscht?
+• Was soll konkret besser werden, zum Beispiel in Titel, Inhalt, Autor oder Tags suchen, Sortierung der Treffer, Teilwort-Treffer oder Anzahl der Ergebnisse?
+• Welches Ergebnis soll bei einer konkreten Beispielsuche erscheinen, damit man es testen kann?
 Improve the ticket description, then move the ticket from 'Klärung nötig' to 'Bereit'. That starts a new spec run with a new readiness check.
 Criteria: factory/readiness.md
-Pipeline: run 152
+Pipeline: run 87
 ```
 
 ## Ein Ticket in „Klärung nötig“

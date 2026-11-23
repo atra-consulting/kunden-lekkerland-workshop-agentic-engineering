@@ -36,7 +36,7 @@ Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen 
 
 ## Einrichten
 
-1. Lege einen Ordner in deinem Projekt an, etwa `tools/factory-lokal/`.
+1. Lege in deinem Projekt den Ordner `factory/` an. Dort sucht auch der Skill `ticket-schreiben` nach `local.py` und `readiness.md`.
 2. Kopiere aus `factory-lab`, Branch `factory-base`, Ordner `factory/`: `local.py`, `config.json`, `readiness.md` und `local.example.json`. Nimm die `config.json`, die auch eure Pipeline nutzt, damit Prompts und Kriterien gleich sind.
 3. Kopiere `local.example.json` nach `local.json` und passe sie an:
 
@@ -76,7 +76,7 @@ mkdir -p ~/factory-tickets
   --allow-tool=write \
   '--allow-tool=atlassian(getAccessibleAtlassianResources)' \
   '--allow-tool=atlassian(getJiraIssue)')
-python3 tools/factory-lokal/local.py spec --ticket-file ~/factory-tickets/LL-123.json
+python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json
 ```
 
 Windows (PowerShell, nicht getestet). Der Prompt ist derselbe. Er hat absichtlich keine Anführungszeichen, denn PowerShell gibt sie an Programme nicht sicher weiter:
@@ -86,7 +86,7 @@ New-Item -ItemType Directory -Force "$HOME\factory-tickets" | Out-Null
 Push-Location "$HOME\factory-tickets"
 copilot -p '<derselbe Prompt wie oben>' --no-ask-user --no-auto-update --disallow-temp-dir --disable-builtin-mcps --allow-tool=write '--allow-tool=atlassian(getAccessibleAtlassianResources)' '--allow-tool=atlassian(getJiraIssue)'
 Pop-Location
-py -3 tools\factory-lokal\local.py spec --ticket-file "$HOME\factory-tickets\LL-123.json"
+py -3 factory\local.py spec --ticket-file "$HOME\factory-tickets\LL-123.json"
 ```
 
 So ist der Aufruf gebaut:
@@ -134,14 +134,14 @@ Starte im Projekt, irgendwo im Git-Repository. Unter Windows `py -3` statt `pyth
 Die Beispiele nutzen `--key`, also den Weg mit API-Token. Mit dem Jira-MCP schreibst du statt `--key LL-123` immer `--ticket-file ~/factory-tickets/LL-123.json`.
 
 ```bash
-python3 tools/factory-lokal/local.py assess --key LL-123                 # nur Bereitschaft prüfen
-python3 tools/factory-lokal/local.py spec   --key LL-123                 # Bereitschaft prüfen, dann Spec schreiben
-python3 tools/factory-lokal/local.py spec   --key LL-123 --no-assess     # Spec ohne Bereitschaftsprüfung
-python3 tools/factory-lokal/local.py spec   --key LL-123 --framework speckit
-python3 tools/factory-lokal/local.py build  --key LL-123                 # die Spec umsetzen
-python3 tools/factory-lokal/local.py build  --key LL-123 --change 001-lesezeit
-python3 tools/factory-lokal/local.py spec   --ticket-file LL-123.json    # Ticket aus einer Datei
-python3 tools/factory-lokal/local.py spec   --key LL-123 --print-only    # nur die Copilot-Befehle zeigen
+python3 factory/local.py assess --key LL-123                 # nur Bereitschaft prüfen
+python3 factory/local.py spec   --key LL-123                 # Bereitschaft prüfen, dann Spec schreiben
+python3 factory/local.py spec   --key LL-123 --no-assess     # Spec ohne Bereitschaftsprüfung
+python3 factory/local.py spec   --key LL-123 --framework speckit
+python3 factory/local.py build  --key LL-123                 # die Spec umsetzen
+python3 factory/local.py build  --key LL-123 --change 001-lesezeit
+python3 factory/local.py spec   --ticket-file LL-123.json    # Ticket aus einer Datei
+python3 factory/local.py spec   --key LL-123 --print-only    # nur die Copilot-Befehle zeigen
 ```
 
 - `assess` braucht kein Framework-Label. Es schreibt nur `FACTORY-ASSESSMENT.json` ins Repository und zeigt das Urteil. Ist es „nicht bereit“, bleibt die Datei liegen. Committe sie nicht.

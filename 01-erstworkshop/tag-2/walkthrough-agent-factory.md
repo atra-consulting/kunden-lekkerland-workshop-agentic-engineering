@@ -190,10 +190,10 @@ Hinweise
 Dieselben Copilot-Aufrufe wie die Factory startet ihr auch im Terminal, in eurem eigenen Repository: mit `local.py`. Prompts, Werkzeuge und Optionen kommen aus derselben `factory/config.json`, die Kriterien aus derselben `readiness.md`. Ein Test stellt sicher, dass beide Wege dieselben Aufrufe machen.
 
 ```bash
-python3 tools/factory-lokal/local.py assess --ticket-file ~/factory-tickets/LL-123.json               # nur die Bereitschaftsprüfung
-python3 tools/factory-lokal/local.py spec   --ticket-file ~/factory-tickets/LL-123.json --print-only  # nur die Copilot-Befehle zeigen
-python3 tools/factory-lokal/local.py spec   --ticket-file ~/factory-tickets/LL-123.json               # Prüfung, dann Spec
-python3 tools/factory-lokal/local.py build  --ticket-file ~/factory-tickets/LL-123.json               # Code nach der Spec, mit euren Tests
+python3 factory/local.py assess --ticket-file ~/factory-tickets/LL-123.json               # nur die Bereitschaftsprüfung
+python3 factory/local.py spec   --ticket-file ~/factory-tickets/LL-123.json --print-only  # nur die Copilot-Befehle zeigen
+python3 factory/local.py spec   --ticket-file ~/factory-tickets/LL-123.json               # Prüfung, dann Spec
+python3 factory/local.py build  --ticket-file ~/factory-tickets/LL-123.json               # Code nach der Spec, mit euren Tests
 ```
 
 - **Das Ticket** holt ein eigener Copilot-Aufruf über euren Jira-MCP-Server in eine Datei. Ein API-Token braucht ihr dafür nicht.

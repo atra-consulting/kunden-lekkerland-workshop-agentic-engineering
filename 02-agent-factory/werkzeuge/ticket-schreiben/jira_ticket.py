@@ -79,7 +79,9 @@ class Zugang:
             raise Fehler("Umgebungsvariable fehlt: " + ", ".join(fehlend)
                          + ". Setze sie in deiner Shell, nicht im Chat (siehe ticket-skill.md).")
         self.base = env["JIRA_BASE_URL"].strip().rstrip("/")
-        if not re.match(r"https?://", self.base):
+        # Das Token geht nur verschlüsselt raus. http:// nur für einen lokalen Testserver.
+        if not (self.base.lower().startswith("https://")
+                or re.match(r"http://(127\.0\.0\.1|localhost)(:[0-9]+)?(/|$)", self.base.lower())):
             raise Fehler("JIRA_BASE_URL muss mit https:// beginnen")
         self.email = env.get("JIRA_EMAIL", "").strip()
         self._token = env["JIRA_API_TOKEN"].strip()

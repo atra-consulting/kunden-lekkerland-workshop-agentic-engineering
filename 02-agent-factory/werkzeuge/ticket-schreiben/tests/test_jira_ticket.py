@@ -126,6 +126,14 @@ class AuthTest(Basis):
         self.assertIn("* Die Startseite.", beschreibung)
         self.assertIn("{{./bin/phpunit}}", beschreibung)
 
+    def test_http_nur_lokal(self):
+        env = self.env()
+        env["JIRA_BASE_URL"] = "http://jira.example.com"
+        code, out, err = self.run_main(["pruefen", "--config", self.config], env)
+        self.assertEqual(code, 2)
+        self.assertIn("https://", err)
+        self.assertEqual(FakeJira.anfragen, [])
+
     def test_fehlende_variablen_nennt_namen_nicht_werte(self):
         code, out, err = self.run_main(["anlegen", "--config", self.config, "--entwurf", self.entwurf],
                                        {"JIRA_BASE_URL": self.url})

@@ -1,23 +1,23 @@
 # Bitbucket für die Factory einrichten
 
-Diese Anleitung richtet eine Repository-Kopie für die Factory ein: Branch `factory-base` mit den Custom-Pipelines `factory-spec` und `factory-build`. Läufe startet ihr per curl. Alles hier erledigt ein Admin von Lekkerland zusammen mit atra, derselbe wie in der Jira-Anleitung.
+Diese Anleitung richtet euer Repo für die Factory ein: Branch `factory-base` mit den Custom-Pipelines `factory-spec` und `factory-build`. Läufe startet ihr per curl. Alles hier erledigt ein Admin von Lekkerland zusammen mit atra, derselbe wie in der Jira-Anleitung.
 
 Reihenfolge: Schritte 1 bis 3 hier, dann [Jira, Teil A](jira.md#teil-a-workflow-einrichten), dann Schritte 4 bis 10, dann [Jira, Teil C](jira.md#teil-c-probelauf). Jira-Automation ([Teil B](jira.md#teil-b-flows-anlegen)) ist optional. Gesamtbild: [Überblick](../ueberblick.md).
 
 ## Vor dem Start
 
 - [ ] Vor Schritt 4: [Jira, Teil A](jira.md#teil-a-workflow-einrichten) erledigt. Daraus brauchst du: Projektschlüssel, acht Status-IDs, fünf Übergangs-IDs, Account-IDs der Freigabe-Personen und von `factory-bot`.
-- [ ] Bitbucket Cloud, Pipelines an, eine Kopie pro Gruppe. Pro Kopie nur ein Lauf gleichzeitig. Ein zweiter bleibt an der Umgebungssperre stehen.
-- [ ] Schritte 1 bis 10 je Repository-Kopie. Ein Image je Kopie: `config.json` nennt Repo und Reviewer.
-- [ ] Du hast Admin-Rechte für den Bitbucket-Workspace und die Kopien. Teilnehmende bekommen kein Admin-Recht: Repository-Admins können Branch-Regeln aufheben.
-- [ ] Konto `factory-bot`: technischer Benutzer, einer für alle Kopien, angelegt in [Jira, Teil A, Schritt 1](jira.md#schritt-1-factory-konto-anlegen-und-berechtigen). In Jira nur die Projektrolle „Factory“, in Bitbucket „Write“ auf die Kopien, keine Standardgruppe. Offen, wie es ohne Standardgruppe Zugriff bekommt: siehe [Jira, Vor dem Start](jira.md#vor-dem-start).
+- [ ] Bitbucket Cloud, Pipelines an, ein Repo für alle Gruppen. Pro Repo nur ein Lauf gleichzeitig. Ein zweiter bleibt an der Umgebungssperre stehen.
+- [ ] Schritte 1 bis 10 einmal für das Repo. Ein Image für das Repo: `config.json` nennt Repo und Reviewer.
+- [ ] Du hast Admin-Rechte für den Bitbucket-Workspace und das Repo. Teilnehmende bekommen kein Admin-Recht: Repository-Admins können Branch-Regeln aufheben.
+- [ ] Konto `factory-bot`: technischer Benutzer, einer für alle Gruppen, angelegt in [Jira, Teil A, Schritt 1](jira.md#schritt-1-factory-konto-anlegen-und-berechtigen). In Jira nur die Projektrolle „Factory“, in Bitbucket „Write“ auf das Repo, keine Standardgruppe. Offen, wie es ohne Standardgruppe Zugriff bekommt: siehe [Jira, Vor dem Start](jira.md#vor-dem-start).
 - [ ] GitHub-Benutzer mit Copilot-Platz und Budget. Token: Fine-grained PAT eines persönlichen Kontos, nur „Copilot Requests“, gültig bis 4. Dezember, sofort widerrufbar. Wer den Copilot-Platz hat, legt das Token an und gibt es dir über den Passwortmanager. Vor Ablauf: neues Token, neu eingeben, altes Token sofort widerrufen. Kein Classic PAT. Copilot über eine Organisation: dort die Richtlinie für Copilot CLI aktivieren.
 - [ ] Docker mit buildx, auf einem Rechner mit Zugang zu `bitbucket.org`. Dazu eine Registry, aus der die Pipeline das Image zieht.
 - **Offen:** Bitbucket-Plan, eigener Runner oder Cloud-Runner, und ob „Deployment permissions“ genutzt werden, mit welcher Grenze. „Deployment permissions“ und Merge-Checks nennt Atlassian für Premium. Blockiert Schritt 1, 5, 6, 8 und 9.
 - **Offen:** Registry öffentlich oder privat. Ein öffentliches Image legt `factory/config.json` offen: Account-IDs, Projektschlüssel, Workspace, Reviewer-UUIDs, geschützte Pfade. Privat braucht Zugangsdaten in der Pipeline, ungetestet. Blockiert Schritt 5.
 - **Offen:** Quelle der Dateien aller drei Frameworks, oder getestete Befehle, die alle drei in ein Repository installieren. Blockiert Schritt 3.
 - **Offen:** Spryker-Werte (Testbefehl, Installationsbefehl, auszulassende Ordner, geschützte Pfade) und wo du die Bitbucket-Account-UUIDs der Reviewer abliest. Blockiert Schritt 4 und 5.
-- **Offen:** Klickpfade für `factory-bot` mit „Write“ auf eine Kopie und für Repository Access Tokens. Dazu: wo du die Cloud-ID der Jira-Site abliest, und ob Leserecht in einer privaten Kopie für Pull Requests und Läufe reicht. Blockiert Schritt 8. Ohne Cloud-ID schlägt jeder Lauf fehl. Ungetestet: `https://<site>.atlassian.net/_edge/tenant_info` liefert `cloudId`.
+- **Offen:** Klickpfade für `factory-bot` mit „Write“ auf das Repo und für Repository Access Tokens. Dazu: wo du die Cloud-ID der Jira-Site abliest, und ob Leserecht in einem privaten Repo für Pull Requests und Läufe reicht. Blockiert Schritt 8. Ohne Cloud-ID schlägt jeder Lauf fehl. Ungetestet: `https://<site>.atlassian.net/_edge/tenant_info` liefert `cloudId`.
 - **Offen:** Umgang mit bestehenden Workspace- oder Repository-Variablen, und Syntax, um `factory/*` in bestehenden Pipelines auszuschließen. Blockiert Schritt 9, nur wenn es solche Variablen oder Pipelines gibt.
 
 Offene Punkte klärst du mit atra.
@@ -40,7 +40,7 @@ Schütze `factory-base` sofort: Direkt pushen darf niemand. Zusammenführen nur 
 
 ## Schritt 2: Factory-Dateien holen
 
-Ziel: Skripte, Konfiguration, Image-Dateien und Regel-Vorlagen aus dem Beispiel `factory-lab`, fester Commit. Im Ordner deiner Kopie. `../factory-lab` darf noch nicht existieren.
+Ziel: Skripte, Konfiguration, Image-Dateien und Regel-Vorlagen aus dem Beispiel `factory-lab`, fester Commit. Im Ordner deines Repos. `../factory-lab` darf noch nicht existieren.
 ```bash
 git switch -c factory-setup factory-base
 H=0313c9776447516c51983789969148499c12c7c9
@@ -60,13 +60,13 @@ Kopiere nichts anderes, vor allem nicht die `bitbucket-pipelines.yml` des Beispi
 ## Schritt 3: Framework-Dateien und Regeln einfügen
 
 Ziel: Dateien aller drei Frameworks auf `factory-base`, denn Tickets wählen das Framework per Label. Erledige das vor Schritt 4.
-1. Lege die Dateien aller drei Frameworks in die Kopie. OpenSpec: `.agents/skills/openspec-*`, `openspec/config.yaml`. Spec Kit: `.github/skills/speckit-*`, `.specify/`. BMad: `.agents/skills/bmad-*`, `.github/agents/`, `_bmad/`. Befehle je Framework: Leitfäden von Tag 1 zu [Spec Kit](../../01-erstworkshop/tag-1/anleitung-spec-kit.md), [OpenSpec](../../01-erstworkshop/tag-1/anleitung-openspec.md), [BMad](../../01-erstworkshop/tag-1/anleitung-bmad.md). Ungetestet: alle drei nacheinander in ein Repository.
+1. Lege die Dateien aller drei Frameworks in das Repo. OpenSpec: `.agents/skills/openspec-*`, `openspec/config.yaml`. Spec Kit: `.github/skills/speckit-*`, `.specify/`. BMad: `.agents/skills/bmad-*`, `.github/agents/`, `_bmad/`. Befehle je Framework: Leitfäden von Tag 1 zu [Spec Kit](../../01-erstworkshop/tag-1/anleitung-spec-kit.md), [OpenSpec](../../01-erstworkshop/tag-1/anleitung-openspec.md), [BMad](../../01-erstworkshop/tag-1/anleitung-bmad.md). Ungetestet: alle drei nacheinander in ein Repository.
 2. Prüfe danach `AGENTS.md`. Offen, ob Spec Kit und BMad beim `init` beide hineinschreiben.
 3. Passe `AGENTS.md` und `.github/copilot-instructions.md` an Lekkerland an. Die Vorlagen nennen Symfony, PHP 8.4, `./bin/phpunit` und die Ordner von `symfony/demo`.
 
 ## Schritt 4: factory/config.json anpassen
 
-Ziel: alle Werte der Kopie in `config.json`, vor Schritt 5. Das Image baut die Datei nach `/opt/factory` ein. Jede spätere Änderung: neues Image, neuer Digest.
+Ziel: alle Werte des Repos in `config.json`, vor Schritt 5. Das Image baut die Datei nach `/opt/factory` ein. Jede spätere Änderung: neues Image, neuer Digest.
 
 | Schlüssel | Wert |
 |---|---|
@@ -74,7 +74,7 @@ Ziel: alle Werte der Kopie in `config.json`, vor Schritt 5. Das Image baut die D
 | `jira.approver_account_ids`, `jira.factory_account_id` | Account-IDs der Freigabe-Personen (als Liste) und von `factory-bot` |
 | `jira.status.*` | IDs der acht Status: `definition`, `ready`, `working`, `waiting`, `build`, `review`, `done`, `stopped` |
 | `jira.transition.*` | IDs der Übergänge: `start` („Start“), `spec_done` („Spec fertig“), `back` („Zurück“), `approve` („Spec freigegeben“), `build_done` („Bau fertig“) |
-| `bitbucket.workspace`, `bitbucket.repo` | Workspace und Name der Kopie, aus ihrer URL |
+| `bitbucket.workspace`, `bitbucket.repo` | Workspace und Name des Repos, aus seiner URL |
 | `bitbucket.main` | `factory-base` |
 | `bitbucket.reviewers` | Bitbucket-Account-UUIDs der Reviewer, in geschweiften Klammern: `["{<UUID>}"]` |
 | `test_command`, `composer_install` | Test- und Installationsbefehl als Listen, im Beispiel `["./bin/phpunit"]` und `["composer", "install", "--no-interaction", "--no-progress"]` |
@@ -90,7 +90,7 @@ Ziel: alle Werte der Kopie in `config.json`, vor Schritt 5. Das Image baut die D
 
 ## Schritt 5: Image bauen
 
-Ziel: Image mit Copilot CLI, den Frameworks und deiner `config.json`. Im Ordner deiner Kopie:
+Ziel: Image mit Copilot CLI, den Frameworks und deiner `config.json`. Im Ordner deines Repos:
 ```bash
 docker login <registry>
 docker buildx create --use --name factory
@@ -131,11 +131,11 @@ Pull Request von `factory-setup` nach `factory-base`. Eine benannte Person führ
 
 Erledige vorher Schritt 9, Punkte 1 bis 3.
 
-Ziel: `factory-bot` schreibt in die Kopie. Jeder Schritt sieht nur die Factory-Tokens seiner Umgebung. Bitbucket gibt jedem Schritt zusätzlich eigene Tokens, begrenzt durch den `auth`-Block.
+Ziel: `factory-bot` schreibt in das Repo. Jeder Schritt sieht nur die Factory-Tokens seiner Umgebung. Bitbucket gibt jedem Schritt zusätzlich eigene Tokens, begrenzt durch den `auth`-Block.
 
-**1. `factory-bot` einladen:** „Write“ nur auf diese Kopie, keine Workspace-Gruppe. Blockiert, solange der Klickpfad offen ist (siehe „Vor dem Start“).
+**1. `factory-bot` einladen:** „Write“ nur auf dieses Repo, keine Workspace-Gruppe. Blockiert, solange der Klickpfad offen ist (siehe „Vor dem Start“).
 
-„Write“ nur für benannte Personen. Wer „Write“ auf eine Kopie hat, kann die Tokens der Factory lesen, auch das Copilot-Token. Damit erreicht er jede Kopie, auf die `factory-bot` schreibt.
+„Write“ nur für benannte Personen. Wer „Write“ auf das Repo hat, kann die Tokens der Factory lesen, auch das Copilot-Token. Damit erreicht er alles, wohin `factory-bot` schreibt.
 
 **2. Tokens anlegen:**
 
@@ -144,8 +144,8 @@ Ziel: `factory-bot` schreibt in die Kopie. Jeder Schritt sieht nur die Factory-T
 | `COPILOT_GITHUB_TOKEN` | GitHub-Benutzer mit Copilot-Platz | Fine-grained PAT, nur „Copilot Requests“, bis 4. Dezember | `factory-agent` |
 | `JIRA_API_TOKEN` | `factory-bot` | Atlassian-API-Token, Scopes `read:jira-work`, `write:jira-work` | `factory-jira`, `factory-publish` |
 | `BB_TOKEN` | `factory-bot` | Atlassian-API-Token, Scopes `read:repository:bitbucket`, `write:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket` | `factory-publish` |
-| Start-Token, eines pro startende Person | die Kopie | Repository Access Token, nur „Pipelines: Write“ | keine: Passwortmanager der Person |
-| Auslöser-Token, eines pro Flow, nur mit Jira-Automation | die Kopie | Repository Access Token, nur „Pipelines: Write“ | keine: verborgener Header der Jira-Flows ([Teil B](jira.md#teil-b-flows-anlegen)) |
+| Start-Token, eines pro startende Person | das Repo | Repository Access Token, nur „Pipelines: Write“ | keine: Passwortmanager der Person |
+| Auslöser-Token, eines pro Flow, nur mit Jira-Automation | das Repo | Repository Access Token, nur „Pipelines: Write“ | keine: verborgener Header der Jira-Flows ([Teil B](jira.md#teil-b-flows-anlegen)) |
 
 `JIRA_API_TOKEN`, `BB_TOKEN`, Auslöser-Tokens: kurze Laufzeit, etwa zwei Wochen. Namen etwa `factory-start-gruppe-1`, `factory-trigger`. Ablage im Passwortmanager, auch das Copilot-Token. Start-Tokens: Laufzeit höchstens bis Workshop-Ende, du widerrufst sie. Für Schritt 10 eines für dich, gleiche Laufzeit.
 
@@ -155,7 +155,7 @@ Bei jeder Erneuerung: altes Token sofort widerrufen.
 - Tokens als gesicherte Variablen, verteilt wie in der Tabelle. Keine Repository- oder Workspace-Variablen.
 - Dazu ungesichert in `factory-jira` und `factory-publish`: `JIRA_BASE_URL` = `https://api.atlassian.com/ex/jira/<CLOUD-ID>` und `JIRA_EMAIL` = E-Mail von `factory-bot`. Gateway-URL, nicht die URL der Jira-Site: Tokens mit Scopes scheitern an der Site-URL.
 - Mit „Deployment permissions“: Beschränke alle drei Umgebungen zuerst auf Branch `factory-base`. Ungetestet: ob die Grenzen wirken oder ob „nur Admins“ Läufe per Token blockiert.
-- Lege die Aufbewahrung der Artefakte fest. **Offen:** Klickpfad. Leser der Kopie können `out/agent.patch` herunterladen, auch abgelehnte Patches.
+- Lege die Aufbewahrung der Artefakte fest. **Offen:** Klickpfad. Leser des Repos können `out/agent.patch` herunterladen, auch abgelehnte Patches.
 
 ## Schritt 9: Andere Pipelines prüfen
 
@@ -207,7 +207,7 @@ unset TOKEN
 - Bau: `"pattern":"factory-build"`. Ohne `FRAMEWORK`: zweites Objekt in `variables` weglassen. Ungetestet in genau dieser Form.
 - Nie ein persönliches oder Admin-Token. Mit Schreibrecht startet es beliebiges YAML mit den Secrets der Factory.
 - **`FRAMEWORK`** (`openspec`, `speckit`, `bmad`): Im Spec-Lauf hat es Vorrang vor dem Label. Ein unbekannter Wert bricht ab. Ohne Variable und Label stoppt der Lauf. Im Bau-Lauf muss es zum Framework der freigegebenen Spec passen, sonst Abbruch.
-- **Achtung:** Das Token startet jede Custom-Pipeline der Kopie, auf jedem Branch.
+- **Achtung:** Das Token startet jede Custom-Pipeline des Repos, auf jedem Branch.
 
 ## Wenn die Einrichtung nicht klappt
 

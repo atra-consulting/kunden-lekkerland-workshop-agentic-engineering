@@ -4,7 +4,7 @@ Die Factory schreibt zu eurem Jira-Ticket eine Spec und baut sie nach der Freiga
 
 ## Vom Admin bekommt ihr
 
-- Workspace und Name eurer Repository-Kopie.
+- Workspace und Name eures Repos.
 - Ein Start-Token, nur für euch, gültig bis Workshop-Ende. Nie weitergeben, nie in Tickets, Chats oder Dateien.
 - Die Namen der Freigabe-Personen.
 - Nur mit Jira-Automation: die Komponente eurer Gruppe.
@@ -34,7 +34,7 @@ unset TOKEN
 ```
 
 - Bau: `factory-build` statt `factory-spec`.
-- Erwartet: `HTTP 201`. Den Lauf seht ihr in Bitbucket unter „Pipelines“ eurer Kopie.
+- Erwartet: `HTTP 201`. Den Lauf seht ihr in Bitbucket unter „Pipelines“ eures Repos.
 - `HTTP 404`: Token, Workspace oder Repository falsch.
 
 ## Regeln

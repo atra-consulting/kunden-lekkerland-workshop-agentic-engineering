@@ -29,7 +29,7 @@ Ziel: `factory-bot` sieht, kommentiert und verschiebt nur Tickets dieses Projekt
 
 1. Lege den Benutzer `factory-bot` mit seiner E-Mail-Adresse an. Passwort und zweiten Faktor von `factory-bot` im Passwortmanager. Sein Postfach erreichst nur du.
 2. Stelle den Projektzugriff auf „Private“.
-3. Nimm `factory-bot` aus der Standardgruppe der Site. Zugriff nur: in Jira die Projektrolle „Factory“ für dieses Projekt, in Bitbucket „Write“ nur auf die Kopien, keine Workspace-Gruppe.
+3. Nimm `factory-bot` aus der Standardgruppe der Site. Zugriff nur: in Jira die Projektrolle „Factory“ für dieses Projekt, in Bitbucket „Write“ nur auf das Repo, keine Workspace-Gruppe.
 4. Lege eine eigene Rolle an, etwa „Factory“, als Kopie von „Viewer“.
 5. Gib der Rolle nur „Transition any issue“ und „Add comments“, dazu die Ansicht aus „Viewer“. Kein Bearbeiten, Anlegen oder Löschen, auch keine Anhänge. Kein Bearbeiten oder Löschen eigener Kommentare: So ändert `factory-bot` die Spec nach der Freigabe nicht.
 6. Gib `factory-bot` diese Rolle im Projekt.
@@ -136,9 +136,9 @@ Bist du selbst Freigabe-Person, macht eine andere Freigabe-Person Zeile 4. Wer �
 
 Optional. Ohne Flows startet ihr die Läufe per curl: Bitbucket-Anleitung, [Läufe starten](bitbucket.md#läufe-starten).
 
-Ziel: je Gruppe eine Komponente und zwei Flows, die die Pipelines in der Repository-Kopie der Gruppe starten. Je Kopie vorher nötig: die Pipeline-Datei auf `factory-base` (sonst scheitern beide Flows) und zwei Auslöser-Tokens, eins pro Flow, aus der Bitbucket-Anleitung, [Schritt 8](bitbucket.md#schritt-8-benutzer-tokens-und-umgebungen-anlegen). Jedes: Repository Access Token nur mit „Pipelines: Write“, kurze Laufzeit, im Passwortmanager. Vor Ablauf: neues anlegen und im Flow neu eingeben. Altes Token sofort widerrufen.
+Ziel: je Gruppe eine Komponente und zwei Flows, die die Pipelines im Repo für die Gruppe starten. Vorher nötig: die Pipeline-Datei auf `factory-base` (sonst scheitern beide Flows) und zwei Auslöser-Tokens, eins pro Flow, aus der Bitbucket-Anleitung, [Schritt 8](bitbucket.md#schritt-8-benutzer-tokens-und-umgebungen-anlegen). Jedes: Repository Access Token nur mit „Pipelines: Write“, kurze Laufzeit, im Passwortmanager. Vor Ablauf: neues anlegen und im Flow neu eingeben. Altes Token sofort widerrufen.
 
-**Komponenten:** Lege je Gruppe eine an. Teilnehmende geben jedem Ticket die Komponente ihrer Gruppe. Ohne Komponente schickt jeder Flow jedes Ticket an seine Kopie. Ungetestet als Ersatz: ein Label je Gruppe, das nicht mit `sdd-` beginnt.
+**Komponenten:** Lege je Gruppe eine an. Teilnehmende geben jedem Ticket die Komponente ihrer Gruppe. Ohne Komponente schickt jeder Flow jedes Ticket an die Pipeline im Repo. Ungetestet als Ersatz: ein Label je Gruppe, das nicht mit `sdd-` beginnt.
 
 | Einstellung | Flow 1 | Flow 2 |
 |---|---|---|

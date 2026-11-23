@@ -2,7 +2,7 @@
 
 Tag 2, 09:15. Karsten schickt ein Ticket durch die Factory im Lab, von „Definition“ bis zum Pull Request. Ihr seht zu und öffnet die Links mit.
 
-- Ticket: [FLAB-39 „Lesezeit auf der Artikelseite“](https://betterprojectsfaster.atlassian.net/browse/FLAB-39), Label `sdd-openspec`
+- Ticket: [FLAB-41 „Lesezeit auf der Artikelseite“](https://betterprojectsfaster.atlassian.net/browse/FLAB-41), Label `sdd-openspec`
 - Läufe: [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines)
 - Ergebnis: [Pull Requests](https://bitbucket.org/factory-lab/factory-lab/pull-requests/)
 - Wie ein Lauf aufgebaut ist: [Walkthrough, „Was in einem Lauf passiert“](walkthrough-agent-factory.md#was-in-einem-lauf-passiert)
@@ -28,10 +28,10 @@ Den Status ändert ihr im Ticket über den Statusknopf neben dem Titel. Direkte 
 
 | Schritt | Status danach | Wer | Was passiert | Wo ihr es seht |
 |---|---|---|---|---|
-| 1 | Definition | Mensch | Das Ticket steht bereit: Ziel, drei prüfbare Kriterien, ein Framework-Label | [FLAB-39](https://betterprojectsfaster.atlassian.net/browse/FLAB-39) |
+| 1 | Definition | Mensch | Das Ticket steht bereit: Ziel, drei prüfbare Kriterien, ein Framework-Label | [FLAB-41](https://betterprojectsfaster.atlassian.net/browse/FLAB-41) |
 | 2 | Bereit | Mensch | Übergang **„Bereit“**. Flow 1 startet die Pipeline `factory-spec` | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
 | 3 | Bereit | Factory | Lauf 1: Guard, dann Copilot. Zuerst die Bereitschaftsprüfung, dann schreibt OpenSpec die Spec. Danach Prüfung und Veröffentlichen | das Protokoll des Laufs |
-| 4 | In Arbeit, dann Wartet | `factory-bot` | Kommentar `FACTORY-SPEC v1` mit der Spec und „Readiness check: passed“. Branch `factory/FLAB-39` | Kommentar in [FLAB-39](https://betterprojectsfaster.atlassian.net/browse/FLAB-39) |
+| 4 | In Arbeit, dann Wartet | `factory-bot` | Kommentar `FACTORY-SPEC v1` mit der Spec und „Readiness check: passed“. Branch `factory/FLAB-41` | Kommentar in [FLAB-41](https://betterprojectsfaster.atlassian.net/browse/FLAB-41) |
 | 5 | Bau | Mensch | **Freigabe 1:** Spec lesen, dann Übergang **„Spec freigegeben“**. Flow 2 startet `factory-build` | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
 | 6 | Bau | Factory | Lauf 2: Guard prüft die Freigabe, Copilot setzt die Spec um, Prüfung, Tests in einem frischen Checkout, Veröffentlichen | das Protokoll des Laufs |
 | 7 | Review | `factory-bot` | Pull Request auf `factory-base`, verlinkt im Ticket | [Pull Requests](https://bitbucket.org/factory-lab/factory-lab/pull-requests/) |

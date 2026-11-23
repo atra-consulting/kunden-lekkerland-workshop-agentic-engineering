@@ -64,17 +64,22 @@ Beantworte diese Fragen, jeweils mit Dateipfad und Zeile:
 Geschützte Pfade: Gibt es `factory/config.json`, gilt dessen Liste `protected_paths`. Sonst gelten diese:
 neue Pakete (`composer.json`, `composer.lock`, `package.json`, `importmap.php`), `config/packages/`, `bin/`, PHPUnit- und PHPStan-Konfiguration, `.env*`, `.github/`, `AGENTS.md`, `factory/`, CI-Dateien und die Ordner der Frameworks.
 
-Zeig der Person den Befund in höchstens acht Zeilen. Gibt es das schon oder widerspricht die Absicht dem Code, sag es sofort, mit Fundstelle. Frag dann:
+Zeig der Person den Befund in höchstens acht Zeilen. Gibt es das schon oder widerspricht die Absicht dem Code, sag es sofort, mit Fundstelle. Frag dann nur:
 
 - Ist die Änderung gewollt? Dann nennt das Ticket das alte Verhalten und die Tests, die sich ändern.
 - Soll die Absicht anders lauten?
 - Oder lassen wir das Ticket?
 
+Sonst stellst du in Schritt 3 **keine** Fragen zum Inhalt. Die Fragen kommen in Schritt 4 vom Framework.
+
 Prüf den Code auch später, sobald eine Antwort eine neue Seite oder ein neues Verhalten nennt.
 
 ## Schritt 4: Nachfragen mit dem Framework
 
-Nutze die Nachfrage-Werkzeuge des konfigurierten Frameworks. Rufe den Skill über sein Skill-Werkzeug auf. Geht das nicht, lies `.github/skills/<name>/SKILL.md` oder `.agents/skills/<name>/SKILL.md` und folge ihm.
+**Dieser Schritt ist Pflicht, auch wenn die Absicht klein wirkt.** Das Team arbeitet mit diesem Framework, und die Factory nutzt später dasselbe. Darum fragt das Framework, nicht du.
+Fasse seine Fragen nicht selbst zusammen, und überspring es nicht, um Zeit oder Credits zu sparen.
+
+Rufe den Skill über sein Skill-Werkzeug auf. Geht das nicht, lies `.github/skills/<name>/SKILL.md` oder `.agents/skills/<name>/SKILL.md` und folge ihm. Sag der Person, welchen Framework-Skill du gerade nutzt.
 
 Gib dem Framework die Absicht und deinen Befund aus Schritt 3 mit. Für alle Frameworks gilt:
 

@@ -2,9 +2,21 @@
 
 Tag 2, 10:15 bis 12:00. Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `local.py`. Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
 
+Die Übung hat zwei Teile:
+
+| Zeit | Teil | Schritte |
+|---|---|---|
+| 10:15 bis 11:00 | **Teil 1:** einrichten, die erste Spec mit eurem Framework | 1 bis 7 |
+| 11:00 bis 11:15 | Pause | |
+| 11:15 bis 12:00 | **Teil 2:** Spec lesen, bauen, dann dasselbe Ticket mit einem zweiten Framework | 8 bis 11 |
+
+**Verschiedene Frameworks:** Teilt euch im Raum auf, sodass Spec Kit und OpenSpec beide in Teil 1 laufen. In Teil 2 nimmt jede Gruppe zusätzlich das andere Framework. So vergleicht ihr am Ende dasselbe Ticket mit zwei Frameworks: Spec, Kosten, Dauer.
+
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Getestet ist alles nur auf dem Mac. Windows ist nicht getestet; die PowerShell-Befehle stehen in der Referenz, Abschnitt [Windows](../../02-agent-factory/bedienung/lokal-ausfuehren.md#windows).
 - **Euer Branch** ist der Framework-Branch von Tag 1, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite schreibt ihn als `<framework-branch>`.
 - **Werte in spitzen Klammern** ersetzt ihr ohne die Klammern. `LL-123` ersetzt ihr überall durch den Schlüssel eures Tickets.
+
+## Teil 1, 10:15 bis 11:00: Einrichten und die erste Spec
 
 ## 1. Modul-Doku in den Framework-Branch holen
 
@@ -111,6 +123,10 @@ Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“
 - **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe.
 - Im Lab liefen Bereitschaftsprüfung und Spec-Schritt einzeln mit echtem Copilot. Beide nacheinander in einem Lauf hat nur ein automatischer Test geprüft.
 
+**Pause, 11:00 bis 11:15.** Läuft der Spec-Schritt noch, lasst ihn laufen.
+
+## Teil 2, 11:15 bis 12:00: Bauen und ein zweites Framework
+
 ## 8. Freigabe 1: Ihr lest die Spec
 
 Lokal gibt es keine Freigabe zwischen Spec und Bau. Ihr seid das Gate. Lest die Spec als Gruppe:
@@ -155,16 +171,46 @@ Steht in der Ausgabe `WARNING: protected paths changed`, prüft diese Dateien un
 
 **Das seht ihr:** Eure Tests laufen grün.
 
+## 11. Dasselbe Ticket mit einem zweiten Framework
+
+Jetzt schreibt das andere Framework die Spec für dasselbe Ticket. Dafür wechselt ihr auf dessen Branch von Tag 1, etwa von `workshop-openspec-local` auf `workshop-speckit-local`, und holt euren `factory/`-Ordner mit.
+
+```bash
+git switch <anderer-framework-branch>
+git switch -c <kurzer-name>-2
+git checkout <kurzer-name> -- factory
+python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --framework <anderes-framework>
+```
+
+- `<anderes-framework>` ist `speckit` oder `openspec`. `--framework` ersetzt das Label des Tickets.
+- Habt ihr an Tag 1 auch einen Branch mit BMad angelegt, geht `bmad` genauso. BMad ist im Lab am teuersten.
+- Bauen ist freiwillig. Wichtiger ist der Vergleich.
+
+**Das seht ihr:** dieselben Zeilen wie in Schritt 7, mit dem anderen Framework. Am Ende `[local] done: … credits …`.
+
+Vergleicht als Gruppe:
+
+| Frage | Erstes Framework | Zweites Framework |
+|---|---|---|
+| Credits und Dauer der Spec (letzte Zeile der Ausgabe) | | |
+| Wie viele Dateien, wie lang? | | |
+| Versteht ein Reviewer die Spec schnell? | | |
+| Hat das Framework Annahmen getroffen, die das Ticket offenlässt? | | |
+
+Bringt die Tabelle mit in die Runde um 16:30.
+
 ## Kosten im Lab
 
 Einzelwerte aus dem Lab, mit der Symfony-Demo-Anwendung, je ein Lauf. Kein Erwartungswert für euren Code. Die Spec-Werte sind ohne Bereitschaftsprüfung gemessen. 1 AI Credit kostet 0,01 US-Dollar.
 
-| Schritt | OpenSpec | Spec Kit |
-|---|---|---|
-| Ticket über den Jira-MCP holen | 10,8 Credits | 10,8 Credits |
-| Bereitschaftsprüfung | etwa 6 bis 13 Credits | etwa 6 bis 13 Credits |
-| Spec | etwa 27 Credits, 56 s | etwa 43 Credits, 111 s |
-| Bauen | etwa 17 Credits, 41 s | etwa 16 Credits, 45 s |
+| Schritt | OpenSpec | Spec Kit | BMad |
+|---|---|---|---|
+| Ticket über den Jira-MCP holen | 10,8 Credits | 10,8 Credits | 10,8 Credits |
+| Bereitschaftsprüfung | etwa 6 bis 13 Credits | etwa 6 bis 13 Credits | etwa 6 bis 13 Credits |
+| Spec | etwa 27 Credits, 56 s | etwa 43 Credits, 111 s | etwa 33 Credits, 75 s |
+| Bauen | etwa 17 Credits, 41 s | etwa 16 Credits, 45 s | etwa 92 Credits, 212 s |
+
+Mit dem zweiten Framework in Schritt 11 rechnet für die Übung mit etwa 80 bis 120 Credits je Gruppe.
 
 ## Wenn es hakt
 
@@ -179,4 +225,5 @@ Eure Gruppe hat:
 
 - `factory/` mit `local.py` und eurem Testbefehl auf dem Framework-Branch, dazu die Modul-Doku,
 - einen Ticket-Branch mit Spec und Code, beides von euch gelesen und committet, und grüne Tests,
-- die Ausgabe von `--print-only`: die Copilot-Befehle, die DevOps in die Pipeline übernimmt.
+- die Ausgabe von `--print-only`: die Copilot-Befehle, die DevOps in die Pipeline übernimmt,
+- eine zweite Spec desselben Tickets mit dem anderen Framework, und eure Vergleichstabelle.

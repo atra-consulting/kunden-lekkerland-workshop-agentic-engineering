@@ -97,7 +97,13 @@ Fragt das Framework nicht nach einem Punkt, der in Schritt 5 offen wäre, frag s
 
 ## Schritt 5: Reife-Check
 
-Prüf das Ergebnis gegen die sechs Kriterien. Die Factory prüft dieselben, bevor sie eine Spec schreibt. Ein Ticket ist **nicht reif**, wenn eines davon zutrifft:
+Prüf das Ergebnis gegen die Kriterien der Factory. Sie prüft dieselben, bevor sie eine Spec schreibt.
+
+- **Gibt es `factory/readiness.md`, gilt diese Datei:** ihre Kriterien (Überschriften mit der ID in Backticks) und ihr Abschnitt „How to Judge“. So bleibt es eine Regel, auch wenn das Team die Kriterien ändert.
+- Sonst gelten die sechs Kriterien unten.
+- Kleine Lücken, die eine Entwicklerin auf die naheliegende Art füllt, sind kein Grund. Stil, Tippfehler oder ein fehlendes User-Story-Format auch nicht.
+
+Ein Ticket ist **nicht reif**, wenn eines davon zutrifft:
 
 | ID | Nicht reif, wenn |
 |---|---|
@@ -108,7 +114,7 @@ Prüf das Ergebnis gegen die sechs Kriterien. Die Factory prüft dieselben, bevo
 | `protected_paths` | Das Ticket braucht Änderungen, die die Factory ablehnt: neue Pakete, Konfiguration, CI und die anderen geschützten Pfade. |
 | `too_big` | Das Ticket passt nicht in einen Pull Request, etwa eine Stunde Arbeit für einen Menschen. |
 
-Zeig eine Tabelle mit allen sechs IDs: „erfüllt“ oder „offen“, mit einem Satz Begründung.
+Zeig eine Tabelle mit allen IDs: „erfüllt“ oder „offen“, mit einem Satz Begründung und, wo der Code der Grund ist, der Datei.
 
 - Ist etwas offen, frag weiter (zurück zu Schritt 4) oder schlag eine Änderung vor.
 - `too_big`: Schlag eine Aufteilung in mehrere Tickets vor, jedes für sich reif. Will die Person das, leg in Schritt 7 zuerst ein Epic an, dann die Tickets mit `--parent`.

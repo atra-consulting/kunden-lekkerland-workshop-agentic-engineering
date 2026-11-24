@@ -84,7 +84,12 @@ Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ände
 `pruefdatei` schreibt den Entwurf im selben Format wie die Ticket-Dateien aus Übung 1 und 2. Der Schlüssel ist ein Platzhalter, `<PROJEKT>-0`. Das Label `sdd-<framework>` kommt aus eurer Konfiguration. Beispiel:
 
 ```json
-{"key": "LL-0", "summary": "Kommentaranzahl in der Artikelliste", "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.", "labels": ["sdd-openspec"]}
+{
+  "key": "LL-0",
+  "summary": "Kommentaranzahl in der Artikelliste",
+  "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.",
+  "labels": ["sdd-openspec"]
+}
 ```
 
 - `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.

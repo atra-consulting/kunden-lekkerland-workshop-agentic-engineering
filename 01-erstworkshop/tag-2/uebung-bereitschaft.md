@@ -18,7 +18,12 @@ git status --short
 Legt mit dem Editor die Datei `~/factory-tickets/LL-0.json` an. Wählt eine Funktion aus eurem Code und beschreibt sie bewusst vage, in einem Satz:
 
 ```json
-{"key": "LL-0", "summary": "Suche verbessern", "description": "Die Suche soll besser werden.", "labels": []}
+{
+  "key": "LL-0",
+  "summary": "Suche verbessern",
+  "description": "Die Suche soll besser werden.",
+  "labels": []
+}
 ```
 
 - `LL-0` ist ein erfundener Schlüssel. Er muss nur wie ein Jira-Schlüssel aussehen.
@@ -63,7 +68,12 @@ Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](wa
 So sieht ein vollständiges Ticket in diesem Format aus:
 
 ```json
-{"key": "LL-0", "summary": "Kommentaranzahl in der Artikelliste", "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.", "labels": ["sdd-openspec"]}
+{
+  "key": "LL-0",
+  "summary": "Kommentaranzahl in der Artikelliste",
+  "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.",
+  "labels": ["sdd-openspec"]
+}
 ```
 
 - `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.

@@ -1,22 +1,21 @@
 # Übung 1: Ein Ticket lokal durch die Factory-Schritte
 
-Tag 2, 10:15 bis 12:00. Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `local.py`. Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
+Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `local.py`. Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
 
 Die Übung hat zwei Teile:
 
-| Zeit | Teil | Schritte |
-|---|---|---|
-| 10:15 bis 11:00 | **Teil 1:** einrichten, die erste Spec mit eurem Framework | 1 bis 7 |
-| 11:00 bis 11:15 | Pause | |
-| 11:15 bis 12:00 | **Teil 2:** Spec lesen, bauen, dann dasselbe Ticket mit einem zweiten Framework | 8 bis 11 |
+| Teil | Schritte |
+|---|---|
+| **Teil 1:** einrichten, die erste Spec mit eurem Framework | 1 bis 7 |
+| **Teil 2:** Spec lesen, bauen, dann dasselbe Ticket mit einem zweiten Framework | 8 bis 11 |
 
 **Verschiedene Frameworks:** Teilt euch im Raum auf, sodass Spec Kit und OpenSpec beide in Teil 1 laufen. In Teil 2 nimmt jede Gruppe zusätzlich das andere Framework. So vergleicht ihr am Ende dasselbe Ticket mit zwei Frameworks: Spec, Kosten, Dauer.
 
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Getestet ist alles nur auf dem Mac. Windows ist nicht getestet; die PowerShell-Befehle stehen in der Referenz, Abschnitt [Windows](../../02-agent-factory/bedienung/lokal-ausfuehren.md#windows).
-- **Euer Branch** ist der Framework-Branch von Tag 1, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite schreibt ihn als `<framework-branch>`.
+- **Euer Branch** ist euer Framework-Branch, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite schreibt ihn als `<framework-branch>`.
 - **Werte in spitzen Klammern** ersetzt ihr ohne die Klammern. `LL-123` ersetzt ihr überall durch den Schlüssel eures Tickets.
 
-## Teil 1, 10:15 bis 11:00: Einrichten und die erste Spec
+## Teil 1: Einrichten und die erste Spec
 
 ## 1. Modul-Doku in den Framework-Branch holen
 
@@ -66,7 +65,7 @@ copilot mcp list
   {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v2/mcp", "tools": ["getAccessibleAtlassianResources", "getJiraIssue", "createJiraIssue"]}}}
   ```
 
-- Habt ihr ihn an Tag 1 mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `createJiraIssue`. Mehr Werkzeuge braucht ihr nicht; ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
+- Habt ihr ihn früher mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `createJiraIssue`. Mehr Werkzeuge braucht ihr nicht; ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
 - Getestet ist der Abruf im Lab mit `https://mcp.atlassian.com/v1/mcp`. `/v2/mcp` ist der Nachfolger und noch nicht getestet. Klappt v2 nicht, nehmt `/v1/mcp`; Atlassian schaltet v1 am 1. März 2027 ab.
 - Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Danach `/exit`. Ein Aufruf mit `-p` kann die Anmeldung im Browser nicht abschließen.
 
@@ -123,9 +122,9 @@ Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“
 - **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe.
 - Im Lab liefen Bereitschaftsprüfung und Spec-Schritt einzeln mit echtem Copilot. Beide nacheinander in einem Lauf hat nur ein automatischer Test geprüft.
 
-**Pause, 11:00 bis 11:15.** Läuft der Spec-Schritt noch, lasst ihn laufen.
+**Zwischen Teil 1 und Teil 2:** Läuft der Spec-Schritt noch, lasst ihn laufen.
 
-## Teil 2, 11:15 bis 12:00: Bauen und ein zweites Framework
+## Teil 2: Bauen und ein zweites Framework
 
 ## 8. Freigabe 1: Ihr lest die Spec
 
@@ -173,7 +172,7 @@ Steht in der Ausgabe `WARNING: protected paths changed`, prüft diese Dateien un
 
 ## 11. Dasselbe Ticket mit einem zweiten Framework
 
-Jetzt schreibt das andere Framework die Spec für dasselbe Ticket. Dafür wechselt ihr auf dessen Branch von Tag 1, etwa von `workshop-openspec-local` auf `workshop-speckit-local`, und holt euren `factory/`-Ordner mit.
+Jetzt schreibt das andere Framework die Spec für dasselbe Ticket. Dafür wechselt ihr auf dessen Branch, etwa von `workshop-openspec-local` auf `workshop-speckit-local`, und holt euren `factory/`-Ordner mit.
 
 ```bash
 git switch <anderer-framework-branch>
@@ -183,7 +182,7 @@ python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --fram
 ```
 
 - `<anderes-framework>` ist `speckit` oder `openspec`. `--framework` ersetzt das Label des Tickets.
-- Habt ihr an Tag 1 auch einen Branch mit BMad angelegt, geht `bmad` genauso. BMad ist im Lab am teuersten.
+- Habt ihr auch einen Branch mit BMad angelegt, geht `bmad` genauso. BMad ist im Lab am teuersten.
 - Bauen ist freiwillig. Wichtiger ist der Vergleich.
 
 **Das seht ihr:** dieselben Zeilen wie in Schritt 7, mit dem anderen Framework. Am Ende `[local] done: … credits …`.
@@ -197,7 +196,7 @@ Vergleicht als Gruppe:
 | Versteht ein Reviewer die Spec schnell? | | |
 | Hat das Framework Annahmen getroffen, die das Ticket offenlässt? | | |
 
-Bringt die Tabelle mit in die Runde um 16:30.
+Bringt die Tabelle mit in die gemeinsame Runde am Ende.
 
 ## Kosten im Lab
 

@@ -1,6 +1,6 @@
 # Übung 3: Tickets mit dem Skill schreiben
 
-Tag 2, 14:15 bis 15:00. Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Factory ohne Rückfrage umsetzen kann. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
+Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Factory ohne Rückfrage umsetzen kann. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
 
 - **Ihr braucht** den Framework-Branch mit `factory/` aus [Übung 1](uebung-factory-lokal.md) und eurem Kriterium aus [Übung 2](uebung-bereitschaft.md), dazu den Jira-MCP-Server `atlassian` aus Übung 1.
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Windows ist nicht getestet.

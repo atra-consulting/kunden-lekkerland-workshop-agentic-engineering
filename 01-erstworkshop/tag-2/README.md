@@ -43,7 +43,11 @@ Die Blog-App des Labs startet ihr auf eurem Rechner mit fünf Befehlen: [Die Blo
 
 ## Sicherheit
 
-[Copilot absichern](copilot-absichern.md): die Fragen an eure Copilot-, Atlassian- und Bitbucket-Admins.
+[Copilot absichern](fragen-copilot.md): die Fragen an eure Copilot-, Atlassian- und Bitbucket-Admins.
+
+## Prozess
+
+[Euer Entwicklungsprozess](fragen-entwicklung.md): neun Fragen, wie eine Anforderung bei euch in Produktion kommt.
 
 ## Übungen
 

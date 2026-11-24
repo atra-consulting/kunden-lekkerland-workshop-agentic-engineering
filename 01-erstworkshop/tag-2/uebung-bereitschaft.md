@@ -18,7 +18,12 @@ git status --short
 Legt mit dem Editor die Datei `~/factory-tickets/LL-0.json` an. Wählt eine Funktion aus eurem Code und beschreibt sie bewusst vage, in einem Satz:
 
 ```json
-{"key": "LL-0", "summary": "Suche verbessern", "description": "Die Suche soll besser werden.", "labels": []}
+{
+  "key": "LL-0",
+  "summary": "Suche verbessern",
+  "description": "Die Suche soll besser werden.",
+  "labels": []
+}
 ```
 
 - `LL-0` ist ein erfundener Schlüssel. Er muss nur wie ein Jira-Schlüssel aussehen.
@@ -63,11 +68,26 @@ Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](wa
 So sieht ein vollständiges Ticket in diesem Format aus:
 
 ```json
-{"key": "LL-0", "summary": "Kommentaranzahl in der Artikelliste", "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.", "labels": ["sdd-openspec"]}
+{
+  "key": "LL-0",
+  "summary": "Kommentaranzahl in der Artikelliste",
+  "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.",
+  "labels": ["sdd-openspec"]
+}
 ```
 
 - `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
-- Ohne Framework-Label hängt ihr an `spec` und `build` `--framework openspec` oder `--framework speckit` an. `assess` braucht kein Label.
+
+**Der Schalter `--framework`:**
+
+- `--framework openspec`, `--framework speckit` oder `--framework bmad` wählt das Framework für `spec` und `build`.
+- Er hat Vorrang vor dem Label. `local.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
+- Ihr braucht ihn, wenn das Ticket kein oder zwei `sdd-`-Labels hat, oder wenn ihr dasselbe Ticket mit einem anderen Framework schreibt ([Übung 1, Schritt 11](uebung-factory-lokal.md#11-dasselbe-ticket-mit-einem-zweiten-framework)).
+- Gebt bei `build` dasselbe Framework an wie bei `spec`.
+- Die Ausgabe nennt die Quelle: `framework speckit (from --framework)` oder `framework openspec (from label)`.
+- `assess` wählt kein Framework und übergeht `--framework`. Die Ausgabe zeigt `assess, no framework`.
+- Ein Tippfehler stoppt mit `--framework 'foo' is not one of ['openspec', 'speckit', 'bmad']`. Fehlt der Ordner des Frameworks im Projekt, stoppt es mit `framework speckit is not installed in this project`.
+- In dieser Übung startet ihr nur `assess`. Den Schalter braucht ihr erst, wenn ihr das verbesserte Ticket mit `spec` weiterschickt.
 
 **Das seht ihr:**
 

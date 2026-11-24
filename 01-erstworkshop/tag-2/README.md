@@ -2,6 +2,10 @@
 
 Folien, Übungen und Ergebnisse von Tag 2.
 
+## Folien
+
+[Workshop Agentic Engineering – Tag 2](Workshop%20Agentic%20Engineering%20%E2%80%93%20Tag%202.pdf) (PDF, 39 Seiten)
+
 ## Ablauf
 
 Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereitung/agenda-kurz.md). Statt einer Pipeline in jeder Repository-Kopie führt ihr die Schritte der Factory lokal aus, in eurem eigenen Repo.

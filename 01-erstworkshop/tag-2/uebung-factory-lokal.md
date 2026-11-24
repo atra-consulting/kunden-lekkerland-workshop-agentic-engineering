@@ -11,15 +11,16 @@ Die Übung hat zwei Teile:
 
 **Verschiedene Frameworks:** Teilt euch im Raum auf, sodass Spec Kit und OpenSpec beide in Teil 1 laufen. In Teil 2 nimmt jede Gruppe zusätzlich das andere Framework. So vergleicht ihr am Ende dasselbe Ticket mit zwei Frameworks: Spec, Kosten, Dauer.
 
-- **Ein Rechner je Gruppe, wenn möglich ein Mac.** Getestet ist alles nur auf dem Mac. Windows ist nicht getestet; die PowerShell-Befehle stehen in der Referenz, Abschnitt [Windows](../../02-agent-factory/bedienung/lokal-ausfuehren.md#windows).
-- **Euer Branch** ist euer Framework-Branch, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite schreibt ihn als `<framework-branch>`.
+- **Nur Tickets, die ihr an Copilot schicken dürft.** Keine Personendaten, keine vertraulichen Kundendaten, keine Zugangsdaten. Ticket und Code gehen an GitHub Copilot.
+- **Ein Rechner je Gruppe, wenn möglich ein Mac.** Getestet ist alles nur auf dem Mac. Windows ist nicht getestet; Hinweise stehen in der Referenz, Abschnitt [Windows](../../02-agent-factory/bedienung/lokal-ausfuehren.md#windows).
+- **Euer Branch** ist euer Framework-Branch, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite nennt ihn `<framework-branch>`.
 - **Werte in spitzen Klammern** ersetzt ihr ohne die Klammern. `LL-123` ersetzt ihr überall durch den Schlüssel eures Tickets.
 
 ## Teil 1: Einrichten und die erste Spec
 
 ## 1. Modul-Doku in den Framework-Branch holen
 
-Eure Modul-Doku liegt als Markdown auf einem eigenen Branch von `develop`. Holt sie zuerst in den Framework-Branch. Dann lesen Bereitschaftsprüfung und Spec-Lauf sie mit, und in Übung 3 auch der Skill.
+Eure Modul-Doku liegt als Markdown auf einem eigenen Branch von `develop`. Diese Seite nennt ihn `<doku-branch>`. Holt sie zuerst in den Framework-Branch. Dann lesen Bereitschaftsprüfung und Spec-Lauf sie mit, und in Übung 3 auch der Skill.
 
 ```bash
 git switch <framework-branch>
@@ -42,7 +43,8 @@ cp factory/local.example.json factory/local.json
 
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
 - Öffnet `factory/local.json`. Dort steht schon `"test_command": "make test"`. Passt den Wert an, wenn euer Testbefehl anders lautet.
-- Achtung: Daraus wird die Freigabe `shell(make:*)`. Sie erlaubt dem Agenten **jedes** Make-Ziel, nicht nur `make test`.
+- Achtung: Daraus wird die Erlaubnis `shell(make:*)`. Damit darf der Agent **jedes** Make-Ziel starten, nicht nur `make test`. Über Make kann er beliebige Befehle ausführen, als ihr und mit eurer Umgebung.
+- In `local.json` steht auch `stack_hint`. Spec Kit nutzt ihn im Plan-Prompt. Passt ihn an euren Stack an.
 
 ```bash
 git add factory
@@ -62,10 +64,10 @@ copilot mcp list
 - Fehlt er, legt `~/.copilot/mcp-config.json` an. Gibt es die Datei schon, ergänzt den Server unter `mcpServers`:
 
   ```json
-  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v2/mcp", "tools": ["getAccessibleAtlassianResources", "getJiraIssue", "createJiraIssue"]}}}
+  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v2/mcp", "tools": ["getAccessibleAtlassianResources", "getJiraIssue", "getVisibleJiraProjects", "createJiraIssue"]}}}
   ```
 
-- Habt ihr ihn früher mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `createJiraIssue`. Mehr Werkzeuge braucht ihr nicht; ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
+- Habt ihr ihn früher mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `getVisibleJiraProjects` und `createJiraIssue`. Fehlt beim Anlegen ein Label, braucht der Skill zusätzlich das Werkzeug zum Bearbeiten. Ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
 - Getestet ist der Abruf im Lab mit `https://mcp.atlassian.com/v1/mcp`. `/v2/mcp` ist der Nachfolger und noch nicht getestet. Klappt v2 nicht, nehmt `/v1/mcp`; Atlassian schaltet v1 am 1. März 2027 ab.
 - Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Danach `/exit`. Ein Aufruf mit `-p` kann die Anmeldung im Browser nicht abschließen.
 
@@ -85,8 +87,9 @@ cat ~/factory-tickets/LL-123.json
 
 **Das seht ihr:** ein JSON-Objekt mit `key`, `summary`, `description` und `labels`. Im Lab kostete der Abruf 10,8 Credits.
 
-- Vergleicht die Datei mit dem Ticket in Jira. Das Ticket geht durch ein Sprachmodell; es kann Text weglassen oder umformulieren.
+- Vergleicht die Datei mit dem Ticket in Jira, auch die Labels. Ein Sprachmodell schreibt die Datei. Es kann Text weglassen oder umformulieren.
 - `local.py` wählt das Framework über genau ein Label: `sdd-speckit` oder `sdd-openspec`. Hat euer Ticket keins, hängt ihr an `spec` und `build` `--framework speckit` oder `--framework openspec` an.
+- Klappt die Anmeldung beim Jira-MCP nicht, legt die Datei von Hand an, im Format aus [Übung 2, Schritt 1](uebung-bereitschaft.md#1-ein-vages-ticket-schreiben). Dann geht es mit Schritt 5 weiter.
 
 ## 5. Ticket-Branch anlegen
 
@@ -104,7 +107,7 @@ Spec Kit darf beim Spec-Schritt einen Branch anlegen. Lokal passiert das in eure
 python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only
 ```
 
-`--print-only` startet nichts und kostet nichts. Es zeigt die Copilot-Befehle genau so, wie `local.py` sie starten würde. Diese Befehle übernimmt DevOps später in Bitbucket Pipelines.
+`--print-only` startet nichts und kostet nichts. Es zeigt die Copilot-Befehle so, wie `local.py` sie starten würde. Ein echter Lauf schaltet zusätzlich eure MCP-Server ab. Die Befehle sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines.
 
 **Das seht ihr:** `# 2 copilot call(s), spec, openspec, …` bei OpenSpec, 4 Aufrufe bei Spec Kit. Aufruf 1 ist immer `# call 1/… (readiness check)`.
 
@@ -116,11 +119,11 @@ python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json
 
 Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“ startet der Spec-Schritt.
 
-**Das seht ihr:** `[local] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht freigegebenen Befehl abgelehnt, der Agent nimmt dann einen erlaubten Weg. Am Ende `[local] done: … credits …` und `[local] uncommitted changes`.
+**Das seht ihr:** `[local] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Am Ende `[local] done: … credits …` und `[local] uncommitted changes`.
 
 - **`not ready: no spec calls`, Exit-Code 4:** Gründe und Fragen stehen in der Ausgabe. Verbessert die Beschreibung in Jira und holt das Ticket neu (Schritt 4). Genau das übt ihr in Übung 2.
-- **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe.
-- Im Lab liefen Bereitschaftsprüfung und Spec-Schritt einzeln mit echtem Copilot. Beide nacheinander in einem Lauf hat nur ein automatischer Test geprüft.
+- **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe. Löscht `FACTORY-QUESTIONS.md`, bevor ihr `spec` neu startet. Sonst stoppt `local.py`.
+- Im Lab liefen Bereitschaftsprüfung und Spec-Schritt einzeln mit echtem Copilot. Nur ein automatischer Test hat beide nacheinander in einem Lauf geprüft.
 
 **Zwischen Teil 1 und Teil 2:** Läuft der Spec-Schritt noch, lasst ihn laufen.
 
@@ -128,7 +131,7 @@ Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“
 
 ## 8. Freigabe 1: Ihr lest die Spec
 
-Lokal gibt es keine Freigabe zwischen Spec und Bau. Ihr seid das Gate. Lest die Spec als Gruppe:
+Lokal gibt es keine Freigabe zwischen Spec und Bau. Ihr gebt frei. Lest die Spec als Gruppe:
 
 - OpenSpec: `openspec/changes/<name>/` mit `proposal.md`, `design.md`, `tasks.md` und `specs/`.
 - Spec Kit: `specs/<NNN>-<name>/` mit `spec.md`, `plan.md` und `tasks.md`.
@@ -151,7 +154,7 @@ python3 factory/local.py build --ticket-file ~/factory-tickets/LL-123.json
 
 `build` findet die Spec selbst. Gibt es mehrere Spec-Ordner, nennt ihr den richtigen mit `--change <name>`.
 
-**Das seht ihr:** `[local] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und `[local] next: review git diff, run the tests yourself, and commit by hand`.
+**Das seht ihr:** `[local] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[local] next: review `git diff`, run the tests yourself, and commit by hand``.
 
 ## 10. Freigabe 2: Ihr lest den Diff
 
@@ -160,29 +163,37 @@ git diff
 make test
 ```
 
-Lokal prüft nichts die geänderten Dateien. Darum lest ihr den Diff selbst:
+Beim Bau stoppt lokal keine Prüfung den Lauf. Darum lest ihr den Diff selbst:
 
 - Decken die Tests jedes Akzeptanzkriterium ab?
 - Hat der Agent etwas geändert, das das Ticket nicht verlangt?
 - Würdet ihr den Code von einem Kollegen so annehmen?
 
-Steht in der Ausgabe `WARNING: protected paths changed`, prüft diese Dateien und setzt sie zurück. Dann committet ihr.
+Steht in der Ausgabe `WARNING: protected paths changed`, prüft diese Dateien und setzt sie zurück. Die Liste ist die des Labs: Euer `Makefile` steht nicht darauf. Dann committet ihr den Bau:
 
-**Das seht ihr:** Eure Tests laufen grün.
+```bash
+git add -A
+git commit -m "Bau LL-123"
+git status --short
+```
+
+**Das seht ihr:** Eure Tests laufen grün. `git status --short` zeigt nichts mehr.
 
 ## 11. Dasselbe Ticket mit einem zweiten Framework
 
-Jetzt schreibt das andere Framework die Spec für dasselbe Ticket. Dafür wechselt ihr auf dessen Branch, etwa von `workshop-openspec-local` auf `workshop-speckit-local`, und holt euren `factory/`-Ordner mit.
+Jetzt schreibt das andere Framework die Spec für dasselbe Ticket. Dafür wechselt ihr auf dessen Branch, etwa von `workshop-openspec-local` auf `workshop-speckit-local`, und holt euren `factory/`-Ordner mit. Holt auch die Modul-Doku, wie in Schritt 1.
 
 ```bash
 git switch <anderer-framework-branch>
 git switch -c <kurzer-name>-2
+git merge <doku-branch>
 git checkout <kurzer-name> -- factory
 python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --framework <anderes-framework>
 ```
 
+- Gibt es den anderen Framework-Branch bei euch nicht, lasst Schritt 11 weg.
 - `<anderes-framework>` ist `speckit` oder `openspec`. `--framework` ersetzt das Label des Tickets.
-- Habt ihr auch einen Branch mit BMad angelegt, geht `bmad` genauso. BMad ist im Lab am teuersten.
+- Habt ihr auch einen Branch mit BMad angelegt, geht `bmad` genauso. BMad ist im Lab am teuersten, vor allem beim Bauen. BMad darf über `uv` beliebigen Python-Code starten.
 - Bauen ist freiwillig. Wichtiger ist der Vergleich.
 
 **Das seht ihr:** dieselben Zeilen wie in Schritt 7, mit dem anderen Framework. Am Ende `[local] done: … credits …`.
@@ -209,7 +220,7 @@ Einzelwerte aus dem Lab, mit der Symfony-Demo-Anwendung, je ein Lauf. Kein Erwar
 | Spec | etwa 27 Credits, 56 s | etwa 43 Credits, 111 s | etwa 33 Credits, 75 s |
 | Bauen | etwa 17 Credits, 41 s | etwa 16 Credits, 45 s | etwa 92 Credits, 212 s |
 
-Mit dem zweiten Framework in Schritt 11 rechnet für die Übung mit etwa 80 bis 120 Credits je Gruppe.
+Für die ganze Übung, mit dem zweiten Framework aus Schritt 11, rechnet ihr mit etwa 110 bis 125 Credits je Gruppe.
 
 ## Wenn es hakt
 
@@ -224,5 +235,5 @@ Eure Gruppe hat:
 
 - `factory/` mit `local.py` und eurem Testbefehl auf dem Framework-Branch, dazu die Modul-Doku,
 - einen Ticket-Branch mit Spec und Code, beides von euch gelesen und committet, und grüne Tests,
-- die Ausgabe von `--print-only`: die Copilot-Befehle, die DevOps in die Pipeline übernimmt,
+- die Ausgabe von `--print-only`: die Copilot-Befehle als Vorlage für den Agent-Schritt in der Pipeline,
 - eine zweite Spec desselben Tickets mit dem anderen Framework, und eure Vergleichstabelle.

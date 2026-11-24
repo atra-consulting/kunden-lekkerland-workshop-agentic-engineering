@@ -1,19 +1,21 @@
 # Übung 2: Ein Ticket ablehnen lassen und die Kriterien anpassen
 
-Zuerst lasst ihr die Bereitschaftsprüfung ein absichtlich dünnes Ticket ablehnen. Ihr bessert es nach, bis sie „ready“ sagt. Dann ergänzt ihr ein eigenes Kriterium für Lekkerland. Die Referenz: [Ticket-Bereitschaft](../../02-agent-factory/bedienung/ticket-bereitschaft.md).
+Zuerst schreibt ihr bewusst ein vages Ticket, und die Bereitschaftsprüfung lehnt es ab. Ihr bessert es nach, bis sie „ready“ meldet. Dann ergänzt ihr ein eigenes Kriterium für Lekkerland. Die Referenz: [Ticket-Bereitschaft](../../02-agent-factory/bedienung/ticket-bereitschaft.md).
 
 - **Ihr braucht** den Ordner `factory/` aus [Übung 1](uebung-factory-lokal.md). Jira braucht ihr nicht: Das Ticket ist eine Datei.
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Windows ist nicht getestet.
 - **Kosten:** Eine Prüfung kostete im Lab etwa 6 bis 14 Credits und 10 bis 25 Sekunden. Plant vier bis sechs Prüfungen ein.
 
-## 1. Ein dünnes Ticket schreiben
+## 1. Ein vages Ticket schreiben
+
+Habt ihr aus Übung 1 noch offene Änderungen, committet sie vorher.
 
 ```bash
 git switch <framework-branch>
 git status --short
 ```
 
-Legt mit dem Editor die Datei `~/factory-tickets/LL-0.json` an. Wählt eine Funktion aus eurem Code und beschreibt sie absichtlich vage, in einem Satz:
+Legt mit dem Editor die Datei `~/factory-tickets/LL-0.json` an. Wählt eine Funktion aus eurem Code und beschreibt sie bewusst vage, in einem Satz:
 
 ```json
 {"key": "LL-0", "summary": "Suche verbessern", "description": "Die Suche soll besser werden.", "labels": []}
@@ -34,6 +36,7 @@ python3 factory/local.py assess --ticket-file ~/factory-tickets/LL-0.json
 
 ```text
 [local] LL-0: readiness check, project …
+…
 [local] copilot readiness check: tools ['read', 'write']
 …
   verdict: not_ready
@@ -46,7 +49,7 @@ Exit-Code 4. Im Lab lehnte die Prüfung „Suche verbessern“ mit `missing_deta
 
 ## 3. Gründe und Fragen lesen
 
-Jeder Grund beginnt mit der ID eines Kriteriums. Die sechs IDs erklärt die Tabelle [Die sechs Kriterien](../../02-agent-factory/bedienung/ticket-bereitschaft.md#die-sechs-kriterien).
+Jeder Grund beginnt mit der ID eines Kriteriums. Die Tabelle [Die sechs Kriterien](../../02-agent-factory/bedienung/ticket-bereitschaft.md#die-sechs-kriterien) erklärt die sechs IDs.
 
 - Nennt die Prüfung echte Dateien aus eurem Code?
 - Würde eine Entwicklerin aus eurem Team dieselben Fragen stellen?
@@ -55,7 +58,7 @@ Jeder Grund beginnt mit der ID eines Kriteriums. Die sechs IDs erklärt die Tabe
 
 ## 4. Ticket verbessern und neu prüfen
 
-Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](walkthrough-agent-factory.md#mit-konto) hilft: Ziel, Akzeptanzkriterien, Nicht Teil des Tickets, Hinweise. Zeilenumbrüche schreibt ihr in JSON als `\n`. Dann startet ihr denselben Befehl wie in Schritt 2 noch einmal, bis die Prüfung zustimmt.
+Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](walkthrough-agent-factory.md#mit-konto) hilft: Ziel, Akzeptanzkriterien, Nicht Teil des Tickets, Hinweise. Zeilenumbrüche schreibt ihr in JSON als `\n`. Dann startet ihr denselben Befehl wie in Schritt 2 noch einmal, bis die Prüfung „ready“ meldet.
 
 **Das seht ihr:**
 
@@ -64,7 +67,7 @@ Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](wa
 [local] ready. Credits …, … s, logs in …
 ```
 
-Exit-Code 0. Nach „ready“ löscht `local.py` die Datei `FACTORY-ASSESSMENT.json` selbst. Im Lab brauchte FLAB-31 drei Fassungen: Die zweite widersprach einem bestehenden Test (`contradicts_code`).
+Exit-Code 0. Nach „ready“ löscht `local.py` die Datei `FACTORY-ASSESSMENT.json` selbst. Im Lab brauchte [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31) drei Fassungen: Die zweite widersprach einem bestehenden Test (`contradicts_code`).
 
 ## 5. Ein eigenes Kriterium ergänzen
 
@@ -78,23 +81,23 @@ The ticket doesn't name its business domain and its module cluster. The agent ca
 Example: "Add a filter to the list." Which domain, and which module cluster?
 ```
 
-- Jedes Kriterium ist eine Überschrift der dritten Ebene mit der ID in Backticks. Nur diese IDs darf das Urteil nennen.
-- ID: Kleinbuchstaben, Ziffern und Unterstrich.
-- Die Datei ist Englisch, weil das Modell sie liest. Deutsch geht auch, ist aber ungetestet.
-- Konkrete Beispiele aus eurem Code wirken am stärksten.
+- Jedes Kriterium ist eine Überschrift der dritten Ebene mit der ID in Backticks. Das Urteil darf nur diese IDs nennen.
+- ID: zuerst ein Kleinbuchstabe, dann Kleinbuchstaben, Ziffern oder Unterstriche.
+- Die Datei ist auf Englisch, weil das Modell sie liest. Deutsch geht auch, ist aber nicht getestet.
+- Konkrete Beispiele aus eurem Code helfen am meisten.
 
 **Das seht ihr:** `git diff factory/readiness.md` zeigt nur den neuen Abschnitt.
 
 ## 6. Das neue Kriterium testen
 
-Prüft das Ticket aus Schritt 4 noch einmal, mit demselben Befehl. Nennt es Domäne und Modul-Cluster noch nicht, erwartet ihr eine Ablehnung:
+Prüft das Ticket aus Schritt 4 noch einmal, mit demselben Befehl. Nennt das Ticket schon Domäne und Modul-Cluster, nehmt beides vorher heraus. Dann erwartet ihr eine Ablehnung:
 
 ```text
   verdict: not_ready
   - missing_domain: …
 ```
 
-Ergänzt Domäne und Modul-Cluster in `description` und prüft erneut, bis `verdict: ready` kommt. Ein eigenes Kriterium hat im Lab niemand ausprobiert. Ihr seid die Ersten.
+Ergänzt Domäne und Modul-Cluster in `description` und prüft erneut, bis `verdict: ready` kommt. Ein eigenes Kriterium hat im Lab niemand ausprobiert. Klappt es nicht, ist das ein Ergebnis, kein Fehler von euch.
 
 Dann committet ihr die Kriterien auf dem Framework-Branch. So gilt euer Kriterium auch für den Skill in Übung 3:
 
@@ -116,14 +119,14 @@ Eure Änderung wirkt nur lokal. In der Pipeline stecken die Kriterien im Factory
 
 - **`readiness.md not found`:** `readiness.md` gehört neben `local.py`, also nach `factory/`.
 - **`ticket key … does not match …`:** Der Schlüssel in der Datei sieht nicht wie ein Jira-Schlüssel aus. Nehmt `LL-0`.
-- **`local.py` kann die Datei nicht lesen:** Meist ist das JSON kaputt, etwa durch einen echten Zeilenumbruch in `description`. Schreibt `\n`.
-- **Das Urteil wirkt falsch:** Der Lab-Test lief je Fall nur zweimal. Ein konkretes Beispiel in `readiness.md` schärft das Urteil.
+- **`… is not valid JSON`:** Meist ist das JSON fehlerhaft, etwa durch einen echten Zeilenumbruch in `description`. Schreibt `\n`.
+- **Das Urteil wirkt falsch:** Im Lab lief jeder Fall nur zweimal. Ein konkretes Beispiel in `readiness.md` schärft das Urteil.
 
 ## Ergebnis
 
 Eure Gruppe hat:
 
 - ein Ticket, das die Prüfung erst ablehnt und nach euren Antworten durchlässt,
-- ein Gefühl dafür, welche Fragen die Prüfung zu eurem Code stellt,
+- ein Gespür dafür, welche Fragen die Prüfung zu eurem Code stellt,
 - ein eigenes Kriterium in `factory/readiness.md`, getestet und auf dem Framework-Branch committet,
 - eine Notiz für DevOps: Neue Kriterien brauchen ein neues Image.

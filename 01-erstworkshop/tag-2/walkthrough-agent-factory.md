@@ -51,7 +51,7 @@ FLAB-22 „Current year in the page footer“ lief am 23. November mit OpenSpec 
 | 4 | In Arbeit, dann Wartet | `factory-bot` | Die Spec steht als Kommentar `FACTORY-SPEC v1` am Ticket und auf dem Branch `factory/FLAB-22` | Kommentar in [FLAB-22](https://betterprojectsfaster.atlassian.net/browse/FLAB-22) |
 | 5 | Bau | Mensch | **Freigabe 1:** Ein Mensch aus der Freigabegruppe setzt „Spec freigegeben“. Die zweite Automation startet `factory-build`. Lauf 2: Copilot setzt die Spec um, die Tests laufen | [Lauf #85](https://bitbucket.org/factory-lab/factory-lab/pipelines/results/85). Im Lab gibt nur Karsten frei |
 | 6 | Review | `factory-bot` | Die Factory öffnet einen Pull Request und verlinkt ihn am Ticket | [Pull Request #19](https://bitbucket.org/factory-lab/factory-lab/pull-requests/19) |
-| 7 | Erledigt | Mensch | **Freigabe 2:** Ein Mensch prüft den Pull Request und führt ihn zusammen. Die Factory führt nie selbst zusammen | Pull Request #19 |
+| 7 | Erledigt | Mensch | **Freigabe 2:** Ein Mensch prüft den Pull Request und führt ihn zusammen. Die Factory führt nie selbst zusammen | [Pull Request #19](https://bitbucket.org/factory-lab/factory-lab/pull-requests/19) |
 
 FLAB-22 lief vor der neuen Bereitschaftsprüfung. Heute prüft die Factory in Schritt 3 zuerst, ob das Ticket bereit ist: [Ist das Ticket bereit?](#neu-ist-das-ticket-bereit)
 
@@ -67,7 +67,7 @@ Jeder Lauf besteht aus mehreren Schritten. Jeder Schritt sieht nur die Secrets, 
 **`factory-spec`, Lauf 1:**
 
 1. **Guard und Vorbereitung:** Stimmen Ticket-Schlüssel, Status und Label? Ist die Factory gestoppt? Dann holt die Factory das Ticket aus Jira.
-2. **Agent:** Copilot CLI prüft zuerst, ob das Ticket bereit ist. Nur dann schreibt es die Spec mit dem gewählten Framework. Dieser Schritt sieht nur den Copilot-Token. Copilot läuft als eigener Benutzer ohne Rechte, und nur ein Patch verlässt den Schritt.
+2. **Agent:** Copilot CLI prüft zuerst, ob das Ticket bereit ist. Nur dann schreibt es die Spec mit dem gewählten Framework. Dieser Schritt sieht nur den Copilot-Token. Copilot läuft als eigener Benutzer ohne Rechte. Nur der Patch und das Prüfurteil gehen an die nächsten Schritte.
 3. **Prüfung, ohne Secrets:** Hat der Agent nur Spec-Dateien geändert? Stecken Token-Muster oder unsichtbare Zeichen im Patch?
 4. **Veröffentlichen:** Die Factory prüft alles noch einmal, pusht den Branch, kommentiert die Spec und setzt den Status.
 
@@ -79,7 +79,7 @@ Jeder Lauf besteht aus mehreren Schritten. Jeder Schritt sieht nur die Secrets, 
 4. **Build und Tests, ohne Secrets:** frischer Checkout, `composer install`, Testbefehl.
 5. **Veröffentlichen:** Branch pushen, Build-Status setzen, Pull Request öffnen.
 
-Geschützt sind unter anderem die Pipeline-Definition, `factory/`, `AGENTS.md`, `.github/`, die Ordner der Frameworks, `composer.json` und `composer.lock`, `bin/`, die PHPUnit- und PHPStan-Konfiguration und `.env*`. Der Agent kann also keine neuen Pakete einbauen. Die vollständige Liste steht unter `protected_paths` in [`factory/config.json`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/config.json).
+Geschützt sind unter anderem die Pipeline-Definition, `factory/`, `AGENTS.md`, `.github/`, die Konfiguration der Frameworks (`.specify/`, `_bmad/`, `openspec/config.yaml`), `composer.json` und `composer.lock`, `bin/`, die PHPUnit- und PHPStan-Konfiguration und `.env*`. Der Agent kann also keine neuen Composer-Pakete einbauen. Die vollständige Liste steht unter `protected_paths` in [`factory/config.json`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/config.json).
 
 ## Die Prüfpunkte
 
@@ -112,7 +112,7 @@ Die Kriterien stehen in einer einzigen Datei: [`factory/readiness.md`](https://b
 
 ### Freigabe 1: Die Spec
 
-Nur benannte Personen können „Spec freigegeben“ setzen. Im Lab ist das Karsten. Die Freigabe gilt nur für genau die Spec im Kommentar. Ändert jemand danach Beschreibung, Labels oder Kommentare, bricht der Bau ab.
+Nur benannte Personen können „Spec freigegeben“ setzen. Im Lab ist das Karsten. Die Freigabe gilt nur für genau die Spec im Kommentar. Ändert jemand danach Beschreibung oder Labels, bricht der Bau ab. Das gilt auch, wenn jemand einen Kommentar bearbeitet.
 
 Passt die Spec nicht, geht das Ticket mit „Zurück“ nach „Definition“. Ihr überarbeitet es und startet neu.
 
@@ -126,11 +126,11 @@ Ihr lest den Diff wie bei jedem Pull Request. Die Fragen dazu:
 
 ## Wenn die Factory stoppt
 
-Die Factory stoppt lieber, als etwas Falsches zu schreiben. Ihr seht drei Arten:
+Die Factory stoppt, wenn ihre Prüfungen ein Problem finden. Ob Spec und Code fachlich stimmen, entscheiden nur die zwei Freigaben. Ihr seht vier Fälle:
 
 | Art | Beispiel | Was ihr tut |
 |---|---|---|
-| Kommentar `FACTORY-STOP v1`: Der Lauf passt nicht, etwa falscher Status oder kein Label | [FLAB-21](https://betterprojectsfaster.atlassian.net/browse/FLAB-21): „no framework chosen“ | Den Grund beheben, Ticket wieder auf „Bereit“ |
+| Kommentar `FACTORY-STOP v1`: Der Lauf passt nicht, etwa falscher Status oder kein Label | [FLAB-21](https://betterprojectsfaster.atlassian.net/browse/FLAB-21): „no framework chosen“ | Den Grund beheben. Stand das Ticket im falschen Status, setzt ihr es auf „Bereit“. Fehlt das Label, steht es noch in „Bereit“: `factory-spec` neu starten, siehe [Merkblatt](../../02-agent-factory/bedienung/merkblatt.md#lauf-starten). Bricht der Bau ab, steht es in „Bau“; der Kommentar nennt den Grund. Im Lab startet Karsten neu. |
 | Kommentar `FACTORY-NOT-READY v1`: Die Bereitschaftsprüfung lehnt das Ticket ab. Es geht nach „Klärung nötig“ | siehe [Ist das Ticket bereit?](#neu-ist-das-ticket-bereit) | Die Fragen in der Beschreibung beantworten, Ticket wieder auf „Bereit“ |
 | Kommentar `FACTORY-QUESTIONS v1`: Das Framework findet das Ticket zu vage für eine Spec. Es geht nach „Klärung nötig“ | [FLAB-6](https://betterprojectsfaster.atlassian.net/browse/FLAB-6): „Make the blog better“, damals noch zurück nach „Definition“ | Die Fragen in der Beschreibung beantworten, Ticket wieder auf „Bereit“ |
 | Kein Kommentar | – | Das Protokoll unter [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) lesen |
@@ -147,10 +147,10 @@ Gemessen im Lab mit `symfony/demo`, je Ticket. Das sind Einzelwerte aus wenigen 
 | Lauf 2, Bau | 12 bis 27 Credits | 34 Credits | 63 Credits |
 | **Je Ticket** | **etwa 25 bis 50 Credits** | **etwa 76 Credits** | **etwa 89 Credits** |
 
-- Die Bereitschaftsprüfung kostete 6 bis 11 Credits und dauerte 12 bis 60 Sekunden. Sie stoppt bei 40 Credits.
-- Ein zu vages Ticket kostete 4 Credits und 42 Sekunden, bis die Fragen des Frameworks am Ticket standen.
+- Die Bereitschaftsprüfung kostete 6 bis 11 Credits und dauerte 12 bis 60 Sekunden. Die Prüfung stoppt bei 40 Credits.
+- Vor der Bereitschaftsprüfung kostete ein zu vages Ticket 4 Credits und 42 Sekunden, bis die Fragen des Frameworks am Ticket standen.
 - Lauf 1 dauerte 75 bis 147 Sekunden, Lauf 2 115 bis 211 Sekunden. Dazu kommen Wartezeit und die Zeit bis zur Freigabe.
-- Jeder Copilot-Aufruf stoppt bei 150 Credits.
+- Jeder Framework-Aufruf stoppt bei 150 Credits.
 - Läufe warten aufeinander. „Queued“ in Bitbucket heißt warten, nicht neu starten.
 
 ## Selbst ausprobieren
@@ -173,7 +173,7 @@ php -S 127.0.0.1:8000 -t public
 
 - Dann im Browser: <http://127.0.0.1:8000/de/blog>. Stoppen mit Strg+C. Die Tests laufen mit `./bin/phpunit`.
 - Die Zeile mit `.env.local` setzt einmalig ein zufälliges `APP_SECRET`. Ohne sie bricht die App mit „A non-empty secret is required“ ab. Git ignoriert `.env.local`.
-- Was die Factory für ein Ticket gebaut hat, seht ihr auf dessen Branch, etwa die Suche nach dem Autornamen aus [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31): `git fetch origin`, dann `git checkout origin/factory/FLAB-31` und den Server neu starten. Zurück mit `git checkout factory-base`.
+- Was die Factory für ein Ticket umgesetzt hat, seht ihr auf dessen Branch, etwa die Suche nach dem Autornamen aus [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31): `git fetch origin`, dann `git checkout origin/factory/FLAB-31` und den Server neu starten. Zurück mit `git checkout factory-base`.
 - Getestet auf dem Mac. Unter Windows ist der `echo`-Befehl anders; dort legt ihr `.env.local` mit einer Zeile `APP_SECRET=` und einer beliebigen Zeichenkette von Hand an.
 
 ### Mit Konto
@@ -215,8 +215,8 @@ python3 factory/local.py build  --ticket-file ~/factory-tickets/LL-123.json     
 
 - **Das Ticket** holt ein eigener Copilot-Aufruf über euren Jira-MCP-Server in eine Datei. Ein API-Token braucht ihr dafür nicht.
 - **Euer Testbefehl,** etwa `make test`, kommt in `local.json` unter `test_command`.
-- **Anders als in der Factory:** kein Kommentar und kein Status in Jira, keine Freigabe zwischen Spec und Bau, keine Prüfung der geänderten Dateien. Den Diff prüft ihr selbst.
-- **`--print-only`** zeigt die Befehle, die DevOps später in Bitbucket Pipelines übernimmt.
+- **Anders als in der Factory:** kein Kommentar und kein Status in Jira, keine Freigabe zwischen Spec und Bau. Keine Prüfung der geänderten Dateien stoppt den Lauf. `local.py` warnt nur bei geschützten Pfaden und, beim Spec-Lauf, bei Dateien außerhalb des Spec-Ordners. Copilot läuft als ihr, mit euren Rechten und ohne Container. Den Diff prüft ihr selbst.
+- **`--print-only`** zeigt die Copilot-Befehle. Diese Befehle sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines. Guard, Prüfung und die getrennten Schritte der Factory kommen dazu.
 - **Im Lab** kostete OpenSpec etwa 27 Credits für die Spec und 17 für den Bau, je etwa eine Minute. Windows ist nicht getestet.
 
 Einrichten und alle Befehle: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
@@ -230,13 +230,13 @@ Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Ti
 ```
 
 1. **Erst der Code:** Der Skill liest Code und Modul-Doku. Gibt es das schon? Widerspricht es dem Code? Auf Wunsch liest er auch eure Domänen in Confluence; das ist noch nicht getestet.
-2. **Dann das Framework:** Es fragt nach, mit Spec Kit (`specify` und `clarify`), OpenSpec (`explore`) oder BMad (`forge-idea`).
+2. **Dann das Framework:** Es fragt nach, mit Spec Kit (`speckit-specify` und `speckit-clarify`), OpenSpec (`openspec-explore`) oder BMad (`bmad-forge-idea`).
 3. **Zu groß?** Dann schlägt er ein Epic mit mehreren Tickets vor.
 4. **Die Prüfung der Factory:** Jeder Entwurf geht durch dieselbe Bereitschaftsprüfung wie im Spec-Lauf.
 5. **Euer „Ja“:** Ihr seht Annahmen, Prüfergebnis und den vollen Text. Erst dann legt der Skill die Tickets in Jira an, im Status „Definition“ und mit dem Label des Frameworks. Über den Jira-MCP-Server braucht ihr kein API-Token.
 6. **Aufräumen:** Die Dateien, die das Framework beim Nachfragen anlegt, löscht der Skill wieder.
 
-Im Lab kostete ein Ticket 29 bis 43 Credits und 4 bis 5 Minuten. Bei der Absicht „RSS-Feed“ fand der Skill den Feed schon im Code, bevor das Framework die erste Frage stellte. Der Skill ist freiwillig: Die Factory startet erst bei „Bereit“.
+Im Lab kostete ein Ticket 29 bis 43 Credits und 4 bis 5 Minuten. Bei der Absicht „RSS-Feed“ ([FLAB-29](https://betterprojectsfaster.atlassian.net/browse/FLAB-29)) fand der Skill den Feed schon im Code, bevor das Framework die erste Frage stellte. Der Skill ist freiwillig: Die Factory startet erst bei „Bereit“.
 
 Einrichten und Ablauf: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
 
@@ -252,3 +252,7 @@ Was das Lab nicht zeigt und ihr mit eurem DevOps-Team klärt:
 - Tokens: ein technischer GitHub-Benutzer mit Copilot-Lizenz, ein Jira-Konto und ein Bitbucket-Zugang für die Factory.
 - Login im Browser reicht der Pipeline nicht. Ihr nutzt Jira, Confluence und vielleicht Bitbucket über einen Login im Browser. Die Pipeline braucht aber API-Tokens oder einen Service-Account. Prüft zuerst, ob eure Atlassian-Organisation API-Tokens erlaubt.
 - Runner: Atlassians Cloud-Runner oder eigene Runner. Das Lab nutzt einen eigenen Runner, um Build-Minuten zu sparen.
+- Daten: Ticket-Text und Code gehen an GitHub Copilot. Klärt mit eurem Datenschutz, was dorthin darf.
+- Docker im Testschritt: Klärt, wie der Schritt Docker bekommt, ohne die Trennung „ohne Secrets“ aufzugeben.
+- Das Image: Im Lab liegt es öffentlich auf Docker Hub. Bei euch gehört es in eure eigene Registry, mit Bau und Prüfung durch euer Team.
+- Branch-Regeln in Bitbucket: Die Factory-Skripte führen nie zusammen. Sorgt mit Branch-Berechtigungen auf dem Zielbranch dafür, dass `factory-bot` es auch nicht kann.

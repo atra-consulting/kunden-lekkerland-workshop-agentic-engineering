@@ -1,11 +1,12 @@
 # Übung 3: Tickets mit dem Skill schreiben
 
-Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Factory ohne Rückfrage umsetzen kann. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
+Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Bereitschaftsprüfung der Factory bestehen. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
 
 - **Ihr braucht** den Framework-Branch mit `factory/` aus [Übung 1](uebung-factory-lokal.md) und eurem Kriterium aus [Übung 2](uebung-bereitschaft.md), dazu den Jira-MCP-Server `atlassian` aus Übung 1.
+- **Nur Absichten, die ihr an Copilot schicken dürft.** Keine Personendaten, keine vertraulichen Kundendaten.
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Windows ist nicht getestet.
 - **Kosten:** Im Lab kostete ein Ticket 29 bis 43 Credits, dazu 6 bis 13 Credits je Prüfung durch die Factory. Ein Lauf mit einem Ticket dauerte samt Lesen und Antworten etwa 5 bis 10 Minuten.
-- **Optional:** Der Skill ist kein Teil der Factory. Die Factory startet erst, wenn ein Ticket auf „Bereit“ steht.
+- **Freiwillig:** Der Skill ist kein Teil der Factory. Die Factory startet erst, wenn ein Ticket auf „Bereit“ steht.
 
 ## 1. Skill ins Projekt kopieren
 
@@ -36,8 +37,8 @@ Legt `.github/ticket-schreiben.json` an:
 ```
 
 - `framework`: `openspec` oder `speckit`, passend zu eurem Branch. Der Skill fragt mit diesem Framework nach und setzt das Label `sdd-<framework>`.
-- `jira_project`: der Projektschlüssel in Jira. `issue_type` muss es dort geben.
-- `module_docs`: der Ordner mit der Modul-Doku, die ihr in Übung 1 gemerged habt.
+- `jira_project`: der Projektschlüssel in Jira. Den Vorgangstyp `issue_type` muss es in diesem Projekt geben.
+- `module_docs`: der Ordner mit der Modul-Doku, die ihr in Übung 1 zusammengeführt habt.
 - `confluence_space` lasst ihr weg. Die Suche nach der Domäne in Confluence und in `module_docs` ist nicht getestet: Das Lab hat keinen Confluence-Bereich mit Domänen.
 
 **Das seht ihr:** Die Datei liegt neben `.github/skills/`.
@@ -77,7 +78,7 @@ Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ände
 |---|---|
 | Code-Erkundung | Der Skill liest Code, Tests und eure Modul-Doku. Gibt es die Funktion schon oder widerspricht sie dem Code, sagt er es sofort, mit Datei und Zeile. Im Lab fand er den RSS-Feed, bevor das Framework die erste Frage stellte ([FLAB-29](https://betterprojectsfaster.atlassian.net/browse/FLAB-29)). |
 | Fragen des Frameworks | Spec Kit: `speckit-specify`, dann `speckit-clarify` mit wenigen Fragen und einem Antwortvorschlag. OpenSpec: `openspec-explore` stellt Optionen zur Wahl. Danach nennt der Skill die Annahmen des Frameworks. Ihr bestätigt oder korrigiert sie. |
-| Reife-Check | Eine Tabelle mit allen Kriterien, je „erfüllt“ oder „offen“. Der Skill liest `factory/readiness.md`, also auch euer `missing_domain`. Ist die Absicht `too_big`, schlägt er ein Epic mit mehreren Tickets vor. |
+| Reife-Check des Skills | Eine Tabelle mit allen Kriterien, je „erfüllt“ oder „offen“. Der Skill liest `factory/readiness.md`, also auch euer `missing_domain`. Ist die Absicht `too_big`, schlägt er ein Epic mit mehreren Tickets vor. |
 | Prüfung der Factory | Für jeden Entwurf `jira_ticket.py pruefdatei`, dann `python3 -I factory/local.py assess --ticket-file ticket-entwurf-1.json`. Exit-Code 0 heißt „ready“, 4 heißt „not_ready“ mit Gründen und Fragen. |
 
 ## 6. Bestätigen
@@ -96,11 +97,11 @@ Der Skill legt das Ticket über den Jira-MCP an. Copilot fragt vor dem Aufruf vo
 
 Über den Jira-MCP ist nur das Anlegen eines einzelnen Tickets getestet ([FLAB-36](https://betterprojectsfaster.atlassian.net/browse/FLAB-36)), nicht ein ganzer Lauf und kein Epic mit Tickets darunter.
 
-**Dürft ihr in Jira nicht anlegen,** lehnt bei der Rückfrage zu `createJiraIssue` ab. Kopiert vorher den Text aus Schritt 6. Bittet Copilot, mit `python3 -I .github/skills/ticket-schreiben/jira_ticket.py anlegen --entwurf ticket-entwurf-1.md --dry-run` die Anfrage an Jira zu zeigen: Der Probelauf legt nichts an. Diesen Weg im Skill hat niemand getestet. Den zweiten Zugang mit API-Token beschreibt die Referenz unter [Weg B](../../02-agent-factory/bedienung/ticket-skill.md#weg-b-api-token-und-jira_ticketpy).
+**Dürft ihr in Jira nicht anlegen,** lehnt bei der Rückfrage zu `createJiraIssue` ab. Kopiert vorher den Text aus Schritt 6. Bittet Copilot, mit `python3 -I .github/skills/ticket-schreiben/jira_ticket.py anlegen --entwurf ticket-entwurf-1.md --dry-run` die Anfrage an Jira zu zeigen. Bei einem einzelnen Ticket heißt der Entwurf `ticket-entwurf.md`. Der Probelauf legt nichts an. Niemand hat diesen Weg im Skill getestet. Die Referenz beschreibt den zweiten Zugang mit API-Token unter [Weg B](../../02-agent-factory/bedienung/ticket-skill.md#weg-b-api-token-und-jira_ticketpy).
 
 ## Wenn es hakt
 
-- **`MCP server 'atlassian' requires authentication` oder `OAuth callback timeout`:** `/mcp`, `atlassian`, noch einmal „Authenticate“. Im Lab reichte der zweite Versuch. Lehnt Atlassian ab, fragt euren Atlassian-Admin.
+- **`MCP server 'atlassian' requires authentication` oder `OAuth callback timeout`:** `/mcp`, `atlassian`, noch einmal „Authenticate“. Im Lab reichte der zweite Versuch. Lehnt Atlassian die Anmeldung ab, fragt euren Atlassian-Admin.
 - **`arbeitsstand.py merken` endet mit Exit-Code 3:** Es gab schon Änderungen. Beendet den Skill, committet oder sichert mit `git stash`, startet neu.
 - **Tabelle und Ticket-Text fehlen vor der Frage „Soll ich … anlegen?“:** Bittet Copilot, sie ins Frageformular zu schreiben. Im Lab standen sie dann vollständig dort.
 - **Der Skill meldet, dass `factory/local.py` fehlt oder `local.py` mit einem Fehler endet:** Dann gilt nur sein eigener Reife-Check. Prüft, ob `factory/local.py` auf eurem Branch liegt.

@@ -19,7 +19,7 @@ cp -R <workshop-repo>/02-agent-factory/werkzeuge/ticket-schreiben .github/skills
 rm -rf .github/skills/ticket-schreiben/tests
 ```
 
-**Das seht ihr:** `.github/skills/ticket-schreiben/` mit `SKILL.md`, `jira_ticket.py`, `arbeitsstand.py` und `ticket-schreiben.example.json`.
+**Das seht ihr:** `.github/skills/ticket-schreiben/` mit `SKILL.md`, `README.md`, `jira_ticket.py`, `arbeitsstand.py` und `ticket-schreiben.example.json`.
 
 ## 2. Konfiguration schreiben
 

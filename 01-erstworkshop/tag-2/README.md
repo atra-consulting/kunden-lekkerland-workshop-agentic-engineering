@@ -41,6 +41,10 @@ Die Blog-App des Labs startet ihr auf eurem Rechner mit fünf Befehlen: [Die Blo
 
 [Credits messen und sparen](credits-messen-und-sparen.md): die Kurzfassung für Mittwoch, die Fragen dafür heute und die Fragen an Führung und Copilot-Admin am Mittwoch.
 
+## Sicherheit
+
+[Copilot absichern](copilot-absichern.md): die Kurzfassung für Mittwoch. Was ein Prompt oder Skill anrichten kann, sechs Punkte für euch, was eure Admins tun können, und die Fragen an sie.
+
 ## Übungen
 
 Jede Gruppe arbeitet in ihrem eigenen Repo, auf ihrem Framework-Branch von Tag 1:

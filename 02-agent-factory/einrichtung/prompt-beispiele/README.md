@@ -53,7 +53,7 @@ Die rohe Ausgabe jedes Laufs liegt in [`roh/`](roh/), genau so, wie `local.py` s
 
 ## So sind die Prompts gebaut
 
-- **Bereitschaftsprüfung:** Der Prompt enthält das Ticket und die Kriterien aus `factory/readiness.md`, zwischen `<<<CRITERIA` und `CRITERIA>>>`. Der Agent darf nur lesen und eine Datei schreiben, `FACTORY-ASSESSMENT.json`. Bei `spec` ist sie immer Aufruf 1. Lautet das Urteil „nicht bereit“, startet kein weiterer Aufruf.
+- **Bereitschaftsprüfung:** Der Prompt enthält das Ticket und die Kriterien aus [`factory/readiness.md`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/readiness.md), zwischen `<<<CRITERIA` und `CRITERIA>>>`. Der Agent darf nur lesen und eine Datei schreiben, `FACTORY-ASSESSMENT.json`. Bei `spec` ist sie immer Aufruf 1. Lautet das Urteil „nicht bereit“, startet kein weiterer Aufruf.
 - **Spec:** Der erste Aufruf des Frameworks startet dessen Skill als Slash-Befehl und bekommt das Ticket zwischen `<<<TICKET` und `TICKET>>>`, ausdrücklich als Daten, nicht als Anweisung. Die folgenden Aufrufe, etwa `/speckit-plan` oder `/bmad-spec`, bekommen das Ticket nicht noch einmal. Sie arbeiten mit den Dateien, die der Aufruf davor geschrieben hat.
 - **Factory rules:** Jeder Prompt endet mit Regeln aus `config.json` (`spec_rules`, `build_rules`): in welchen Ordner der Agent schreiben darf, keine Shell-Skripte zum Bearbeiten, bei Unklarheit `FACTORY-QUESTIONS.md` statt einer Spec. Beim Bauen: genau die freigegebene Spec umsetzen, Tests mit genau `./bin/phpunit`.
 - **Bauen:** Der Prompt enthält keinen Ticket-Text und keinen Spec-Text. Er nennt nur den Spec-Ordner oder die Spec-Datei, BMad dazu den Schlüssel des Tickets. Den Inhalt liest der Agent selbst im Repo.
@@ -113,6 +113,23 @@ Die Pipeline setzt sie vor jedem Aufruf:
 - Dazu kommt in der Pipeline das Copilot-Token als `COPILOT_GITHUB_TOKEN`. `--print-only` zeigt es nicht.
 
 **Nur lokal:** Startet `local.py` die Aufrufe selbst, hängt es für jeden MCP-Server aus `copilot mcp list` noch `--disable-mcp-server=<Name>` an. In der Pipeline ist kein MCP-Server eingerichtet.
+
+## Wo der Branch entsteht
+
+Copilot legt in Bitbucket keinen Branch an. Das macht erst der letzte Schritt der Pipeline, **publish**: `factory/publish.py` pusht mit dem Token des Bots. Nur dieser Schritt darf nach Bitbucket schreiben.
+
+| Wo | Was passiert |
+|---|---|
+| [`bitbucket-pipelines.yml`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/bitbucket-pipelines.yml) | Schritt „4 publish (Jira and Bitbucket write)“ startet `publish.py spec` in der Pipeline `factory-spec`. Schritt „5 publish“ startet `publish.py build` in `factory-build` |
+| [`publish.py`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/publish.py), `spec()` | Prüft den Patch des Agenten und committet die Spec. Beim ersten Lauf gibt es den Branch noch nicht, also **legt dieser Push `factory/<KEY>` an** |
+| `publish.py`, `commit_and_push()` | Committet als `factory-bot` und pusht `HEAD:refs/heads/factory/<KEY>`. Ab dem zweiten Lauf mit `--force-with-lease`: Der Push überschreibt den Branch nur, wenn ihn niemand sonst verändert hat |
+| [`common.py`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/common.py), `branch_name()` | Der Name: `branch_prefix` aus `config.json` (`"factory/"`) plus Schlüssel des Tickets |
+| `publish.py`, `build()` | Der zweite Lauf hängt den Commit mit dem Code an **denselben** Branch und öffnet den Pull Request von `factory/<KEY>` nach `factory-base` |
+
+- **Basis und Commits:** Der Branch beginnt bei dem Commit, auf dem der Lauf startete, also dem Stand von `factory-base`. Bei FLAB-41 sind das `a414237`, dann „FLAB-41: spec (openspec, factory run 97)“ und „FLAB-41: implementation (openspec, factory run 98)“.
+- **Der Branch des Agenten bleibt lokal:** `agent.py` gibt dem Agenten ein Wegwerf-Repository mit `git init -b factory/<KEY>`. Das braucht BMad, um committen zu können. Es wird nie gepusht. Die Factory übernimmt nur die geänderten Dateien des Agenten als Patch, `publish.py` committet und pusht sie.
+- **Der Push startet nichts:** Die Pipeline hat nur Custom-Pipelines. Ein Push auf `factory/*` startet also keinen Lauf.
+- **Die anderen Schritte lesen den Branch nur:** Guard, Agent und Prüfung holen ihn als Daten nach `refs/factory/<KEY>`, ohne ihn auszuchecken.
 
 ## So sind die Beispiele entstanden
 

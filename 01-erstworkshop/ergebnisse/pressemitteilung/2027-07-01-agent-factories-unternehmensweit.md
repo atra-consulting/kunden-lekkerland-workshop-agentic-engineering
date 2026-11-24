@@ -72,7 +72,9 @@ Wir haben deshalb nicht nur in KI-Technik investiert. Wir haben Wissen in die Or
 
 ## Stimmen aus den Teams
 
-> „[Zitat aus einem Team der zweiten Phase]“
+> „Ich hätte nicht gedacht, wie viel Spaß das macht! Die Factory schreibt den Code, und wir kümmern uns um Architektur und die richtigen Fragen. Gerade bei unseren Services auf GCP kommen wir viel schneller vom Ticket zum Pull Request. Zurück will bei uns keiner mehr.“
+>
+> Emil Entwickler, Java/GCP-Team
 
 ## Was bleibt
 

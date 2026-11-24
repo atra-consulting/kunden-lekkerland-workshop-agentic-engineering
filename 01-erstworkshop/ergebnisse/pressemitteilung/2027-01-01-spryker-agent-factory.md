@@ -18,12 +18,13 @@ Danach folgten zwei Schulungen und ein Workshop. Dort probierten drei Gruppen di
 
 ## So arbeitet die Factory
 
-1. **Anforderung:** Ein Mensch gibt ein Jira-Ticket mit Akzeptanzkriterien an die Factory.
-2. **Lauf 1:** Ein Agent liest das Ticket und den Code und schreibt eine Spezifikation. Dafür testen wir noch drei Frameworks: Spec Kit, OpenSpec und BMad Method. Die Factory prüft, ob die Spezifikation vollständig ist.
-3. **Freigabe 1:** Ein Mensch aus der Freigabegruppe prüft die Spezifikation und gibt sie in Jira frei. Ändert sich danach Ticket oder Spezifikation, gilt die Freigabe nicht mehr.
-4. **Lauf 2:** Der Agent setzt die freigegebene Spezifikation um. Build und Tests laufen in Bitbucket Pipelines. Ändert der Agent geschützte Dateien, etwa die Pipeline-Konfiguration, warnt die Factory. Danach öffnet die Pipeline einen Pull Request.
-5. **Freigabe 2:** Wir prüfen den Pull Request wie gewohnt nach dem Vier- oder Sechs-Augen-Prinzip.
-6. **Auslieferung:** Merge und Auslieferung laufen über unseren bestehenden Weg. Die Factory liefert nichts selbst aus.
+1. **Ticket:** Ein Mensch schreibt das Jira-Ticket selbst oder verfeinert es mit Hilfe der Factory. Dann stellt die Factory Rückfragen und nennt ihre Annahmen, jeweils als Kommentar im Ticket. Sind alle beantwortet, schlägt sie eine fertige Beschreibung vor.
+2. **Anforderung:** Ein Mensch gibt das fertige Ticket mit Akzeptanzkriterien an die Factory.
+3. **Lauf 1:** Ein Agent liest das Ticket und den Code und schreibt eine Spezifikation. Dafür testen wir noch drei Frameworks: Spec Kit, OpenSpec und BMad Method. Die Factory prüft, ob die Spezifikation vollständig ist.
+4. **Freigabe 1:** Ein Mensch aus der Freigabegruppe prüft die Spezifikation und gibt sie in Jira frei. Ändert sich danach Ticket oder Spezifikation, gilt die Freigabe nicht mehr.
+5. **Lauf 2:** Der Agent setzt die freigegebene Spezifikation um. Build und Tests laufen in Bitbucket Pipelines. Ändert der Agent geschützte Dateien, etwa die Pipeline-Konfiguration, warnt die Factory. Danach öffnet die Pipeline einen Pull Request.
+6. **Freigabe 2:** Wir prüfen den Pull Request wie gewohnt nach dem Vier- oder Sechs-Augen-Prinzip.
+7. **Auslieferung:** Merge und Auslieferung laufen über unseren bestehenden Weg. Die Factory liefert nichts selbst aus.
 
 Die Agenten arbeiten mit Copilot CLI und freigegebenen Modellen wie Claude Sonnet. Damit übernimmt die Factory sechs der zehn Schritte. Die beiden Freigaben bleiben Pflicht, und sie bleiben bei uns. Es gilt ein einfaches Prinzip: KI unterstützt, Menschen entscheiden.
 

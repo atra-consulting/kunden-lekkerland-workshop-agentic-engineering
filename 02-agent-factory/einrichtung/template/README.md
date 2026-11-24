@@ -30,6 +30,30 @@ python3 -I factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --p
 
 Was `local.py` mit diesen Dateien an Copilot schickt, zeigen die [Prompt-Beispiele](../prompt-beispiele/README.md).
 
+## Sicherheit: Was ihr wissen müsst
+
+`local.py` hat nicht den Schutz der Pipeline: keinen eigenen Benutzer, keinen Container, keinen Prüfschritt vor dem Commit. Der Agent läuft als ihr.
+
+- **Eure Umgebung:** Copilot bekommt alle eure Umgebungsvariablen, nur die drei Jira-Variablen nicht. Startet `local.py` in einer Shell ohne andere Tokens, etwa für Cloud, Datenbank oder Registry.
+- **BMad darf beliebigen Code starten:** `shell(uv:*)` gilt beim Spec schreiben und beim Bauen. Mit `uv` startet der Agent jedes Python-Programm. Beim Bauen darf BMad außerdem selbst committen. OpenSpec und Spec Kit haben keinen solchen Freibrief.
+- **Der Agent kann ändern, was er starten darf:** Er darf Dateien schreiben, also auch `./bin/phpunit`, die Skripte unter `.specify/` oder euer `Makefile`, und sie danach starten. Ein Ticket-Text, der ihn dazu bringt, führt so eigenen Code aus. `local.py` warnt erst nach dem Lauf, mit `WARNING: protected paths changed`, wenn sich `bin/` oder `.specify/` geändert haben. Ein geändertes `Makefile` meldet es nicht.
+- **Euer Testbefehl wird zur Erlaubnis:** Aus `make test` wird `shell(make:*)`, also jedes Make-Ziel. Über Make kann der Agent beliebige Befehle ausführen.
+- **Die Kontrolle nach dem Lauf sieht nicht alles:** `local.py` vergleicht nur, was `git status` zeigt. Änderungen in `.git/`, etwa ein neuer Hook, und in ignorierten Dateien, etwa `.env`, sieht es nicht. Ein Hook liefe beim nächsten `git commit`.
+
+Was ihr tut:
+
+- Nur Tickets durchschicken, deren Text ihr kennt. Der Text landet im Prompt.
+- Vor dem Lauf alles committen, damit der Diff nur die Arbeit des Agenten zeigt.
+- Jede `WARNING` von `local.py` ernst nehmen.
+- Nach jedem Lauf prüfen:
+
+```bash
+git status --ignored
+git diff
+ls -la .git/hooks
+git config --local --list
+```
+
 ## Was fehlt
 
 - **Die Pipeline-Dateien**, etwa `agent.py`, `check.py` und `publish.py`. Lokal braucht ihr sie nicht.

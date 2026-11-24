@@ -110,7 +110,17 @@ cat ~/factory-tickets/LL-123.json
 
 - Vergleicht die Datei mit dem Ticket in Jira, auch die Labels. Ein Sprachmodell schreibt die Datei. Es kann Text weglassen oder umformulieren.
 - `local.py` wählt das Framework über genau ein Label: `sdd-speckit` oder `sdd-openspec`. Hat euer Ticket keins, hängt ihr an `spec` und `build` `--framework speckit` oder `--framework openspec` an.
-- Klappt die Anmeldung beim Jira-MCP nicht, legt die Datei von Hand an, im Format aus [Übung 2, Schritt 1](uebung-bereitschaft.md#1-ein-vages-ticket-schreiben). Dann geht es mit Schritt 5 weiter.
+- Klappt die Anmeldung beim Jira-MCP nicht, legt die Datei von Hand an, wie im Beispiel unten. Dann geht es mit Schritt 5 weiter.
+
+**Beispiel für eine Ticket-Datei** `~/factory-tickets/LL-123.json`:
+
+```json
+{"key": "LL-123", "summary": "Kommentaranzahl in der Artikelliste", "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.", "labels": ["sdd-openspec"]}
+```
+
+- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
+- Ohne Framework-Label hängt ihr an `spec` und `build` `--framework openspec` oder `--framework speckit` an. `assess` braucht kein Label.
+- `key` sieht aus wie ein Jira-Schlüssel, etwa `LL-123`. Zeilenumbrüche in `description` schreibt ihr als `\n`. Speichert die Datei als UTF-8.
 
 ## 5. Ticket-Branch anlegen
 

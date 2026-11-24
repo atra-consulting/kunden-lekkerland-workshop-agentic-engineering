@@ -81,6 +81,15 @@ Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ände
 | Reife-Check des Skills | Eine Tabelle mit allen Kriterien, je „erfüllt“ oder „offen“. Der Skill liest `factory/readiness.md`, also auch euer `missing_domain`. Ist die Absicht `too_big`, schlägt er ein Epic mit mehreren Tickets vor. |
 | Prüfung der Factory | Für jeden Entwurf `jira_ticket.py pruefdatei`, dann `python3 -I factory/local.py assess --ticket-file ticket-entwurf-1.json`. Exit-Code 0 heißt „ready“, 4 heißt „not_ready“ mit Gründen und Fragen. |
 
+`pruefdatei` schreibt den Entwurf im selben Format wie die Ticket-Dateien aus Übung 1 und 2. Der Schlüssel ist ein Platzhalter, `<PROJEKT>-0`. Das Label `sdd-<framework>` kommt aus eurer Konfiguration. Beispiel:
+
+```json
+{"key": "LL-0", "summary": "Kommentaranzahl in der Artikelliste", "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.", "labels": ["sdd-openspec"]}
+```
+
+- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
+- Ohne Framework-Label hängt ihr an `spec` und `build` `--framework openspec` oder `--framework speckit` an. `assess` braucht kein Label.
+
 ## 6. Bestätigen
 
 Der Skill zeigt euch alles zusammen: Reife-Tabelle, Urteil der Factory und den ganzen Text jedes Tickets. Darunter fragt er einmal: „Soll ich diese Tickets so in <PROJEKT> anlegen?“ Lest alles, dann sagt Ja oder ändert die Entwürfe.

@@ -54,7 +54,7 @@
    - `ChatMCP`: ob installierte MCP-Server laufen dürfen
    - `ChatToolsAutoApprove`: ob alle Tools ohne Nachfrage laufen; Microsoft rät davon ab
    - `ChatToolsTerminalEnableAutoApprove`: ob Terminal-Befehle ohne Nachfrage laufen
-     - Vermutlic nicht
+     - Vermutlich nicht
 
 9. Ist die Sandbox Pflicht? Läuft sie auf euren Windows-Laptops?
 
@@ -92,7 +92,7 @@
 ## Atlassian und Bitbucket
 
 14. Wer verwaltet den Atlassian-MCP-Server? Sind API-Tokens erlaubt? Sind Schreibrechte für Jira und Bitbucket an?
-    - Ja, Aathentifzierung über Browser-Login
+    - Ja, Authentifizierung über Browser-Login
 
 15. Welcher Bitbucket-Plan? Merge Checks und Deployment-Rechte brauchen Premium.
     - Merge Checks sind erlaubt

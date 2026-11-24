@@ -43,7 +43,7 @@ Die Blog-App des Labs startet ihr auf eurem Rechner mit fünf Befehlen: [Die Blo
 
 ## Sicherheit
 
-[Copilot absichern](copilot-absichern.md): die Kurzfassung für Mittwoch. Was ein Prompt oder Skill anrichten kann, sechs Punkte für euch, was eure Admins tun können, und die Fragen an sie.
+[Copilot absichern](copilot-absichern.md): die Fragen an eure Copilot-, Atlassian- und Bitbucket-Admins.
 
 ## Übungen
 

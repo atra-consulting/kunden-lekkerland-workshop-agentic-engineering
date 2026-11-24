@@ -1,0 +1,8 @@
+{
+  "key": "FLAB-41",
+  "summary": "Lesezeit auf der Artikelseite",
+  "description": "Ziel\nLeser sehen vor dem Lesen, wie lange ein Artikel dauert.\nAkzeptanzkriterien\nDie Artikelseite /de/blog/posts/{slug} zeigt unter dem Titel die Lesezeit, auf Deutsch „Lesezeit: N Min.“, auf Englisch „Reading time: N min“.\nN ist die Zahl der Wörter im Inhalt geteilt durch 200, aufgerundet, mindestens 1.\nEin Artikel mit 450 Wörtern zeigt „Lesezeit: 3 Min.“, einer mit 50 Wörtern „Lesezeit: 1 Min.“.\nNicht Teil des Tickets\nBlog-Übersicht, Admin-Bereich und Datenbank bleiben unverändert.\nAndere Sprachen als Deutsch und Englisch.",
+  "labels": [
+    "sdd-openspec"
+  ]
+}

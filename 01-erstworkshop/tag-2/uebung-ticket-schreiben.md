@@ -10,7 +10,7 @@ Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Ji
 
 ## 1. Skill ins Projekt kopieren
 
-`<workshop-repo>` ist der Ordner, in dem euer Klon dieses Workshop-Repos liegt.
+`<workshop-repo>` ist der Ordner, in dem euer Klon dieses Workshop-Repos liegt, etwa `~/workshop-agentic-engineering` aus [Übung 1, Schritt 2](uebung-factory-lokal.md#2-localpy-einrichten). Holt vorher mit `git pull` den neuesten Stand.
 
 ```bash
 git switch <framework-branch>

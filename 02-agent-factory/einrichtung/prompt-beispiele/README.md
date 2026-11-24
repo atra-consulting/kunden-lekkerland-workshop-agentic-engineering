@@ -8,7 +8,29 @@ Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus 
 
 ## Das Ticket
 
-FLAB-41 hat das Label `sdd-openspec`. Für Spec Kit und BMad haben wir das Framework mit `--framework` gewählt. Die Datei: [`ticket-FLAB-41.json`](ticket-FLAB-41.json).
+So steht FLAB-41 in Jira:
+
+> **Titel:** Lesezeit auf der Artikelseite
+>
+> **Ziel**
+>
+> Leser sehen vor dem Lesen, wie lange ein Artikel dauert.
+>
+> **Akzeptanzkriterien**
+>
+> Die Artikelseite /de/blog/posts/{slug} zeigt unter dem Titel die Lesezeit, auf Deutsch „Lesezeit: N Min.“, auf Englisch „Reading time: N min“.
+>
+> N ist die Zahl der Wörter im Inhalt geteilt durch 200, aufgerundet, mindestens 1.
+>
+> Ein Artikel mit 450 Wörtern zeigt „Lesezeit: 3 Min.“, einer mit 50 Wörtern „Lesezeit: 1 Min.“.
+>
+> **Nicht Teil des Tickets**
+>
+> Blog-Übersicht, Admin-Bereich und Datenbank bleiben unverändert.
+>
+> Andere Sprachen als Deutsch und Englisch.
+
+FLAB-41 hat das Label `sdd-openspec`. Für Spec Kit und BMad haben wir das Framework mit `--framework` gewählt. `local.py` liest das Ticket als JSON, eine Zeile je Absatz. Die Datei: [`ticket-FLAB-41.json`](ticket-FLAB-41.json).
 
 ```json
 {

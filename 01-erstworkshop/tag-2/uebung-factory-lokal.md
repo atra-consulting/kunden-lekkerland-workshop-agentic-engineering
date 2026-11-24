@@ -16,6 +16,16 @@ Die Übung hat zwei Teile:
 - **Euer Branch** ist euer Framework-Branch, `workshop-speckit-local` oder `workshop-openspec-local`. Diese Seite nennt ihn `<framework-branch>`.
 - **Werte in spitzen Klammern** ersetzt ihr ohne die Klammern. `LL-123` ersetzt ihr überall durch den Schlüssel eures Tickets.
 
+## Fünf Punkte, bevor ihr startet
+
+Aus dem Test dieser Übung am Morgen des 24. November:
+
+1. **Testbefehl vor dem Commit eintragen ([Schritt 2](#2-localpy-einrichten)).** In `factory/local.json` steht `make test`. Lasst ihn nur stehen, wenn euer Makefile dieses Ziel hat.
+2. **Anmeldung beim Jira-MCP prüfen ([Schritt 3](#3-jira-mcp-in-copilot-cli-prüfen)).** Nach „Authenticate“ muss `/mcp` den Server `atlassian` als verbunden zeigen. Ohne Anmeldung scheitert Schritt 4 still: Copilot meldet, die Werkzeuge seien nicht verfügbar, und schreibt keine Datei. Das kostet trotzdem etwa 7 Credits.
+3. **Klappt die Anmeldung nicht ([Schritt 4](#4-ticket-über-den-jira-mcp-holen)):** Legt die Ticket-Datei von Hand an, im Format aus [Übung 2, Schritt 1](uebung-bereitschaft.md#1-ein-vages-ticket-schreiben). Dann geht es mit Schritt 5 weiter.
+4. **Beim Bauen `--change <name>` angeben ([Schritt 9](#9-bauen)).** `<name>` ist der Spec-Ordner aus Schritt 7. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
+5. **Kosten:** Im Test kosteten Bereitschaftsprüfung und OpenSpec-Spec zusammen 29 Credits, das Bauen 14 Credits. Für die ganze Übung mit dem zweiten Framework rechnet ihr mit etwa 110 bis 125 Credits je Gruppe ([Kosten im Lab](#kosten-im-lab)).
+
 ## Teil 1: Einrichten und die erste Spec
 
 ## 1. Modul-Doku in den Framework-Branch holen

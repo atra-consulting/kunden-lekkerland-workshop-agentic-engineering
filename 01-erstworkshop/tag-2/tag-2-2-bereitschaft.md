@@ -55,7 +55,7 @@ Jeder Grund beginnt mit der ID eines Kriteriums. Die sechs IDs erklärt die Tabe
 
 ## 4. Ticket verbessern und neu prüfen
 
-Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](../tag-2/walkthrough-agent-factory.md#mit-konto) hilft: Ziel, Akzeptanzkriterien, Nicht Teil des Tickets, Hinweise. Zeilenumbrüche schreibt ihr in JSON als `\n`. Dann startet ihr denselben Befehl wie in Schritt 2 noch einmal, bis die Prüfung zustimmt.
+Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](walkthrough-agent-factory.md#mit-konto) hilft: Ziel, Akzeptanzkriterien, Nicht Teil des Tickets, Hinweise. Zeilenumbrüche schreibt ihr in JSON als `\n`. Dann startet ihr denselben Befehl wie in Schritt 2 noch einmal, bis die Prüfung zustimmt.
 
 **Das seht ihr:**
 

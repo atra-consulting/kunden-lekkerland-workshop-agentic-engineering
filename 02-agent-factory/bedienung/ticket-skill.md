@@ -13,7 +13,7 @@ Der Skill ist **optional** und kein Teil der Factory. Er läuft auf deinem Rechn
 
 ## Was du brauchst
 
-- Copilot CLI 1.0.112 oder neuer, mit Claude Sonnet 5.5.
+- Copilot CLI 1.0.114 oder neuer, mit Claude Sonnet 5.5.
 - Python 3, nur die Standardbibliothek. macOS: `python3`. Windows: `py -3`.
 - Git und ein Projekt, in dem schon ein SDD-Framework installiert ist, wie am ersten Tag.
 - Einen Jira-Zugang, der im Projekt Tickets anlegen darf: über den Atlassian-MCP-Server (Anmeldung im Browser) oder mit einem API-Token.

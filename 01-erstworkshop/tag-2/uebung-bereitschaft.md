@@ -60,6 +60,15 @@ Jeder Grund beginnt mit der ID eines Kriteriums. Die Tabelle [Die sechs Kriterie
 
 Beantwortet die Fragen in `description`. Die Gliederung aus dem [Walkthrough](walkthrough-agent-factory.md#mit-konto) hilft: Ziel, Akzeptanzkriterien, Nicht Teil des Tickets, Hinweise. Zeilenumbrüche schreibt ihr in JSON als `\n`. Dann startet ihr denselben Befehl wie in Schritt 2 noch einmal, bis die Prüfung „ready“ meldet.
 
+So sieht ein vollständiges Ticket in diesem Format aus:
+
+```json
+{"key": "LL-0", "summary": "Kommentaranzahl in der Artikelliste", "description": "In der Artikelliste steht neben dem Datum jedes Artikels die Anzahl seiner Kommentare, zum Beispiel „4 Kommentare“.\nEin Artikel ohne Kommentare zeigt „0 Kommentare“.\nEin Funktionstest prüft die Artikelliste.", "labels": ["sdd-openspec"]}
+```
+
+- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
+- Ohne Framework-Label hängt ihr an `spec` und `build` `--framework openspec` oder `--framework speckit` an. `assess` braucht kein Label.
+
 **Das seht ihr:**
 
 ```text

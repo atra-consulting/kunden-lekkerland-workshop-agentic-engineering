@@ -59,6 +59,20 @@ Die rohe Ausgabe jedes Laufs liegt in [`roh/`](roh/), genau so, wie `local.py` s
 - **Bauen:** Der Prompt enthält keinen Ticket-Text und keinen Spec-Text. Er nennt nur den Spec-Ordner oder die Spec-Datei, BMad dazu den Schlüssel des Tickets. Den Inhalt liest der Agent selbst im Repo.
 - **Spec Kit:** Der Plan-Prompt enthält den Satz „Use the existing Symfony 7 / PHP stack and PHPUnit“. In eurem Projekt ersetzt ihr ihn über `stack_hint` in `local.json`.
 
+## Die Dateien der Spec und `tasks.md`
+
+OpenSpec und Spec Kit schreiben eine `tasks.md`, BMad nicht. Welche Dateien eine Spec haben muss, steht in [`config.json`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/config.json) unter `frameworks`, Felder `spec_required` und `spec_required_glob`.
+
+| Framework | Wo die Spec liegt | `tasks.md` | Schreibt sie | Pflicht für die Factory |
+|---|---|---|---|---|
+| OpenSpec | `openspec/changes/<change>/`: `proposal.md`, `design.md`, `specs/*/spec.md`, `tasks.md` | ja | `/openspec-propose`, in einem Aufruf | `proposal.md`, `tasks.md`, `specs/*/spec.md` |
+| Spec Kit | `specs/<nnn-feature>/`: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `tasks.md` | ja | `/speckit-tasks`, der dritte der drei Spec-Aufrufe | `spec.md`, `plan.md`, `tasks.md` |
+| BMad | PRD in `_bmad-output/planning-artifacts/prds/<name>/prd.md`, Spec in `_bmad-output/specs/<slug>/SPEC.md` | nein | `/bmad-prd`, dann `/bmad-spec` | `prd.md`, `SPEC.md` |
+
+Beispiele aus dem Lab: `openspec/changes/post-reading-time/tasks.md` auf dem Branch `factory/FLAB-41`, `specs/001-blog-reading-time/tasks.md` auf dem Branch `factory/FLAB-18`.
+
+**Beim Bauen ist `tasks.md` die einzige Datei der Spec, die der Agent ändern darf** (Feld `run2_editable_re`). So hakt er die erledigten Aufgaben ab. Alles andere an der freigegebenen Spec bleibt, wie es ist. Bei BMad darf der Agent stattdessen in `_bmad-output/implementation-artifacts/` schreiben und die `.memlog.md`-Dateien ändern.
+
 ## Die Parameter für Copilot
 
 Jeder Aufruf hat diese Form, gekürzt:

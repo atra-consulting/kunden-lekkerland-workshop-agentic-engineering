@@ -13,7 +13,7 @@ Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereit
 | 10:00 | Pause | |
 | 10:15 | [Übung 1, Teil 1](uebung-factory-lokal.md): einrichten, die erste Spec mit eurem Framework | `local.py` läuft, eine Spec |
 | 11:00 | Pause | |
-| 11:15 | [Übung 1, Teil 2](uebung-factory-lokal.md#teil-2-1115-bis-1200-bauen-und-ein-zweites-framework): bauen, dann dasselbe Ticket mit dem anderen Framework | Ein Ticket mit Spec und Code, ein Vergleich von Spec Kit und OpenSpec |
+| 11:15 | [Übung 1, Teil 2](uebung-factory-lokal.md#teil-2-bauen-und-ein-zweites-framework): bauen, dann dasselbe Ticket mit dem anderen Framework | Ein Ticket mit Spec und Code, ein Vergleich von Spec Kit und OpenSpec |
 | 12:00 | Mittag | |
 | 13:00 | [Übung 2: Ein Ticket ablehnen lassen, Kriterien anpassen](uebung-bereitschaft.md) | Ein abgelehntes Ticket, eure eigenen Kriterien |
 | 14:00 | Pause | |

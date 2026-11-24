@@ -40,7 +40,7 @@ Die Produktteams tragen mehr Verantwortung von der Anforderung bis zum Betrieb. 
 
 Am Grundprinzip aus dem Spryker-Pilot hat sich nichts geändert. Ein Mensch gibt ein Jira-Ticket an die Factory. Sie schreibt daraus eine Spezifikation und nach der Freigabe Code in einem Pull Request. Fehlen Informationen oder findet sie ein Problem in der Spezifikation, stoppt sie und gibt das Ticket an uns zurück.
 
-Zwei Freigaben bleiben Pflicht: Ein Mensch gibt die Spezifikation frei, und wir prüfen jeden Pull Request nach dem Vier- oder Sechs-Augen-Prinzip. Die Factory liefert nichts selbst aus. Jede Person in einem Factory-Team kann ein Ticket auf „Factory gestoppt“ setzen. Die Factory prüft das vor jedem Schritt, der etwas schreibt.
+Zwei Freigaben bleiben Pflicht: Ein Mensch gibt die Spezifikation frei, und wir prüfen jeden Pull Request nach dem Vier- oder Sechs-Augen-Prinzip. Die Factory liefert nichts selbst aus.
 
 ## Was wir messen
 

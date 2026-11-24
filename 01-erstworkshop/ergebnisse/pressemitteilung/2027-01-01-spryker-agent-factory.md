@@ -21,7 +21,7 @@ Danach folgten zwei Schulungen und ein Workshop. Dort probierten drei Gruppen di
 1. **Anforderung:** Ein Mensch gibt ein Jira-Ticket mit Akzeptanzkriterien an die Factory.
 2. **Lauf 1:** Ein Agent liest das Ticket und den Code und schreibt eine Spezifikation. Dafür testen wir noch drei Frameworks: Spec Kit, OpenSpec und BMad Method. Die Factory prüft, ob die Spezifikation vollständig ist.
 3. **Freigabe 1:** Ein Mensch aus der Freigabegruppe prüft die Spezifikation und gibt sie in Jira frei. Ändert sich danach Ticket oder Spezifikation, gilt die Freigabe nicht mehr.
-4. **Lauf 2:** Der Agent setzt die freigegebene Spezifikation um. Build und Tests laufen in Bitbucket Pipelines, dazu Schutzprüfungen, etwa ob geschützte Dateien unverändert sind. Danach öffnet die Pipeline einen Pull Request.
+4. **Lauf 2:** Der Agent setzt die freigegebene Spezifikation um. Build und Tests laufen in Bitbucket Pipelines. Ändert der Agent geschützte Dateien, etwa die Pipeline-Konfiguration, warnt die Factory. Danach öffnet die Pipeline einen Pull Request.
 5. **Freigabe 2:** Wir prüfen den Pull Request wie gewohnt nach dem Vier- oder Sechs-Augen-Prinzip.
 6. **Auslieferung:** Merge und Auslieferung laufen über unseren bestehenden Weg. Die Factory liefert nichts selbst aus.
 
@@ -43,7 +43,7 @@ Ein Restrisiko bleibt: Der Agent hat sein Token und den Code. Wo das Netz offen 
 
 ## Was es kostet und was wir messen
 
-In Vortests kosteten ein kleines Feature je nach Framework 30 bis 120 AI Credits, also 0,30 bis 1,20 US-Dollar. Das waren Einzelwerte an Beispielcode, kein Erwartungswert. Für echte Tickets im Spryker-Code messen wir die Kosten jetzt laufend. Die Factory läuft über einen technischen Benutzer mit eigenem Budget. Ist das Budget aufgebraucht, stoppt sie.
+In Vortests kosteten kleine Features je nach Framework 30 bis 120 AI Credits, also 0,30 bis 1,20 US-Dollar. Das waren Einzelwerte an Beispielcode, kein Erwartungswert. Für echte Tickets im Spryker-Code messen wir die Kosten jetzt laufend. Die Factory läuft über einen technischen Benutzer mit eigenem Budget. Ist das Budget aufgebraucht, stoppt sie.
 
 Ob sich die Factory lohnt, wollen wir auch an der Durchlaufzeit und an der Zahl der Störungen nach Produktivsetzungen sehen. Welche Werte wir dafür erheben, stimmen wir mit dem Betriebsrat ab.
 

@@ -42,12 +42,12 @@ git merge <doku-branch>
 
 ## 2. `local.py` einrichten
 
-Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien aus dem öffentlichen Lab-Repo, Branch `factory-base`:
+Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien aus der [Vorlage](../../02-agent-factory/einrichtung/template/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
 
 ```bash
-git clone --branch factory-base https://bitbucket.org/factory-lab/factory-lab.git ~/factory-lab
+git clone https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering.git ~/workshop-agentic-engineering
 mkdir -p factory
-cp ~/factory-lab/factory/{local.py,config.json,readiness.md,local.example.json} factory/
+cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{local.py,config.json,readiness.md,local.example.json} factory/
 cp factory/local.example.json factory/local.json
 ```
 
@@ -59,7 +59,9 @@ cp factory/local.example.json factory/local.json
 | `readiness.md` | Für `assess` und für `spec` mit Bereitschaftsprüfung | Stopp mit `readiness.md not found`. `spec --no-assess` und `build` laufen ohne sie. |
 | `local.json` | Nein | Keine Anpassungen. Es gelten die Werte aus `config.json`, auch der Testbefehl `./bin/phpunit`. |
 
-Die anderen Dateien in `factory/` des Lab-Repos, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
+Die Vorlage ist eine Kopie aus dem Lab-Repo, Branch `factory-base`. Die anderen Dateien dort, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
+
+Lest vor dem ersten Lauf den Abschnitt [Sicherheit](../../02-agent-factory/einrichtung/template/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage: Der Agent läuft als ihr, mit eurer Umgebung, ohne Container.
 
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
 - Öffnet `factory/local.json`. Dort steht `"test_command": "make test"`. Tragt euren echten Testbefehl ein, bevor ihr committet. `make test` lasst ihr nur stehen, wenn euer Makefile dieses Ziel hat. Sonst laufen beim Bauen keine Tests.

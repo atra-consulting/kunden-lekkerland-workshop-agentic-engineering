@@ -51,6 +51,16 @@ cp ~/factory-lab/factory/{local.py,config.json,readiness.md,local.example.json} 
 cp factory/local.example.json factory/local.json
 ```
 
+`local.py` braucht nur die Python-Standardbibliothek und importiert keine anderen Dateien der Factory. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
+
+| Datei | Nötig? | Ohne sie |
+|---|---|---|
+| `config.json` | Ja | Prompts, Werkzeug-Freigaben, Modell und Credit-Grenzen fehlen. `local.py` läuft nicht. |
+| `readiness.md` | Für `assess` und für `spec` mit Bereitschaftsprüfung | Stopp mit `readiness.md not found`. `spec --no-assess` und `build` laufen ohne sie. |
+| `local.json` | Nein | Keine Anpassungen. Es gelten die Werte aus `config.json`, auch der Testbefehl `./bin/phpunit`. |
+
+Die anderen Dateien in `factory/` des Lab-Repos, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
+
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
 - Öffnet `factory/local.json`. Dort steht `"test_command": "make test"`. Tragt euren echten Testbefehl ein, bevor ihr committet. `make test` lasst ihr nur stehen, wenn euer Makefile dieses Ziel hat. Sonst laufen beim Bauen keine Tests.
 - Achtung: Aus `make test` wird die Erlaubnis `shell(make:*)`, allgemein `shell(<erstes Wort eures Testbefehls>:*)`. Damit darf der Agent **jedes** Make-Ziel starten, nicht nur `make test`. Über Make kann er beliebige Befehle ausführen, als ihr und mit eurer Umgebung.

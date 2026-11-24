@@ -46,7 +46,7 @@ Bricht die Person ab, gehe direkt zu Schritt 9.
    - **Jira-MCP**, wenn du ein Jira-Werkzeug eines MCP-Servers hast, etwa vom Atlassian-MCP-Server (`createJiraIssue`, `getVisibleJiraProjects`). Die Person meldet sich dort im Browser an, ein Token braucht sie nicht. Prüf damit, dass du das Projekt `jira_project` siehst und es den Vorgangstyp gibt.
    - **Sonst `jira_ticket.py`:** Führe `python3 -I SKILL_DIR/jira_ticket.py pruefen` aus. Es braucht die Variablen aus `ticket-skill.md`.
 
-   Sag der Person, welchen Weg du nimmst. Schlägt die Prüfung fehl, nenne den Fehler und verweise auf `ticket-skill.md`. Du darfst bis Schritt 7 weiterarbeiten. Erst Schritt 8 braucht Jira.
+   Nenne den Weg in deiner ersten Nachricht in einer eigenen Zeile: „Jira-Weg: MCP“ oder „Jira-Weg: jira_ticket.py“. Schlägt die Prüfung fehl, nenne den Fehler und verweise auf `ticket-skill.md`. Du darfst bis Schritt 7 weiterarbeiten. Erst Schritt 8 braucht Jira.
 4. Prüf, ob es `factory/local.py` gibt. Dann bewertet in Schritt 7 die Prüfung der Factory selbst jeden Entwurf.
 
 ## Schritt 2: Absicht
@@ -106,6 +106,8 @@ Gib dem Framework die Absicht und deinen Befund aus Schritt 3 mit. Für alle Fra
 | `speckit` | `speckit-specify` mit Absicht und Befund. Dann `speckit-clarify`: alle Fragen, eine nach der anderen. `speckit-checklist` nur, wenn die Person es will. | `specs/<NNN>-<name>/spec.md` |
 | `openspec` | `openspec-explore` als Denkpartner, bis die Person sagt, dass es klar ist. Dann die Schritte von `openspec-propose`, aber nur `proposal.md` und die Spec-Deltas. `design.md` und `tasks.md` schreibt später die Factory. | `openspec/changes/<name>/` |
 | `bmad` | `bmad-forge-idea` mit dem Ziel „besser machen“, für eine Änderung an diesem Projekt. Ende „Hardened“ schreibt `forged-idea.md`. Den HTML-Bericht brauchst du nicht. Dann `bmad-spec` im Express-Modus mit `forged-idea.md` als Eingabe. | `_bmad-output/.../SPEC.md` |
+
+Schritt 5 beginnt erst, wenn du in diesem Schritt einen Framework-Skill über das Skill-Werkzeug aufgerufen hast, oder seine `SKILL.md` gelesen hast und ihm folgst. Sag vorher in einer Zeile: „Ich frage jetzt mit `<skill>` nach.“ Bei OpenSpec legst du den Change mit `openspec new change <name>` an, nie von Hand.
 
 Danach zeigst du die **Annahmen**, die das Framework ohne Rückfrage getroffen hat, als nummerierte Liste im Text der Frage selbst. Die Person sieht nur deine Nachrichten und das Frageformular, nicht deine Gedanken. Frag nie nach einer Bestätigung von etwas, das nicht im Formular steht. Beispiele: Lesegeschwindigkeit, betroffene Sprachen, Seiten oder Rollen. Lass die Person jede bestätigen oder ändern.
 Fragt das Framework nicht nach einem Punkt, der in Schritt 5 offen wäre, frag selbst nach.

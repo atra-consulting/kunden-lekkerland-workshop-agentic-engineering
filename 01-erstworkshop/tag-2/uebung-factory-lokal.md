@@ -42,8 +42,8 @@ cp factory/local.example.json factory/local.json
 ```
 
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
-- Öffnet `factory/local.json`. Dort steht schon `"test_command": "make test"`. Passt den Wert an, wenn euer Testbefehl anders lautet.
-- Achtung: Daraus wird die Erlaubnis `shell(make:*)`. Damit darf der Agent **jedes** Make-Ziel starten, nicht nur `make test`. Über Make kann er beliebige Befehle ausführen, als ihr und mit eurer Umgebung.
+- Öffnet `factory/local.json`. Dort steht `"test_command": "make test"`. Tragt euren echten Testbefehl ein, bevor ihr committet. `make test` lasst ihr nur stehen, wenn euer Makefile dieses Ziel hat. Sonst laufen beim Bauen keine Tests.
+- Achtung: Aus `make test` wird die Erlaubnis `shell(make:*)`, allgemein `shell(<erstes Wort eures Testbefehls>:*)`. Damit darf der Agent **jedes** Make-Ziel starten, nicht nur `make test`. Über Make kann er beliebige Befehle ausführen, als ihr und mit eurer Umgebung.
 - In `local.json` steht auch `stack_hint`. Spec Kit nutzt ihn im Plan-Prompt. Passt ihn an euren Stack an.
 
 ```bash
@@ -64,12 +64,13 @@ copilot mcp list
 - Fehlt er, legt `~/.copilot/mcp-config.json` an. Gibt es die Datei schon, ergänzt den Server unter `mcpServers`:
 
   ```json
-  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v2/mcp", "tools": ["getAccessibleAtlassianResources", "getJiraIssue", "getVisibleJiraProjects", "createJiraIssue"]}}}
+  {"mcpServers": {"atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v1/mcp", "tools": ["getAccessibleAtlassianResources", "getJiraIssue", "getVisibleJiraProjects", "createJiraIssue"]}}}
   ```
 
 - Habt ihr ihn früher mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `getVisibleJiraProjects` und `createJiraIssue`. Fehlt beim Anlegen ein Label, braucht der Skill zusätzlich das Werkzeug zum Bearbeiten. Ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
-- Getestet ist der Abruf im Lab mit `https://mcp.atlassian.com/v1/mcp`. `/v2/mcp` ist der Nachfolger und noch nicht getestet. Klappt v2 nicht, nehmt `/v1/mcp`; Atlassian schaltet v1 am 1. März 2027 ab.
-- Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Danach `/exit`. Ein Aufruf mit `-p` kann die Anmeldung im Browser nicht abschließen.
+- Getestet ist der Abruf im Lab mit `https://mcp.atlassian.com/v1/mcp`. Atlassian schaltet v1 am 1. März 2027 ab. Der Nachfolger `/v2/mcp` ist noch nicht getestet.
+- Die [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#ticket-über-den-jira-mcp-holen) zeigt `"tools": ["*"]`. Die Liste oben gibt nur die Werkzeuge frei, die die Übungen brauchen.
+- Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Prüft danach in `/mcp`, dass `atlassian` als verbunden angezeigt wird. Erst dann `/exit`. Ein Aufruf mit `-p` kann die Anmeldung im Browser nicht abschließen.
 
 ## 4. Ticket über den Jira-MCP holen
 
@@ -149,18 +150,18 @@ git status --short
 ## 9. Bauen
 
 ```bash
-python3 factory/local.py build --ticket-file ~/factory-tickets/LL-123.json
+python3 factory/local.py build --ticket-file ~/factory-tickets/LL-123.json --change <name>
 ```
 
-`build` findet die Spec selbst. Gibt es mehrere Spec-Ordner, nennt ihr den richtigen mit `--change <name>`.
+`<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
 
-**Das seht ihr:** `[local] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[local] next: review `git diff`, run the tests yourself, and commit by hand``.
+**Das seht ihr:** `[local] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(<erstes Wort eures Testbefehls>:*)`, etwa `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[local] next: review `git diff`, run the tests yourself, and commit by hand``.
 
 ## 10. Freigabe 2: Ihr lest den Diff
 
 ```bash
 git diff
-make test
+make test      # oder euer Testbefehl aus local.json
 ```
 
 Beim Bau stoppt lokal keine Prüfung den Lauf. Darum lest ihr den Diff selbst:
@@ -226,6 +227,8 @@ Für die ganze Übung, mit dem zweiten Framework aus Schritt 11, rechnet ihr mit
 
 - **`no framework chosen` oder `more than one framework label`:** Das Ticket hat kein oder zwei `sdd-`-Labels. Hängt `--framework speckit` oder `--framework openspec` an.
 - **`MCP server 'atlassian' requires authentication` oder `OAuth callback timeout`:** In Copilot `/mcp`, `atlassian`, noch einmal „Authenticate“.
+- **Copilot schreibt in Schritt 4, die Atlassian-Werkzeuge seien nicht verfügbar, und legt keine Datei an:** Ihr seid nicht angemeldet. Zurück zu Schritt 3, „Authenticate“. Der Fehlversuch kostet trotzdem etwa 7 Credits.
+- **`several specs found, choose one with --change`:** Nennt den Spec-Ordner aus Schritt 7 mit `--change <name>`.
 - **`can't list your MCP servers`:** Copilot CLI ist zu alt. Ihr braucht mindestens 1.0.114.
 - **Andere Meldungen:** Die Tabelle [Wenn etwas stoppt](../../02-agent-factory/bedienung/lokal-ausfuehren.md#wenn-etwas-stoppt) nennt alle.
 

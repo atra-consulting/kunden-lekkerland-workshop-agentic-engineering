@@ -38,7 +38,7 @@ Legt `.github/ticket-schreiben.json` an:
 
 - `framework`: `openspec` oder `speckit`, passend zu eurem Branch. Der Skill fragt mit diesem Framework nach und setzt das Label `sdd-<framework>`.
 - `jira_project`: der Projektschlüssel in Jira. Den Vorgangstyp `issue_type` muss es in diesem Projekt geben.
-- `module_docs`: der Ordner mit der Modul-Doku, die ihr in Übung 1 zusammengeführt habt.
+- `module_docs`: der Ordner mit der Modul-Doku, die ihr in Übung 1 zusammengeführt habt. Ohne Modul-Doku lasst ihr `module_docs` weg.
 - `confluence_space` lasst ihr weg. Die Suche nach der Domäne in Confluence und in `module_docs` ist nicht getestet: Das Lab hat keinen Confluence-Bereich mit Domänen.
 
 **Das seht ihr:** Die Datei liegt neben `.github/skills/`.
@@ -102,6 +102,7 @@ Der Skill legt das Ticket über den Jira-MCP an. Copilot fragt vor dem Aufruf vo
 ## Wenn es hakt
 
 - **`MCP server 'atlassian' requires authentication` oder `OAuth callback timeout`:** `/mcp`, `atlassian`, noch einmal „Authenticate“. Im Lab reichte der zweite Versuch. Lehnt Atlassian die Anmeldung ab, fragt euren Atlassian-Admin.
+- **Der Skill zeigt Annahmen oder einen Entwurf, ohne dass `openspec-explore` oder `speckit-specify` lief:** Sagt „Frag bitte erst mit dem Framework nach.“ Im Lab hat der Skill diesen Schritt einmal übersprungen.
 - **`arbeitsstand.py merken` endet mit Exit-Code 3:** Es gab schon Änderungen. Beendet den Skill, committet oder sichert mit `git stash`, startet neu.
 - **Tabelle und Ticket-Text fehlen vor der Frage „Soll ich … anlegen?“:** Bittet Copilot, sie ins Frageformular zu schreiben. Im Lab standen sie dann vollständig dort.
 - **Der Skill meldet, dass `factory/local.py` fehlt oder `local.py` mit einem Fehler endet:** Dann gilt nur sein eigener Reife-Check. Prüft, ob `factory/local.py` auf eurem Branch liegt.

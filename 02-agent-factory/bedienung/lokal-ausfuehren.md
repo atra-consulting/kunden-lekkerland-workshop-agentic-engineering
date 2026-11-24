@@ -37,7 +37,14 @@ Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen 
 ## Einrichten
 
 1. Lege in deinem Projekt den Ordner `factory/` an. Dort sucht auch der Skill `ticket-schreiben` nach `local.py` und `readiness.md`.
-2. Kopiere aus `factory-lab`, Branch `factory-base`, Ordner `factory/`: `local.py`, `config.json`, `readiness.md` und `local.example.json`. Nimm die `config.json`, die auch eure Pipeline nutzt, damit Prompts und Kriterien gleich sind.
+2. Kopiere `local.py`, `config.json`, `readiness.md` und `local.example.json` nach `factory/`. Am einfachsten aus der [Vorlage](../einrichtung/template/README.md) in diesem Repo, einer unveränderten Kopie aus `factory-lab`, Branch `factory-base`:
+
+   ```bash
+   git clone https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering.git ~/workshop-agentic-engineering
+   cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{local.py,config.json,readiness.md,local.example.json} factory/
+   ```
+
+   Hat dein Team schon eine eigene Pipeline, nimm deren `config.json` und `readiness.md` statt der aus der Vorlage, damit Prompts und Kriterien gleich sind. Lies vor dem ersten Lauf den Abschnitt [Sicherheit](../einrichtung/template/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage.
 3. Kopiere `local.example.json` nach `local.json` und passe sie an:
 
 | Schlüssel | Bedeutung | Beispiel |

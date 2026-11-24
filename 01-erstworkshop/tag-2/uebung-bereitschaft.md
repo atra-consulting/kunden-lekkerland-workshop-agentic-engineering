@@ -2,7 +2,7 @@
 
 Tag 2, 13:00 bis 14:00. Zuerst lasst ihr die Bereitschaftsprüfung ein absichtlich dünnes Ticket ablehnen. Ihr bessert es nach, bis sie „ready“ sagt. Dann ergänzt ihr ein eigenes Kriterium für Lekkerland. Die Referenz: [Ticket-Bereitschaft](../../02-agent-factory/bedienung/ticket-bereitschaft.md).
 
-- **Ihr braucht** den Ordner `factory/` aus [Übung 1](tag-2-1-lokal.md). Jira braucht ihr nicht: Das Ticket ist eine Datei.
+- **Ihr braucht** den Ordner `factory/` aus [Übung 1](uebung-factory-lokal.md). Jira braucht ihr nicht: Das Ticket ist eine Datei.
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Windows ist nicht getestet.
 - **Kosten:** Eine Prüfung kostete im Lab etwa 6 bis 14 Credits und 10 bis 25 Sekunden. Plant vier bis sechs Prüfungen ein.
 

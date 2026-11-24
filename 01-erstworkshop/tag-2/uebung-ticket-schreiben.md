@@ -2,7 +2,7 @@
 
 Tag 2, 14:15 bis 15:00. Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Factory ohne Rückfrage umsetzen kann. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
 
-- **Ihr braucht** den Framework-Branch mit `factory/` aus [Übung 1](tag-2-1-lokal.md) und eurem Kriterium aus [Übung 2](tag-2-2-bereitschaft.md), dazu den Jira-MCP-Server `atlassian` aus Übung 1.
+- **Ihr braucht** den Framework-Branch mit `factory/` aus [Übung 1](uebung-factory-lokal.md) und eurem Kriterium aus [Übung 2](uebung-bereitschaft.md), dazu den Jira-MCP-Server `atlassian` aus Übung 1.
 - **Ein Rechner je Gruppe, wenn möglich ein Mac.** Windows ist nicht getestet.
 - **Kosten:** Im Lab kostete ein Ticket 29 bis 43 Credits, dazu 6 bis 13 Credits je Prüfung durch die Factory. Ein Lauf mit einem Ticket dauerte samt Lesen und Antworten etwa 5 bis 10 Minuten.
 - **Optional:** Der Skill ist kein Teil der Factory. Die Factory startet erst, wenn ein Ticket auf „Bereit“ steht.

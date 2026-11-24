@@ -1,6 +1,6 @@
 # Live-Demo 2: Zu vage, dann konkret
 
-Tag 2, 09:15. Karsten setzt ein vages Ticket auf „Bereit“. Die Bereitschaftsprüfung lehnt es ab. Dann macht er es konkret, und es kommt durch.
+Karsten setzt ein vages Ticket auf „Bereit“. Die Bereitschaftsprüfung lehnt es ab. Dann macht er es konkret, und es kommt durch.
 
 - Ticket: [FLAB-42 „Suche verbessern“](https://betterprojectsfaster.atlassian.net/browse/FLAB-42), Label `sdd-openspec`
 - Läufe: [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines)
@@ -14,7 +14,7 @@ Den Status ändert ihr im Ticket über den Statusknopf neben dem Titel. Direkte 
 |---|---|---|---|---|
 | 1 | Definition | Mensch | Das Ticket: „Die Suche im Blog soll besser werden. Leser finden oft nicht, was sie suchen.“ | [FLAB-42](https://betterprojectsfaster.atlassian.net/browse/FLAB-42) |
 | 2 | Bereit | Mensch | Übergang **„Bereit“**. Flow 1 startet `factory-spec` | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
-| 3 | Bereit | Factory | Lauf 1: Copilot prüft Ticket und Code. Urteil: nicht bereit. OpenSpec läuft gar nicht erst | das Protokoll des Laufs |
+| 3 | Bereit | Factory | Lauf 1: Copilot prüft Ticket und Code. Erwartetes Urteil: nicht bereit. OpenSpec läuft gar nicht erst | das Protokoll des Laufs |
 | 4 | In Arbeit, dann Klärung nötig | `factory-bot` | Kommentar `FACTORY-NOT-READY v1`, erwartet: `missing_detail` und `untestable`, dazu Fragen. Keine Spec, kein Code, kein Branch | Kommentar in [FLAB-42](https://betterprojectsfaster.atlassian.net/browse/FLAB-42) |
 
 Das dauert etwa eine bis zwei Minuten und kostet etwa 10 Credits.
@@ -23,7 +23,7 @@ Das dauert etwa eine bis zwei Minuten und kostet etwa 10 Credits.
 
 | Schritt | Status danach | Wer | Was passiert |
 |---|---|---|---|
-| 5 | Klärung nötig | Mensch | Titel und Beschreibung ersetzen, Text unten. Die Fragen beantwortet ihr in der Beschreibung, nicht im Kommentar |
+| 5 | Klärung nötig | Mensch | Titel und Beschreibung durch den Text unten ersetzen. Die Fragen beantwortet ihr in der Beschreibung, nicht im Kommentar |
 | 6 | Bereit | Mensch | Übergang **„Bereit“**. Neuer Lauf, neue Prüfung |
 | 7 | Wartet | `factory-bot` | Kommentar `FACTORY-SPEC v1` mit „Readiness check: passed“. Weiter wie in [Live-Demo 1](demo-durchlauf.md) ab Schritt 5 |
 
@@ -46,4 +46,4 @@ Keine Änderung an Fixtures, Konfiguration oder Paketen.
 
 - **Die Prüfung liest den Code.** Im Lab nannte die Ablehnung die drei Stellen, an denen gesucht wird.
 - **Konkret heißt: Seite, Ergebnis, Test.** Die zweite Fassung nennt die Methode, das erwartete Ergebnis, einen Test und was unverändert bleibt.
-- **Es kann mehr als eine Runde brauchen.** Im Lab ([FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31)) lehnte die Prüfung eine Zwischenfassung noch einmal ab: Sie hätte einen bestehenden Test gebrochen (`contradicts_code`). Die Prüfung ist ein Modellaufruf, keine feste Regel.
+- **Es kann mehr als eine Runde brauchen.** Im Lab ([FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31)) lehnte die Prüfung eine Zwischenfassung noch einmal ab, weil sie einen bestehenden Test gebrochen hätte einen bestehenden Test gebrochen (`contradicts_code`). Die Prüfung ist ein Modellaufruf, keine feste Regel.

@@ -1,6 +1,6 @@
 # Live-Demo 1: Ein Ticket läuft durch
 
-Tag 2, 09:15. Karsten schickt ein Ticket durch die Factory im Lab, von „Definition“ bis zum Pull Request. Ihr seht zu und öffnet die Links mit.
+Karsten schickt ein Ticket durch die Factory im Lab, von „Definition“ bis zum Pull Request. Ihr seht zu und öffnet die Links mit.
 
 - Ticket: [FLAB-41 „Lesezeit auf der Artikelseite“](https://betterprojectsfaster.atlassian.net/browse/FLAB-41), Label `sdd-openspec`
 - Läufe: [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines)
@@ -9,9 +9,9 @@ Tag 2, 09:15. Karsten schickt ein Ticket durch die Factory im Lab, von „Defini
 
 ## Das Label wählt das Framework
 
-Welches SDD-Framework die Factory nutzt, bestimmt ein Label am Ticket. Ihr setzt es im Ticket rechts unter „Details“ → „Labels“, bevor das Ticket auf „Bereit“ geht.
+Welches SDD-Framework die Factory nutzt, bestimmt ein Label am Ticket. Ihr setzt es im Ticket rechts unter „Details“ → „Labels“, bevor ihr das Ticket auf „Bereit“ setzt.
 
-| Label | Framework | Im Lab je Ticket |
+| Label | Framework | Im Lab je Ticket, Einzelwerte |
 |---|---|---|
 | `sdd-openspec` | OpenSpec | etwa 25 bis 50 Credits |
 | `sdd-speckit` | Spec Kit | etwa 76 Credits |
@@ -19,8 +19,8 @@ Welches SDD-Framework die Factory nutzt, bestimmt ein Label am Ticket. Ihr setzt
 
 - **Genau ein Label.** Kein Label, zwei Labels oder ein unbekanntes: Der Lauf stoppt mit dem Kommentar `FACTORY-STOP v1`, etwa „no framework chosen“. Ein Beispiel ist [FLAB-21](https://betterprojectsfaster.atlassian.net/browse/FLAB-21).
 - **Andere Labels stören nicht.** Nur Labels mit `sdd-` am Anfang zählen.
-- **Nach der Freigabe nichts mehr ändern.** Ein geändertes Label nach „Spec freigegeben“ bricht den Bau ab, wie jede Änderung am Ticket.
-- Die Demo nutzt OpenSpec, weil es im Lab am schnellsten war.
+- **Nach der Freigabe nichts mehr ändern.** Ein geändertes Label nach „Spec freigegeben“ bricht den Bau ab, wie jedes andere geänderte Feld und jeder bearbeitete Kommentar.
+- Die Demo nutzt OpenSpec, weil es im Lab am schnellsten war. Die Messung umfasst nur Kosten und Dauer, nicht die Qualität der Spec.
 
 ## Die Schritte
 
@@ -28,14 +28,14 @@ Den Status ändert ihr im Ticket über den Statusknopf neben dem Titel. Direkte 
 
 | Schritt | Status danach | Wer | Was passiert | Wo ihr es seht |
 |---|---|---|---|---|
-| 1 | Definition | Mensch | Das Ticket steht bereit: Ziel, drei prüfbare Kriterien, ein Framework-Label | [FLAB-41](https://betterprojectsfaster.atlassian.net/browse/FLAB-41) |
+| 1 | Definition | Mensch | Das Ticket hat ein Ziel, drei prüfbare Kriterien und ein Framework-Label | [FLAB-41](https://betterprojectsfaster.atlassian.net/browse/FLAB-41) |
 | 2 | Bereit | Mensch | Übergang **„Bereit“**. Flow 1 startet die Pipeline `factory-spec` | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
 | 3 | Bereit | Factory | Lauf 1: Guard, dann Copilot. Zuerst die Bereitschaftsprüfung, dann schreibt OpenSpec die Spec. Danach Prüfung und Veröffentlichen | das Protokoll des Laufs |
 | 4 | In Arbeit, dann Wartet | `factory-bot` | Kommentar `FACTORY-SPEC v1` mit der Spec und „Readiness check: passed“. Branch `factory/FLAB-41` | Kommentar in [FLAB-41](https://betterprojectsfaster.atlassian.net/browse/FLAB-41) |
 | 5 | Bau | Mensch | **Freigabe 1:** Spec lesen, dann Übergang **„Spec freigegeben“**. Flow 2 startet `factory-build` | [Pipelines](https://bitbucket.org/factory-lab/factory-lab/pipelines) |
 | 6 | Bau | Factory | Lauf 2: Guard prüft die Freigabe, Copilot setzt die Spec um, Prüfung, Tests in einem frischen Checkout, Veröffentlichen | das Protokoll des Laufs |
 | 7 | Review | `factory-bot` | Pull Request auf `factory-base`, verlinkt im Ticket | [Pull Requests](https://bitbucket.org/factory-lab/factory-lab/pull-requests/) |
-| 8 | Review | Mensch | **Freigabe 2:** Diff und Tests lesen. In der Demo führt niemand zusammen | der Pull Request |
+| 8 | Review | Mensch | **Freigabe 2:** Diff und Tests lesen. In der Demo führt niemand zusammen. Das Ticket bleibt in „Review“ | der Pull Request |
 
 Passt die Spec in Schritt 5 nicht, geht das Ticket mit **„Zurück“** nach „Definition“.
 

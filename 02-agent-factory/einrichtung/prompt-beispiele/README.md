@@ -114,6 +114,23 @@ Die Pipeline setzt sie vor jedem Aufruf:
 
 **Nur lokal:** Startet `local.py` die Aufrufe selbst, hängt es für jeden MCP-Server aus `copilot mcp list` noch `--disable-mcp-server=<Name>` an. In der Pipeline ist kein MCP-Server eingerichtet.
 
+## Wo der Branch entsteht
+
+Copilot legt in Bitbucket keinen Branch an. Das macht erst der letzte Schritt der Pipeline, **publish**: `factory/publish.py` pusht mit dem Token des Bots. Nur dieser Schritt darf nach Bitbucket schreiben.
+
+| Wo | Was passiert |
+|---|---|
+| [`bitbucket-pipelines.yml`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/bitbucket-pipelines.yml) | Schritt „4 publish (Jira and Bitbucket write)“ startet `publish.py spec` in der Pipeline `factory-spec`. Schritt „5 publish“ startet `publish.py build` in `factory-build` |
+| [`publish.py`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/publish.py), `spec()` | Prüft den Patch des Agenten und committet die Spec. Beim ersten Lauf gibt es den Branch noch nicht, also **legt dieser Push `factory/<KEY>` an** |
+| `publish.py`, `commit_and_push()` | Committet als `factory-bot` und pusht `HEAD:refs/heads/factory/<KEY>`. Ab dem zweiten Lauf mit `--force-with-lease`: Der Push überschreibt den Branch nur, wenn ihn niemand sonst verändert hat |
+| [`common.py`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/common.py), `branch_name()` | Der Name: `branch_prefix` aus `config.json` (`"factory/"`) plus Schlüssel des Tickets |
+| `publish.py`, `build()` | Der zweite Lauf hängt den Commit mit dem Code an **denselben** Branch und öffnet den Pull Request von `factory/<KEY>` nach `factory-base` |
+
+- **Basis und Commits:** Der Branch beginnt bei dem Commit, auf dem der Lauf startete, also dem Stand von `factory-base`. Bei FLAB-41 sind das `a414237`, dann „FLAB-41: spec (openspec, factory run 97)“ und „FLAB-41: implementation (openspec, factory run 98)“.
+- **Der Branch des Agenten bleibt lokal:** `agent.py` gibt dem Agenten ein Wegwerf-Repository mit `git init -b factory/<KEY>`. Das braucht BMad, um committen zu können. Es wird nie gepusht. Die Factory übernimmt nur die geänderten Dateien des Agenten als Patch, `publish.py` committet und pusht sie.
+- **Der Push startet nichts:** Die Pipeline hat nur Custom-Pipelines. Ein Push auf `factory/*` startet also keinen Lauf.
+- **Die anderen Schritte lesen den Branch nur:** Guard, Agent und Prüfung holen ihn als Daten nach `refs/factory/<KEY>`, ohne ihn auszuchecken.
+
 ## So sind die Beispiele entstanden
 
 In einem frischen Klon des Lab-Repos, Branch `factory-base`, mit Python 3.13 und Copilot CLI 1.0.114:

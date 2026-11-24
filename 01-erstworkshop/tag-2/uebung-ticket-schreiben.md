@@ -88,7 +88,17 @@ Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ände
 ```
 
 - `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
-- Ohne Framework-Label hängt ihr an `spec` und `build` `--framework openspec` oder `--framework speckit` an. `assess` braucht kein Label.
+
+**Der Schalter `--framework`:**
+
+- `--framework openspec`, `--framework speckit` oder `--framework bmad` wählt das Framework für `spec` und `build`.
+- Er hat Vorrang vor dem Label. `local.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
+- Ihr braucht ihn, wenn das Ticket kein oder zwei `sdd-`-Labels hat, oder wenn ihr dasselbe Ticket mit einem anderen Framework schreibt ([Übung 1, Schritt 11](uebung-factory-lokal.md#11-dasselbe-ticket-mit-einem-zweiten-framework)).
+- Gebt bei `build` dasselbe Framework an wie bei `spec`.
+- Die Ausgabe nennt die Quelle: `framework speckit (from --framework)` oder `framework openspec (from label)`.
+- `assess` wählt kein Framework und übergeht `--framework`. Die Ausgabe zeigt `assess, no framework`.
+- Ein Tippfehler stoppt mit `--framework 'foo' is not one of ['openspec', 'speckit', 'bmad']`. Fehlt der Ordner des Frameworks im Projekt, stoppt es mit `framework speckit is not installed in this project`.
+- Der Skill startet nur `assess`. Das Framework für seine Fragen kommt aus `framework` in `.github/ticket-schreiben.json`, und `pruefdatei` setzt das passende `sdd-`-Label. Wollt ihr das Ticket danach mit einem anderen Framework schreiben, hängt ihr an `spec` `--framework` an.
 
 ## 6. Bestätigen
 

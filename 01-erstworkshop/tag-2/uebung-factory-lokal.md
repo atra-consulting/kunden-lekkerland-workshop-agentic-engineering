@@ -109,7 +109,7 @@ cat ~/factory-tickets/LL-123.json
 **Das seht ihr:** ein JSON-Objekt mit `key`, `summary`, `description` und `labels`. Im Lab kostete der Abruf 10,8 Credits.
 
 - Vergleicht die Datei mit dem Ticket in Jira, auch die Labels. Ein Sprachmodell schreibt die Datei. Es kann Text weglassen oder umformulieren.
-- `local.py` wählt das Framework über genau ein Label: `sdd-speckit` oder `sdd-openspec`. Hat euer Ticket keins, hängt ihr an `spec` und `build` `--framework speckit` oder `--framework openspec` an.
+- `local.py` wählt das Framework über genau ein Label, `sdd-speckit` oder `sdd-openspec`, oder über `--framework`. Mehr dazu unter dem Beispiel.
 - Klappt die Anmeldung beim Jira-MCP nicht, legt die Datei von Hand an, wie im Beispiel unten. Dann geht es mit Schritt 5 weiter.
 
 **Beispiel für eine Ticket-Datei** `~/factory-tickets/LL-123.json`:
@@ -119,8 +119,17 @@ cat ~/factory-tickets/LL-123.json
 ```
 
 - `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
-- Ohne Framework-Label hängt ihr an `spec` und `build` `--framework openspec` oder `--framework speckit` an. `assess` braucht kein Label.
 - `key` sieht aus wie ein Jira-Schlüssel, etwa `LL-123`. Zeilenumbrüche in `description` schreibt ihr als `\n`. Speichert die Datei als UTF-8.
+
+**Der Schalter `--framework`:**
+
+- `--framework openspec`, `--framework speckit` oder `--framework bmad` wählt das Framework für `spec` und `build`.
+- Er hat Vorrang vor dem Label. `local.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
+- Ihr braucht ihn, wenn das Ticket kein oder zwei `sdd-`-Labels hat, oder wenn ihr dasselbe Ticket mit einem anderen Framework schreibt ([Schritt 11](#11-dasselbe-ticket-mit-einem-zweiten-framework)).
+- Gebt bei `build` dasselbe Framework an wie bei `spec`.
+- Die Ausgabe nennt die Quelle: `framework speckit (from --framework)` oder `framework openspec (from label)`.
+- `assess` wählt kein Framework und übergeht `--framework`. Die Ausgabe zeigt `assess, no framework`.
+- Ein Tippfehler stoppt mit `--framework 'foo' is not one of ['openspec', 'speckit', 'bmad']`. Fehlt der Ordner des Frameworks im Projekt, stoppt es mit `framework speckit is not installed in this project`.
 
 ## 5. Ticket-Branch anlegen
 

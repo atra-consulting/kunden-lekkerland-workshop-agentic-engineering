@@ -36,23 +36,23 @@ The verdict file is JSON with exactly these keys and nothing else:
 - Write detail and questions in the language of the ticket, with its normal letters, such as ä, ö, ü, and ß in German. Plain text: no Markdown, no HTML.
 
 Protected paths (regular expressions; the factory refuses any change there):
-- ^bitbucket-pipelines\.yml$
-- ^factory/
+- (?i)^bitbucket-pipelines\.yml$
+- (?i)^factory/
 - (?i)(^|/)(AGENTS|CLAUDE|GEMINI)\.md$
 - (?i)^\.github/
-- ^\.agents/
-- ^\.specify/
-- ^_bmad/
-- ^openspec/config\.yaml$
-- (^|/)Dockerfile[^/]*$
-- (^|/)\.dockerignore$
-- (^|/)\.gitattributes$
-- ^\.gitmodules$
-- ^\.gitignore$
-- ^\.env
-- ^\.devcontainer/
-- ^\.vscode/
-- ^FACTORY-QUESTIONS\.md$
+- (?i)^\.agents/
+- (?i)^\.specify/
+- (?i)^_bmad/
+- (?i)^openspec/config\.yaml$
+- (?i)(^|/)Dockerfile[^/]*$
+- (?i)(^|/)\.dockerignore$
+- (?i)(^|/)\.gitattributes$
+- (?i)^\.gitmodules$
+- (?i)^\.gitignore$
+- (?i)^\.env
+- (?i)^\.devcontainer/
+- (?i)^\.vscode/
+- (?i)^FACTORY-QUESTIONS\.md$
 
 <<<CRITERIA (readiness.md)
 # Ticket Readiness Criteria

@@ -566,8 +566,9 @@ def changed_paths(before, after):
 
 
 def protected_hits(cfg, paths):
-    """The paths that match protected_paths, without the factory's own files FACTORY-QUESTIONS.md and the verdict."""
-    prot = [re.compile(p) for p in cfg["protected_paths"]]
+    """The paths that match protected_paths, without the factory's own files FACTORY-QUESTIONS.md and the verdict.
+    Case doesn't count, also for a pattern init added: on a case-insensitive file system, .Agents/ is .agents/."""
+    prot = [re.compile(p, re.IGNORECASE) for p in cfg["protected_paths"]]
     return [p for p in paths if any(r.search(p) for r in prot) and p not in (config.QUESTIONS, config.ASSESSMENT)]
 
 

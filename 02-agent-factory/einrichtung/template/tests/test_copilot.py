@@ -591,3 +591,8 @@ class AgentsMd(unittest.TestCase):
         self.assertEqual(copilot.linked_hits({"conventions", "docs/a.md"}, ["conventions/x.md", "docs/a.md", "docs/b.md",
                                                                            "conventions-old.md"]),
                          ["conventions/x.md", "docs/a.md"])
+
+    def test_protected_hits_ignore_case_for_every_pattern(self):
+        cfg = {**FULL_CFG, "protected_paths": ["^tools/"]}  # as init may add it, without (?i)
+        self.assertEqual(copilot.protected_hits(cfg, ["Tools/x.sh", "src/tools/x", "FACTORY-QUESTIONS.md"]),
+                         ["Tools/x.sh"])

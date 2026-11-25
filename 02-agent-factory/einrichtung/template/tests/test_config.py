@@ -53,6 +53,10 @@ class TemplateConfig(unittest.TestCase):
                      "src/Claude.md", ".GitHub/copilot-instructions.md", ".github/instructions/x.instructions.md"):
             self.assertTrue(any(r.search(path) for r in prot), path)
         self.assertFalse(any(r.search("docs/MY-AGENTS.md") for r in prot))
+        for path in (".Agents/skills/x/SKILL.md", ".SPECIFY/scripts/bash/x.sh", "_BMad/x", "Factory/config.json",
+                     "Bitbucket-Pipelines.yml", ".ENV"):  # one file on a case-insensitive file system
+            self.assertTrue(any(r.search(path) for r in prot), path)
+        self.assertTrue(all(p.startswith("(?i)") for p in FULL_CFG["protected_paths"]))
 
     def test_no_team_rules_left(self):
         self.assertNotIn("rules", FULL_CFG)

@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from . import blocked, copied, config, copilot, readiness, checks, clarify, fetch
+from . import blocked, copied, config, copilot, readiness, checks, clarify, fetch, revise
 from . import ticket as ticket_mod
 
 
@@ -13,8 +13,10 @@ def work_plan(run, req, ticket, comments=()):
     readiness check on the proposed description follows only when the result calls for it (clarify_agent)."""
     cfg, local, repo = run.cfg, run.local, run.repo
     mode, key = req["mode"], req["key"]
-    p = {"calls": [], "env_extra": {}, "fw": None, "source": None, "F": None, "change": None, "crit": None,
-         "with_assess": fetch.assesses(cfg, mode, req["no_assess"])}
+    fb = revise.decide(run, req, comments) if mode == "spec" else None  # a refused or untrusted rerun stops here
+    p = {"calls": [], "env_extra": {}, "fw": None, "source": None, "F": None, "change": None, "crit": None, "fb": fb,
+         # a revision has no readiness check: the ticket passed it the first time
+         "with_assess": fetch.assesses(cfg, mode, req["no_assess"]) and (fb is None or fb["kind"] == "first")}
     calls = p["calls"]  # (tag, prompt, tools, credit cap)
     if p["with_assess"]:
         p["crit"] = run.criteria()
@@ -61,10 +63,22 @@ def work_plan(run, req, ticket, comments=()):
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
             config.say(f"building change {change} ({len(paths)} spec files)")
-        prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file)
-        if fw == "speckit":
+        if fb and fb["kind"] == "revision":  # the spec rerun: one revise call (new comments), or none (hand edits)
+            p["fb"] = fb = revise.plan(run, req, F, fb)
+            p["change"] = fb["change"]
+            config.say(revise.describe(fb))
+            prompts, tools = [], []
+            if fb["kind"] == "revise":
+                prompt, tools, p["env_extra"] = copilot.revise_plan(cfg, key, fw, ticket, fb["change"],
+                                                                    clarify.comments_block(key, fb["new"]))
+                prompts = [("revise", prompt)]
+        else:
+            prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file,
+                                                          revise.answers_block(key, fb) if fb else "")
+            prompts = [(str(i), x) for i, x in enumerate(prompts, 1)]
+        if fw == "speckit" and prompts:
             tools = ticket_mod.speckit_tool_map(repo, tools)
-        calls += [(str(i), x, tools, None) for i, x in enumerate(prompts, 1)]
+        calls += [(tag, x, tools, None) for tag, x in prompts]
     else:
         config.say(f"{key}: readiness check, project {repo}")
     if local:
@@ -80,6 +94,9 @@ def print_calls(run, req, p):
         argv = copilot.copilot_argv(run.cfg, run.local, prompt, tools, (logdir / f"usage-{tag}.json").as_posix(), cap=cap)
         print(f"\n# call {n}/{len(calls)}{' (readiness check)' if tag == 'assess' else ''}"
               f"\n{shlex.join(argv)}")
+    if p.get("fb"):
+        for line in revise.print_lines(p["fb"]):
+            print(line)
     if req["mode"] == "clarify" and p["proposal"]:
         print(f"\n# no clarify call: this run sets the text of the proposal in comment {p['proposal'][0]} when the "
               "readiness check says ready")
@@ -154,6 +171,14 @@ def run_agent(run, req, p):
     out = io / "out"
     fetch.clear_out(out)
     out.mkdir(parents=True, exist_ok=True)
+    fb = p.get("fb")
+    if fb and fb["kind"] == "nothing":  # before any Copilot process: no credits
+        reason = revise.nothing_reason(fb)
+        revise.write_nothing_new(out, mode, reason)
+        config.say(f"{key}: {reason}")
+        return 0
+    if fb and fb["kind"] == "hand":
+        return revise.hand_out(run, req, p)
     work = Work(run, key, p["env_extra"], {"mode": mode, "framework": p["fw"], "key": key, "run": run.log(key).name})
     try:  # the blocked-calls line ends every run, a stopped one too
         return _run_calls(run, req, p, work)
@@ -215,11 +240,10 @@ def _run_calls(run, req, p, work):
         paths += [x for x in (l.split("\t", 1)[-1] for l in files) if not (work.prefix and x.startswith(work.prefix))]
     for w in copilot.warnings_for(cfg, mode, p["fw"], paths):
         config.say("WARNING: " + w)
-    if mode == "spec":
-        change, text = fetch.spec_result(repo, p["F"], paths)
-        fetch.write_json(out / "spec.json", {"fw": p["fw"], "source": fetch.source_label(cfg, p["fw"], p["source"]),
-                                       "change": change, "readiness_line": fetch.readiness_line(cfg, req["no_assess"]),
-                                       "spec_text": text})
+    if mode == "spec" and p["fb"]["kind"] == "revise":
+        revise.revise_out(run, req, p, paths)
+    elif mode == "spec":
+        revise.first_out(run, req, p, paths)
     elif mode == "build":
         events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls if tag != "assess"]
         fetch.write_json(out / "build.json", {"change": p["change"], "changed": sorted(set(paths)),

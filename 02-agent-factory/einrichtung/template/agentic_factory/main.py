@@ -6,6 +6,8 @@ Usage (from anywhere inside the project's git repository):
   python3 agentic-factory.py spec    --key LL-123 [--framework speckit] [--no-assess]
   python3 agentic-factory.py build   --key LL-123 [--change <name>] [--framework speckit]
   python3 agentic-factory.py clarify --key LL-123 [--apply]  clarify the ticket in rounds of comments
+  python3 agentic-factory.py spec    --key LL-123 [--fresh]  again: revise the spec from [Mensch] comments and hand edits;
+                                                           --fresh starts over as a first spec
   python3 agentic-factory.py spec    --key LL-123 --print-only  read the ticket, print the work calls, run none of them
   python3 agentic-factory.py init    [--apply]             suggest config.json and readiness.md changes from the project's docs
                                                            (local only; no --key, no Jira; --apply writes the checked ones)
@@ -57,6 +59,8 @@ def parse(argv):
     ap.add_argument("--framework", help="speckit, openspec, or bmad; else the ticket's sdd-* label")
     ap.add_argument("--change", help="build: the spec folder's name, if there is more than one")
     ap.add_argument("--no-assess", action="store_true", help="spec: skip the readiness check before the spec calls")
+    ap.add_argument("--fresh", action="store_true", help="spec and build: ignore the earlier [KI] results of the mode and "
+                    "run as a first run (after a discarded build, a deleted spec folder, or an untrusted comment)")
     ap.add_argument("--no-post", action="store_true", help="write the comments to out/comment-<n>.txt, post nothing")
     ap.add_argument("--apply", action="store_true", help="clarify: set the clarified description; init: write the checked suggestions to config.json and readiness.md")
     ap.add_argument("--print-only", action="store_true",

@@ -209,6 +209,15 @@ elif mode == "io":  # a work call that writes into the hand-over folder inside t
     with open("agentic-io/in/ticket.json", "a") as fh: fh.write(" ")
 elif mode == "questions":
     pathlib.Path("FACTORY-QUESTIONS.md").write_text("# Fragen\n- Welche Seite?\n")
+elif mode.startswith("revise"):  # a spec revision: edits the change a first spec run wrote
+    d = pathlib.Path("openspec/changes/lower-tags")
+    if mode == "revise":
+        with open(d / "proposal.md", "a") as fh: fh.write("revidiert\n")
+    elif mode == "revise-tasks":
+        with open(d / "tasks.md", "a") as fh: fh.write("- [ ] neu\n")
+    elif mode == "revise-second":  # writes a second change
+        o = pathlib.Path("openspec/changes/other-change"); o.mkdir(parents=True, exist_ok=True)
+        (o / "proposal.md").write_text("o\n")
 elif mode in ("build", "commit", "commit-io"):
     pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/New.php").write_text("<?php\n")
     ev("tool.execution_start", toolCallId="t-test", toolName="bash", arguments={"command": "./bin/phpunit"})

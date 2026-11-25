@@ -1,7 +1,7 @@
 """Step post: checks out/ against in/ again, renders the comment, and posts it."""
 import difflib
 
-from . import copied, config, checks, clarify, fetch
+from . import copied, config, checks, clarify, fetch, revise
 from . import ticket as ticket_mod
 
 
@@ -32,21 +32,10 @@ def verdict_tokens(v, where):
     return v
 
 
-def checked_spec(run, req, ticket, path):
-    d = config.read_json(path)
-    if not isinstance(d, dict) or sorted(d) != sorted(fetch.SPEC_OUT_KEYS) or not all(isinstance(v, str) for v in d.values()):
-        raise config.Stop(f"{path.name} must have exactly the string keys {', '.join(fetch.SPEC_OUT_KEYS)}")
-    fw, source = ticket_mod.choose_framework(run.cfg, req["framework"], ticket["labels"])
-    want = {"fw": fw, "source": fetch.source_label(run.cfg, fw, source),
-            "readiness_line": fetch.readiness_line(run.cfg, req["no_assess"])}
-    for k, v in want.items():
-        if d[k] != v:
-            raise config.Stop(f"{path.name}: {k} is not {v!r}, which in/ gives")
-    if not ticket_mod.CHANGE_NAME.fullmatch(d["change"]) or len(d["change"]) > 100:
-        raise config.Stop(f"{path.name}: change is not a valid change name")
-    if not d["spec_text"].strip():
-        raise config.Stop(f"{path.name}: spec_text is empty")
-    return d
+def checked_spec(run, req, ticket, comments, path, d=None):
+    """out/spec.json checked against in/ (revise.checked); d: revise.decide on in/, made again when None."""
+    return revise.checked(run, req, ticket, comments, path,
+                          revise.decide(run, req, comments, quiet=True) if d is None else d)
 
 
 def checked_build(run, path):
@@ -62,18 +51,26 @@ def checked_build(run, path):
     return d
 
 
-def outcome(run, req, ticket):
+def outcome(run, req, ticket, comments=()):
     """(comment text or None, exit code, what happened), derived again from out/ and checked against in/."""
     cfg, out = run.cfg, run.io / "out"
     mode, key = req["mode"], req["key"]
     found = [n for n in fetch.OUT_FILES if (out / n).exists()]
+    d = revise.decide(run, req, comments, quiet=True) if mode == "spec" else None  # refused reruns stop here too
 
     def only(*names):
         extra = [n for n in found if n not in names]
         if extra:
             raise config.Stop(f"{out} holds results that a {mode} run doesn't make: {extra}; nothing is posted")
 
-    with_assess = fetch.assesses(cfg, mode, req["no_assess"])
+    with_assess = fetch.assesses(cfg, mode, req["no_assess"]) and (d is None or d["kind"] == "first")
+    if mode == "spec" and fetch.NOTHING_NEW in found:
+        only(fetch.NOTHING_NEW)
+        reason = revise.checked_nothing_new(out / fetch.NOTHING_NEW, mode)
+        if d["kind"] != "revision" or d["handled"]:
+            raise config.Stop(f"{out / fetch.NOTHING_NEW} says nothing is new, but in/ has "
+                              f"{'new [Mensch] comments' if d['handled'] else 'no earlier spec'}; nothing is posted")
+        return None, 0, reason
     if mode in ("assess", "spec"):
         if (out / "assessment.json").exists():
             if not with_assess:
@@ -97,7 +94,10 @@ def outcome(run, req, ticket):
             if not text.strip():
                 raise config.Stop(f"{out / 'spec-questions.md'} is empty")
             return clarify.render_spec_questions(key, text), config.EXIT_QUESTIONS, "questions"
-        return clarify.render_spec(key, **checked_spec(run, req, ticket, out / "spec.json")), 0, "spec written"
+        spec = checked_spec(run, req, ticket, comments, out / "spec.json", d)
+        limit = (cfg.get("jira") or {}).get("max_comment_chars", 30000)
+        return (revise.render(key, spec, limit), 0,
+                "spec written" if spec["revision"] == 1 else f"spec revision {spec['revision']} written")
     if mode == "build":
         only("build.json")
         if "build.json" not in found:
@@ -240,7 +240,7 @@ def step_post(run, req, ticket, comments=()):
     if req["mode"] == "clarify":
         text, code, what, desc, set_desc = clarify_outcome(run, req, ticket, comments)
     else:
-        text, code, what = outcome(run, req, ticket)
+        text, code, what = outcome(run, req, ticket, comments)
     if text is None:
         config.say(f"{key}: {what}, nothing to post")
         return code
@@ -273,6 +273,8 @@ def step_post(run, req, ticket, comments=()):
             # GET /myself; mcp: atlassianUserInfo, cached from the agent step)
             fetch.proposal_trust(state, None, route)
             fetch.proposal_trust(state, layer.myself(), route)
+    if req["mode"] == "spec":  # the comment a revision builds on, with the running account (as the agent step did)
+        revise.trust_before_post(req, comments, layer)
     if set_desc:
         layer.set_description(key, desc)
         config.say(f"{key}: description set")

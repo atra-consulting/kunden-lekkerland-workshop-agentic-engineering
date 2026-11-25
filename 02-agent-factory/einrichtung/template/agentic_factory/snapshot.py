@@ -59,6 +59,26 @@ def paths_in_spec_text(text):
     return HEADER_RE.findall(text)
 
 
+def spec_text(repo, paths):
+    """The files as one text in the format of fetch.spec_result: `=== path ===`, the content, sorted by path."""
+    parts = []
+    for p in sorted(set(paths)):
+        try:
+            body = _inside(repo, p).read_bytes().decode("utf-8", errors="replace")
+        except OSError as e:
+            raise config.Stop(f"can't read the spec file {p}: {e.strerror or e}")
+        parts.append(f"=== {p} ===\n{body.rstrip(chr(10))}\n")
+    return "\n".join(parts)
+
+
+def saved_paths(dest):
+    """The repo-relative paths of the files in a spec copy; [] when there is none."""
+    try:
+        return sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()) if dest.is_dir() else []
+    except OSError as e:
+        raise config.Stop(f"can't read the spec copy {dest}: {e.strerror or e}")
+
+
 def checksum(repo, paths):
     """sha256 over path + NUL + bytes + NUL of the files, sorted by path. Bytes as they are, so line endings count."""
     h = hashlib.sha256()

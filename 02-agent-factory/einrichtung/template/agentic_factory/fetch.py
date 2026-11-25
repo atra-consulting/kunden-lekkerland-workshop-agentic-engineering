@@ -19,11 +19,14 @@ from . import ticket as ticket_mod
 MODES = ("assess", "spec", "build", "clarify", "init")
 STEPS = ("fetch", "agent", "post", "all")
 ROUTES = ("offline", "mcp", "api")
-REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post")
+REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post", "fresh")
 TICKET_KEYS = ("key", "summary", "description", "labels")
 COMMENT_KEYS = ["author", "body", "created", "id", "updated"]  # jira_rest.make_comment, sorted
-OUT_FILES = ("assessment.json", "clarify.json", "description.md", "spec.json", "spec-questions.md", "build.json")
-SPEC_OUT_KEYS = ("fw", "source", "change", "readiness_line", "spec_text")
+NOTHING_NEW = "nothing-new.json"  # spec and build reruns without new comments or hand edits: {"mode", "reason"}
+OUT_FILES = ("assessment.json", "clarify.json", "description.md", "spec.json", "spec-questions.md", "build.json",
+             NOTHING_NEW)
+SPEC_OUT_KEYS = ("fw", "source", "change", "readiness_line", "spec_text", "revision", "handled", "hand_edited", "diff",
+                 "checksum")
 BUILD_OUT_KEYS = ("change", "changed", "test_line")
 IO_DEFAULT = "agentic-io"  # split steps: inside the pipeline's clone
 NO_TEST_RUN = "Der Agent hat den Testbefehl nicht ausgeführt."
@@ -315,7 +318,7 @@ def fetch(run):
     else:
         ticket, comments = run.jira(route, key).read(key)
     request = {"mode": a.mode, "key": key, "route": route, "framework": a.framework, "change": a.change,
-               "no_assess": a.no_assess, "no_post": a.no_post}
+               "no_assess": a.no_assess, "no_post": a.no_post, "fresh": a.fresh}
     return request, ticket, comments
 
 
@@ -346,7 +349,7 @@ def read_in(run):
     for k in ("framework", "change"):
         if req[k] is not None and not isinstance(req[k], str):
             raise config.Stop(f"{d / 'request.json'}: {k} must be a string or null")
-    for k in ("no_assess", "no_post"):
+    for k in ("no_assess", "no_post", "fresh"):
         if not isinstance(req[k], bool):
             raise config.Stop(f"{d / 'request.json'}: {k} must be true or false")
     t = config.read_json(d / "ticket.json")

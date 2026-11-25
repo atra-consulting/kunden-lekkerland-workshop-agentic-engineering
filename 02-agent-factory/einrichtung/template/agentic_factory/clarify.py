@@ -2,7 +2,7 @@
 script posts."""
 import re
 
-from . import config, jira_rest
+from . import config, jira_rest, snapshot
 
 
 # --- comments ---------------------------------------------------------------------------------------------------------
@@ -328,12 +328,51 @@ def render_assess(key, verdict):
     return "\n\n".join(parts)
 
 
-def render_spec(key, fw, source, change, readiness_line, spec_text):
-    return "\n\n".join([marker("spec", key),
-                         f"Framework: {one_line(fw)} ({one_line(source)}). Change: {one_line(change)}. {readiness_line}",
-                         "Diese Spec wurde lokal mit agentic-factory.py geschrieben. Sie ist nicht freigegeben: Ein "
-                         "Kommentar von agentic-factory.py ist nie eine Freigabe.",
-                         fence(neutral(spec_text).rstrip("\n"))])
+NOT_APPROVED = "Sie ist nicht freigegeben: Ein Kommentar von agentic-factory.py ist nie eine Freigabe."
+
+
+def render_spec(key, fw, source, change, readiness_line, spec_text, revision=1, handled=(), hand_edited=False, diff="",
+                checksum="", copy_missing=False, full=True):
+    """The spec comment. Revision 1 is the first spec (marker spec, the readiness line); a later revision has the
+    marker spec überarbeitung, the ids of the [Mensch] comments it handled, whether the spec was changed by hand, and
+    the diff against the previous version (copy_missing: there was no copy to diff against). full=False leaves out
+    the spec text and names its files instead (a comment that would be too long). The lines feedback.state reads
+    (Change, Bearbeitet, Spec-Prüfsumme) stay outside the fenced blocks; the checksum comes last."""
+    if revision == 1:
+        parts = [marker("spec", key),
+                 f"Framework: {one_line(fw)} ({one_line(source)}). Change: {one_line(change)}. {readiness_line}",
+                 "Diese Spec wurde lokal mit agentic-factory.py geschrieben. " + NOT_APPROVED]
+    else:
+        parts = [marker("spec_revision", key, revision),
+                 f"Framework: {one_line(fw)} ({one_line(source)}). Change: {one_line(change)}. Überarbeitung {revision}."]
+        if handled:  # the line feedback.HANDLED_RE reads
+            parts.append(f"Bearbeitet: Kommentar {', '.join(handled)}.")
+        by_hand = "Die Spec wurde seit dem letzten Kommentar von Hand geändert."
+        if handled and hand_edited:
+            what = (by_hand + " agentic-factory.py hat sie danach lokal nach den genannten [Mensch]-Kommentaren "
+                    "überarbeitet, ausgehend von den geänderten Dateien.")
+        elif handled:
+            what = "agentic-factory.py hat die Spec lokal nach den genannten [Mensch]-Kommentaren überarbeitet."
+        else:
+            what = by_hand + " Dieser Kommentar zeigt ihren aktuellen Stand; Copilot wurde dafür nicht aufgerufen."
+        parts.append(what + " " + NOT_APPROVED)
+        if diff:
+            parts += ["Änderungen gegenüber der vorigen Fassung:", fence(neutral(diff).rstrip("\n"))]
+        elif copy_missing:
+            parts.append("Die Kopie der vorigen Fassung fehlt auf diesem Rechner, darum gibt es keinen Diff.")
+        else:
+            parts.append("Die Spec-Dateien sind gegenüber der vorigen Fassung unverändert.")
+    if full:
+        if revision != 1:
+            parts.append("Die vollständige Spec:")
+        parts.append(fence(neutral(spec_text).rstrip("\n")))
+    else:
+        parts += [f"Der vollständige Spec-Text ist zu lang für einen Kommentar. Er liegt im Projekt im Change-Ordner "
+                  f"{one_line(change)}, in diesen Dateien:",
+                  fence("\n".join(one_line(p) for p in snapshot.paths_in_spec_text(spec_text)))]
+    if checksum:  # the line feedback.CHECKSUM_RE reads
+        parts.append(f"Spec-Prüfsumme: {checksum}")
+    return "\n\n".join(parts)
 
 
 def render_spec_questions(key, text):
@@ -360,7 +399,14 @@ RENDER_SAMPLES = [
     render_assess("LL-1", {"verdict": "not_ready", "reasons": [{"id": "unclear_scope", "detail": "Umfang offen"}],
                            "questions": ["Welches Formular?"]}),
     render_spec("LL-1", "openspec", "Label sdd-openspec", "add-tags", READINESS_PASSED,
-                "=== openspec/changes/add-tags/proposal.md ===\nText"),
+                "=== openspec/changes/add-tags/proposal.md ===\nText", checksum="a" * 64),
+    render_spec("LL-1", "openspec", "Label sdd-openspec", "add-tags", "",
+                "=== openspec/changes/add-tags/proposal.md ===\nText\nmehr", revision=2, handled=("10", "11"),
+                hand_edited=True, diff="--- a/openspec/changes/add-tags/proposal.md\n+++ b/openspec/changes/add-tags/"
+                "proposal.md\n@@ -1 +1,2 @@\n Text\n+mehr\n", checksum="b" * 64),
+    render_spec("LL-1", "openspec", "Label sdd-openspec", "add-tags", "",
+                "=== openspec/changes/add-tags/proposal.md ===\nText", revision=3, hand_edited=True,
+                copy_missing=True, checksum="c" * 64, full=False),
     render_spec_questions("LL-1", "1. Welches Formular?"),
     render_build("LL-1", "add-tags", ["src/Tags.php", "tests/TagsTest.php"], "Testbefehl make test: bestanden."),
 ]

@@ -170,13 +170,15 @@ def fill(template, values, where):
         raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
 
 
-def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None):
-    """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them."""
+def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers=""):
+    """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
+    answers: spec after a `spec fragen` comment: the questions and their answers as a fenced block after the ticket."""
     F = cfg["frameworks"][fw]
     env_extra = {}
     if mode == "spec":
         rules = cfg.get("spec_rules", copied.SPEC_RULES).format(folder=F["spec_rule_folder"])
-        vals = {"ticket_block": ticket_mod.ticket_block(ticket), "spec_rules": rules, "key": key, "slug": key.lower()}
+        vals = {"ticket_block": ticket_mod.ticket_block(ticket) + answers, "spec_rules": rules, "key": key,
+                "slug": key.lower()}
         prompts = [fill(p, vals, f"{fw} spec_prompts") for p in F["spec_prompts"]]
         tools = [*F["spec_tools"], *check_read_tools(cfg)]
     elif mode == "build":
@@ -190,6 +192,20 @@ def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None):
     else:
         raise config.Stop(f"unknown mode {mode}")
     return prompts, tools, env_extra
+
+
+def revise_plan(cfg, key, fw, ticket, change, comments_block):
+    """The spec revision call: the framework's revise_prompt, its spec tools and read_tools (as a spec run has them),
+    and its extra environment. The spec rules name the change's own folder."""
+    F = cfg["frameworks"][fw]
+    if not isinstance(F.get("revise_prompt"), str) or not F["revise_prompt"]:
+        raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the template's config.json")
+    root = F["spec_root"].format(change=change)
+    vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
+            "spec_root": root, "spec_rules": cfg.get("spec_rules", copied.SPEC_RULES).format(folder=root), "key": key}
+    prompt = fill(F["revise_prompt"], vals, f"{fw} revise_prompt")
+    env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
+    return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra
 
 
 def has_shell_tool(tools):

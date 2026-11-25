@@ -35,8 +35,11 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
     def test_spec_done(self):
         rc, out = self.api("spec", "--readiness", str(self.rd), cfg=self.acfg)
         self.assertEqual(rc, 0, out)
-        text = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", "lower-tags", clarify.READINESS_PASSED, SPEC_TEXT)
+        checksum = json.loads((self.io / "out/spec.json").read_text(encoding="utf-8"))["checksum"]
+        text = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", "lower-tags", clarify.READINESS_PASSED, SPEC_TEXT,
+                                   checksum=checksum)
         self.assertEqual(self.comment(), text)
+        self.assertTrue(text.endswith(f"\n\nSpec-Prüfsumme: {checksum}"))
         self.assertIn("Change: lower-tags", text)
         self.assertIn("=== openspec/changes/lower-tags/proposal.md ===\np\n", text)
         self.assertEqual(self.posts(), [jira_rest.text_to_wiki(text)])
@@ -44,8 +47,10 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
     def test_spec_readiness_lines_and_source(self):
         self.api("spec", "--framework", "openspec")
         spec = json.loads((self.io / "out/spec.json").read_text(encoding="utf-8"))
+        self.assertRegex(spec.pop("checksum"), "^[0-9a-f]{64}$")
         self.assertEqual(spec, {"fw": "openspec", "source": "--framework", "change": "lower-tags",
-                                "readiness_line": clarify.READINESS_OFF, "spec_text": SPEC_TEXT})
+                                "readiness_line": clarify.READINESS_OFF, "spec_text": SPEC_TEXT, "revision": 1,
+                                "handled": [], "hand_edited": False, "diff": ""})
         acfg = {**self.acfg}
         self.assertEqual(fetch.readiness_line(acfg, True), clarify.READINESS_SKIPPED)
         self.assertEqual(fetch.readiness_line(acfg, False), clarify.READINESS_PASSED)
@@ -94,12 +99,12 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
 
     def test_comment_over_the_limit_posts_nothing(self):
         empty = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", "lower-tags", clarify.READINESS_OFF,
-                               SPEC_TEXT.replace("\np\n", "\n\n"))
+                               SPEC_TEXT.replace("\np\n", "\n\n"), checksum="0" * 64)
         size = 30001 - len(empty)
         (self.repo / "fake-size").write_text(str(size), encoding="utf-8")
         with self.assertRaisesRegex(config.Stop, "longer than 30000 characters"):
             self.api("spec", mode="big")
         spec = json.loads((self.io / "out/spec.json").read_text(encoding="utf-8"))
-        self.assertEqual(len(clarify.render_spec(KEY, **spec)), 30001)
+        self.assertEqual(len(clarify.render_spec(KEY, **spec)), 30001)  # a first spec stops as before: no shortening
         self.assertEqual(self.writes(), [])
         self.assertFalse((self.io / "out/comment-1.txt").exists())

@@ -24,7 +24,10 @@ LAUNCHER_SUBCOMMANDS = {"npm": {"exec", "x"}, "pnpm": {"dlx", "exec"}, "yarn": {
 INSTALLERS = {("pip", "install"), ("uv", "pip"), ("uv", "add"), ("poetry", "add"), ("poetry", "install"), ("npm", "install"),
               ("npm", "i"), ("npm", "ci"), ("yarn", "add"), ("yarn", "install"), ("pnpm", "add"), ("pnpm", "install"),
               ("gem", "install"), ("bundle", "install"), ("cargo", "install"), ("go", "install"), ("go", "get"),
-              ("composer", "install"), ("composer", "require")}  # package installers run the packages' setup code
+              ("composer", "install"), ("composer", "require"),
+              ("npm", "add"), ("npm", "in"), ("npm", "isntall"), ("npm", "it"), ("npm", "install-test"), ("npm", "update"),
+              ("npm", "rebuild"), ("pnpm", "i"), ("pnpm", "up"), ("pnpm", "update"), ("yarn", "up"), ("pipenv", "install"),
+              ("pdm", "add"), ("pdm", "install"), ("uv", "sync")}  # package installers run the packages' setup code, aliases too
 INSTALLER_MANAGERS = {m for m, _ in INSTALLERS}  # a bare "shell(npm:*)" allows their install commands too
 PIP = re.compile(r"pip\d*(\.\d+)*")  # pip, pip3, pip3.12
 SHAPE = "not a suggestion {value, reason, source}"
@@ -95,8 +98,15 @@ def refusal(tool, cfg, interpreters=True):
         return f"{first} downloads and runs a package"
     manager = "pip" if PIP.fullmatch(first) else first
     # any word after the manager that is its installer subcommand (an option may take a value: npm --prefix dir install),
-    # up to "run": npm run ci runs a script, not an install; or only options after it (npm --silent)
-    args = words[1:words.index("run") if "run" in words[1:] else len(words)]
+    # up to "run": npm run ci runs a script, not an install. "run" counts only as the first word after the manager, or
+    # after options that carry their value (--prefix=dir): in "npm --prefix run install", run is the option's value
+    args = words[1:]
+    for i, w in enumerate(args):
+        if w == "run":
+            args = args[:i]
+            break
+        if not (w.startswith("-") and "=" in w):
+            break
     if (any((manager, w) in INSTALLERS for w in args) or (len(words) == 1 and manager in INSTALLER_MANAGERS | {"pip"})
             or (manager in INSTALLER_MANAGERS | {"pip"} and len(words) > 1 and all(w.startswith("-") for w in words[1:]))):
         return "installs packages, which runs their setup code"

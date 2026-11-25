@@ -64,6 +64,26 @@ class Refusals(unittest.TestCase):
         for t in ("shell(npm --silent run lint:*)", "shell(npm test:*)", "shell(cargo --locked test:*)", "shell(go test ./...:*)"):
             self.assertIsNone(init.refusal(t, none), t)
 
+    def test_run_cuts_the_installer_scan_only_as_the_first_word_after_the_options(self):
+        none = {"deny_tools": []}
+        # "--prefix" may take "run" as its value, so the next word is the subcommand
+        for t in ("shell(npm --prefix run install:*)", "shell(yarn --cwd run add x:*)", "shell(npm --silent run install:*)",
+                  "shell(npm foo run install:*)", "shell(npm install run:*)"):
+            self.assertIn("installs packages", init.refusal(t, none), t)
+        for t in ("shell(npm run ci:*)", "shell(npm --prefix=dir run install-deps:*)", "shell(npm --prefix=dir run ci:*)",
+                  "shell(yarn run add:*)"):
+            self.assertIsNone(init.refusal(t, none), t)
+
+    def test_refuses_the_installers_aliases(self):
+        none = {"deny_tools": []}
+        for t in ("shell(npm add x:*)", "shell(npm in:*)", "shell(npm isntall:*)", "shell(npm it:*)", "shell(npm install-test:*)",
+                  "shell(npm update:*)", "shell(npm rebuild:*)", "shell(pnpm i:*)", "shell(pnpm up:*)", "shell(pnpm update:*)",
+                  "shell(yarn up:*)", "shell(pipenv install:*)", "shell(pipenv:*)", "shell(pdm add x:*)", "shell(pdm install:*)",
+                  "shell(pdm:*)", "shell(uv sync:*)", "shell(npm --prefix dir update:*)"):
+            self.assertIn("installs packages", init.refusal(t, none), t)
+        for t in ("shell(npm test:*)", "shell(pnpm test:*)", "shell(pdm run pytest:*)", "shell(pipenv run pytest:*)"):
+            self.assertIsNone(init.refusal(t, none), t)
+
     def test_refuses_commands_that_write_or_run(self):
         for t in ("shell(find:*)", "shell(find . -name x:*)", "shell(sed -i:*)", "shell(awk:*)", "shell(xargs rm:*)", "shell(rg:*)",
                   "shell(tree:*)", "shell(sort:*)", "shell(tar x:*)", "shell(docker run:*)", "shell(podman:*)",

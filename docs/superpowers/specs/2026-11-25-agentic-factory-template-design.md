@@ -111,10 +111,11 @@ Added at the user's request after runs where `ls`, `find`, or `grep` were denied
 - New key `read_tools` in `config.json`, a list the script appends to every `spec` and `build` call (and the spec and
   build revision calls), after the framework's tools and before the derived test tool. Default:
   `shell(ls:*)`, `shell(cat:*)`, `shell(head:*)`, `shell(tail:*)`, `shell(wc:*)`, `shell(grep:*)`, `shell(pwd:*)`,
-  `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`, `shell(git status:*)`, `shell(git diff:*)`, `shell(git log:*)`,
-  `shell(git show:*)`, `shell(git ls-files:*)`.
+  `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`.
 - Not included, because they can write files or run commands although they look read-only: `find` (`-delete`,
   `-exec`), `sed` (`-i`), `awk` (`system()`), `xargs`, `rg` (`--pre`), `git grep` (`-O`), `tree` (`-o`), `sort` (`-o`).
+  No `git` command either: `git diff`/`log`/`show` write files with `--output=`, and `.git/config` (`core.fsmonitor`,
+  diff drivers) can turn any git call, `git status` included, into code execution.
   Copilot's patterns match a prefix, so a tool can't be allowed with a dangerous option denied.
 - `assess`, `clarify`, and `init` don't get them: they have no shell, and any shell tool would switch off the
   backstop that stops a run when Copilot ran a shell command anyway.

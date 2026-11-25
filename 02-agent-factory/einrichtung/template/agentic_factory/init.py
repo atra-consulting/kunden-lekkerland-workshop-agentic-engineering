@@ -25,7 +25,7 @@ SCRIPT_RUNNERS = {"test", "t", "tst", "run"}  # "run" starts a script of the pro
 MANAGER_SUBCOMMANDS = {  # the first subcommand an allow-list entry may have, per package manager; any other (install, add,
     # update, exec, ...) runs packages' setup code or downloaded code, and the list is closed: a subcommand not here is refused
     "npm": SCRIPT_RUNNERS, "pnpm": SCRIPT_RUNNERS, "yarn": SCRIPT_RUNNERS, "bun": SCRIPT_RUNNERS,
-    "uv": {"run"}, "poetry": {"run"}, "pipenv": {"run"}, "pdm": {"run"},
+    "uv": {"run"}, "poetry": {"run"}, "pipenv": {"run"}, "pdm": {"run"}, "hatch": {"run"}, "rye": {"run"},
     "cargo": {"test", "build", "check", "clippy", "fmt"}, "go": {"test", "build", "vet"}, "composer": {"test", "run-script"},
     "bundle": set(), "gem": set(), "pip": set()}  # bundle exec runs any gem's binary
 PIP = re.compile(r"pip\d*(\.\d+)*")  # pip, pip3, pip3.12
@@ -100,6 +100,8 @@ def refusal(tool, cfg, interpreters=True):
     if first in LAUNCHERS or (len(words) > 1 and words[1] in LAUNCHER_SUBCOMMANDS.get(first, ())):
         return f"{first} downloads and runs a package"
     manager = "pip" if PIP.fullmatch(first) else first
+    if manager in copilot.RUNNERS and manager not in MANAGER_SUBCOMMANDS:  # fail closed: a runner nobody listed
+        return f"only test/run-style subcommands of {manager} are accepted"
     if manager in MANAGER_SUBCOMMANDS:
         if len(words) == 1:
             return "installs packages, which runs their setup code"
@@ -109,12 +111,10 @@ def refusal(tool, cfg, interpreters=True):
             i += 1
         if i == len(rest) or rest[i] not in MANAGER_SUBCOMMANDS[manager]:
             return f"only test/run-style subcommands of {manager} are accepted"
-        if rest[i] == "run" and manager in copilot.RUNNERS:  # uv run X: X is the command the runner rules judge
-            if i + 1 == len(rest):
-                return f"{x!r} ends right after a wrapper or runner; name the script, module, or target to run"
-            return refusal(f"shell({' '.join(rest[i + 1:])})", cfg, interpreters)
-    if first in copilot.RUNNERS and len(words) == 1:
-        return f"{first} runs any command; use a specific command such as {first} run pytest"
+        if rest[i] == "run" and manager in copilot.RUNNERS:
+            # drop the --opt=value words before run and judge "<manager> run ..." as a whole, so command_start's runner rules
+            # (--with, --from, --script, -m take a value or run code) see what follows run
+            return refusal(f"shell({' '.join([words[0], *rest[i:]])})", cfg, interpreters)
     if interpreters:
         for w in x.split(" "):
             name = copilot.interpreter_name(w)

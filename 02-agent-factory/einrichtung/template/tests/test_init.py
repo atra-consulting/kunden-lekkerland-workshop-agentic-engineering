@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agentic_factory import config, copilot, init, readiness
 
@@ -90,10 +91,35 @@ class Refusals(unittest.TestCase):
                            ("uv --q=1 run npm install", "only test/run-style subcommands of npm"),
                            ("uv --q=1 run pip install x", "only test/run-style subcommands of pip"),
                            ("uv --q=1 run", "ends right after a wrapper or runner"),
-                           ("pipenv --q=1 run env x", "env runs any command")):
+                           ("uv --q=1 run env curl x", "curl reaches the network")):
             self.assertIn(why, init.refusal(f"shell({tool_}:*)", none), tool_)
         self.assertIsNone(init.refusal("shell(uv --q=1 run pytest -q:*)", none))
         self.assertIsNone(init.refusal("shell(uv --q=1 run python3 -m pytest:*)", none, interpreters=False))
+
+    def test_runner_options_after_run_are_judged_with_options_before_run(self):
+        none = {"deny_tools": []}
+        for cmd in ("uv run --with evil pytest", "uv --q=1 run --with evil pytest", "uv --q=1 run --from x y",
+                    "uv --q=1 run --script x.py", "uv --q=1 run -m pytest", "poetry --q=1 run --with evil x",
+                    "pdm --q=1 run --from x y", "pipenv --q=1 run --script x.py"):
+            why = init.refusal(f"shell({cmd}:*)", none)
+            opt = next(w for w in cmd.split() if w in ("--with", "--from", "--script", "-m"))
+            self.assertIn(f"the option '{opt}' after 'run' may take a value", why or "", cmd)
+        self.assertIsNone(init.refusal("shell(uv --q=1 run --no-sync=1 pytest:*)", none))
+
+    def test_hatch_and_rye_accept_only_run_and_unlisted_runners_are_refused(self):
+        none = {"deny_tools": []}
+        for cmd in ("hatch env create", "hatch build", "rye sync", "rye add x", "hatch --q=1 shell", "rye --q=1 install x"):
+            self.assertIn("only test/run-style subcommands of", init.refusal(f"shell({cmd}:*)", none), cmd)
+        for m in ("hatch", "rye"):
+            self.assertEqual(init.refusal(f"shell({m}:*)", none), "installs packages, which runs their setup code")
+        for cmd in ("hatch run pytest", "rye run pytest", "hatch --q=1 run pytest"):
+            self.assertIsNone(init.refusal(f"shell({cmd}:*)", none), cmd)
+        self.assertIn("curl reaches the network", init.refusal("shell(hatch --q=1 run curl x:*)", none))
+        with mock.patch.object(copilot, "RUNNERS", {*copilot.RUNNERS, "newtool"}):  # a runner nobody listed: fail closed
+            for cmd in ("newtool", "newtool sync", "newtool --q=1 sync x"):
+                self.assertEqual(init.refusal(f"shell({cmd}:*)", none),
+                                 "only test/run-style subcommands of newtool are accepted", cmd)
+        self.assertLessEqual(set(copilot.RUNNERS), set(init.MANAGER_SUBCOMMANDS))
 
     def test_run_script_names_are_not_checked_as_subcommands(self):
         none = {"deny_tools": []}

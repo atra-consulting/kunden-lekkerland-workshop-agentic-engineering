@@ -14,7 +14,7 @@ from pathlib import Path
 from . import agent, blocked, config, copilot, readiness
 from . import ticket as ticket_mod
 
-OUT = "FACTORY-INIT.json"
+FILE_TOOLS = ("read",)  # the init call may not write: a prompt injection in the docs could change .git/config or hooks
 KEY = "INIT"  # the log folder name and the blocked.jsonl key of an init run (there is no ticket)
 SUGGESTION_KEYS = ("test_command", "add_tools", "add_protected_paths", "add_deny_tools", "enabled_frameworks", "readiness_md")
 MODES = ("spec", "build")  # the modes whose tool lists add_tools may extend
@@ -34,6 +34,9 @@ SHAPE = "not a suggestion {value, reason, source}"
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
 UNSAFE_TEXT = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # terminal escapes, bidi
 MAX_PATTERN = 200  # chars of one protected_paths regex
+MAX_NEW_PATTERNS = 20  # new protected_paths entries in one run
+NO_JSON = "the init call returned no JSON object"
+FENCED = re.compile(r"```(?:json)?[ \t]*\n(.*)\n[ \t]*```", re.DOTALL)
 
 
 def shell_prefix(tool):
@@ -157,7 +160,7 @@ def check_suggestions(d, cfg, readiness_text, installed):
     reason)], "notes": [str]}. path is "" except for add_tools ("<framework>.<mode>"). A refused suggestion is kept with
     its reason; nothing is dropped silently."""
     if not isinstance(d, dict):
-        raise config.Stop(f"{OUT} must be a JSON object")
+        raise config.Stop("the init suggestions must be a JSON object")
     accepted, refused, notes = [], [], []
     yes = lambda key, path, sg: accepted.append((key, path, sg))
     no = lambda key, path, sg, why: refused.append((key, path, sg, why))
@@ -237,6 +240,7 @@ def check_suggestions(d, cfg, readiness_text, installed):
                         if note:
                             notes.append(f"{sg['value']}: {note}")
 
+    new_patterns = set()
     for sg in many("add_protected_paths", d.get("add_protected_paths")):
         value = sg["value"]
         try:
@@ -244,10 +248,18 @@ def check_suggestions(d, cfg, readiness_text, installed):
                 raise ValueError("expected a non-empty string")
             if len(value) > MAX_PATTERN:
                 raise ValueError(f"longer than {MAX_PATTERN} characters")
+            if re.search(r"\s", value) or CONTROL.search(value):
+                raise ValueError("contains whitespace or control characters")
             re.compile(value)
-            yes("add_protected_paths", "", sg)
         except (re.error, ValueError, OverflowError, RecursionError) as e:
             no("add_protected_paths", "", sg, f"not a usable regular expression: {e}")
+            continue
+        if value not in cfg["protected_paths"] and value not in new_patterns:
+            if len(new_patterns) >= MAX_NEW_PATTERNS:
+                no("add_protected_paths", "", sg, f"too many protected paths in one run (at most {MAX_NEW_PATTERNS})")
+                continue
+            new_patterns.add(value)
+        yes("add_protected_paths", "", sg)
 
     sg = single("enabled_frameworks")
     if sg:
@@ -397,12 +409,26 @@ def config_view(cfg):
 
 
 def init_call(cfg, readiness_text, installed, blocked_text):
-    """(prompt, tools, credit cap) of the one init call. No tools beyond the file tools: copilot_argv denies the shell."""
+    """(prompt, tools, credit cap) of the one init call. It has no tools but read (FILE_TOOLS) and no shell, and no write
+    tool: its docs may carry a prompt injection, so it answers with the suggestions as its final message."""
     block = cfg["init"]
     prompt = copilot.fill(block["prompt"], {"config": config_view(cfg), "readiness": readiness_text,
-                                            "installed": ", ".join(installed) or "none", "blocked": blocked_text,
-                                            "output_file": OUT}, "the init prompt")
+                                            "installed": ", ".join(installed) or "none", "blocked": blocked_text},
+                        "the init prompt")
     return prompt, [], block.get("max_ai_credits", 40)
+
+
+def parse_reply(text):
+    """The suggestions object of the call's final message: a bare JSON object, or one fenced in ```json ... ```."""
+    t = (text or "").strip()
+    m = FENCED.fullmatch(t)
+    try:
+        d = json.loads(m.group(1) if m else t)
+    except (ValueError, RecursionError):
+        d = None
+    if not isinstance(d, dict):
+        raise config.Stop(NO_JSON)
+    return d
 
 
 def dump_config(old_text, new):
@@ -413,7 +439,7 @@ def dump_config(old_text, new):
 
 
 def run_init(run, apply, print_only):
-    """agentic-factory.py init: one Copilot call that reads the project's docs and writes FACTORY-INIT.json, the checks of
+    """agentic-factory.py init: one Copilot call that reads the project's docs and answers with the suggestions as JSON, the checks of
     check_suggestions, the report and the diffs; with apply, config.json and readiness.md are written, nothing else.
     No ticket and no Jira. Returns the exit code."""
     cfg, repo, a = run.cfg, run.repo, run.a
@@ -425,7 +451,8 @@ def run_init(run, apply, print_only):
     prompt, tools, cap = init_call(cfg, readiness_text, installed, blocked_summary(blocked.log_path(repo)))
     logdir = run.log(KEY)
     if print_only:
-        argv = copilot.copilot_argv(cfg, run.local, prompt, tools, (logdir / "usage-init.json").as_posix(), cap=cap)
+        argv = copilot.copilot_argv(cfg, run.local, prompt, tools, (logdir / "usage-init.json").as_posix(), cap=cap,
+                                  file_tools=FILE_TOOLS)
         print(f"# 1 copilot call, init, run in {repo}\n{shlex.join(argv)}")
         print("\n# a local run also adds --disable-mcp-server=NAME for each server `copilot mcp list` shows")
         return 0
@@ -439,25 +466,17 @@ def run_init(run, apply, print_only):
 
 def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path, write):
     cfg, repo, a = run.cfg, run.repo, run.a
-    out = repo / OUT
-    if out.is_file():
-        out.unlink()
-        config.say(f"removed the old {OUT}")
     before = work.snap()
     head = ticket_mod.head_commit(repo)
     if before:
         config.say(f"note: the working tree already has {len(before)} uncommitted change(s)")
     t0 = time.time()
-    work.call("init", "init call", prompt, tools, cap)
-    other = [x for x in copilot.changed_paths(before, work.snap()) if x[3:] != OUT]
-    if other or ticket_mod.head_commit(repo) != head:
-        raise config.Stop(f"the init call changed more than {OUT}: {other[:10]}; nothing is suggested or written")
-    if not out.is_file():
-        raise config.Stop(f"the init call wrote no {OUT}")
-    try:
-        d = config.read_json(out)
-    finally:
-        out.unlink()
+    final = work.call("init", "init call", prompt, tools, cap, file_tools=FILE_TOOLS)
+    changed = copilot.changed_paths(before, work.snap())
+    if changed or ticket_mod.head_commit(repo) != head:
+        raise config.Stop(f"the init call changed files although it may only read: {changed[:10]}; nothing is suggested "
+                          "or written")
+    d = parse_reply(final)
     result = check_suggestions(d, cfg, readiness_text, installed)
     config.say(f"done: credits {work.total:.2f}, {int(time.time() - t0)} s, logs in {work.logdir}")
     if not (result["accepted"] or result["refused"]):

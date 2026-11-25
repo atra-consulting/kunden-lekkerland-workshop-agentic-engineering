@@ -174,6 +174,7 @@ with open(here / "calls.jsonl", "a") as fh: fh.write(json.dumps(argv) + "\n")
 prompt = argv[argv.index("-p") + 1]
 usage = next(a.split("=", 1)[1] for a in argv if a.startswith("--usage-output-file="))
 mode = pathlib.Path("fake-mode").read_text().strip() if pathlib.Path("fake-mode").exists() else "spec"
+final = "fertig: " + prompt.split()[0]
 def ev(t, **d): print(json.dumps({"type": t, "data": d}), flush=True)
 ev("tool.execution_start", toolName="write", arguments={"path": "x"})
 if (here / "fake-shell").exists():  # "<ran|denied> <tool name>": a shell call that ran, or one Copilot denied
@@ -193,11 +194,12 @@ if "FACTORY-ASSESSMENT.json" in prompt:
     pathlib.Path("FACTORY-ASSESSMENT.json").write_text(json.dumps(v))
     if mode == "tamper":
         with open("README.md", "a") as fh: fh.write("more\n")
-elif "FACTORY-INIT.json" in prompt:  # init: the suggestions from fake-init.json
-    pathlib.Path("FACTORY-INIT.json").write_text(pathlib.Path("fake-init.json").read_text(encoding="utf-8"),
-                                                 encoding="utf-8")
+elif "suggest changes to the factory's configuration" in prompt:  # init: no file, the suggestions are the final message
+    final = pathlib.Path("fake-init.json").read_text(encoding="utf-8")
     if mode == "tamper":
         with open("README.md", "a") as fh: fh.write("more\n")
+    if mode == "writes-init":
+        pathlib.Path("FACTORY-INIT.json").write_text(final, encoding="utf-8")
 elif "FACTORY-CLARIFY.json" in prompt:
     pathlib.Path("FACTORY-CLARIFY.json").write_text(pathlib.Path("fake-clarify.json").read_text(encoding="utf-8"),
                                                     encoding="utf-8")
@@ -228,7 +230,7 @@ else:
     (d / "proposal.md").write_text(body); (d / "tasks.md").write_text("- [ ] t\n")
 if not pathlib.Path("fake-denied").exists():  # with fake-denied the call's one denied call is the bash call above
     ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
-ev("assistant.message", content="fertig: " + prompt.split()[0])
+ev("assistant.message", content=final)
 pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
 if (here / "fake-exit").exists():  # the exit code Copilot ends with
     sys.exit(int((here / "fake-exit").read_text()))

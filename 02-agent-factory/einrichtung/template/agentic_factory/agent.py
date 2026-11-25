@@ -118,12 +118,15 @@ class Work:
     def snap(self):
         return {k: v for k, v in copilot.snapshot(self.repo).items() if not (self.prefix and k.startswith(self.prefix))}
 
-    def call(self, tag, label, prompt, tools, cap):
-        """One work call. Stops when Copilot fails or when the call changed the io folder."""
+    def call(self, tag, label, prompt, tools, cap, file_tools=("read", "write")):
+        """One work call; returns its final message. file_tools: the file tools the call gets (init: read only). Stops
+        when Copilot fails or when the call changed the io folder."""
         io_before = fetch.folder_digest(self.io)
         usage = self.logdir / f"usage-{tag}.json"
-        argv = copilot.copilot_argv(self.cfg, self.local, prompt, tools, str(usage), self.exe, cap=cap, mcp_off=self.mcp_off)
-        config.say(f"copilot {label}: tools {['read', 'write', *tools]}")
+        argv = copilot.copilot_argv(self.cfg, self.local, prompt, tools, str(usage), self.exe, cap=cap, mcp_off=self.mcp_off,
+                                  file_tools=file_tools)
+        allowed = [*file_tools, *tools]
+        config.say(f"copilot {label}: tools {allowed}")
         t0 = time.time()
         rc, final, denied = copilot.run_call(argv, self.repo, self.env, self.logdir / f"events-{tag}.jsonl",
                                      self.cfg["agent_timeout_s"])
@@ -131,17 +134,17 @@ class Work:
         self.total += cr or 0
         config.say(f"copilot {label}: exit={rc} credits={cr} denied={denied} seconds={int(time.time() - t0)}")
         print("  final message: " + final[:1500].replace("\n", "\n    "))
-        self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl",
-                                       ["read", "write", *tools])
+        self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl", allowed)
         if rc != 0:
             raise config.Stop(f"copilot exited with {rc}; events: {self.logdir}")
         if fetch.folder_digest(self.io) != io_before:
             raise config.Stop(f"a work call changed the io folder {self.io}; nothing is posted")
-        if not copilot.has_shell_tool(["read", "write", *tools]):
+        if not copilot.has_shell_tool(allowed):
             ran = copilot.shell_ran(self.logdir / f"events-{tag}.jsonl")
             if ran:
                 raise config.Stop(f"the {label} ran the shell tool {ran[0]} although it may not run shell commands; "
                            f"nothing was posted. Events: {self.logdir / f'events-{tag}.jsonl'}")
+        return final
 
 
 def run_agent(run, req, p):

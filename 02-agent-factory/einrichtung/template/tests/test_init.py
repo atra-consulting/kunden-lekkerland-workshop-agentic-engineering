@@ -212,6 +212,22 @@ class Accepted(unittest.TestCase):
         self.assertEqual(len(r["refused"]), 3)
         self.assertIn("longer than", r["refused"][2][3])
 
+    def test_protected_path_with_whitespace_or_control_characters_refused(self):
+        bad = ["^db/ x", "^db/\tx", "^db/\nx", " ^db/", "^db/\x1b[2Jx", "^db/\x00", "^db/\u00a0x", "^db/\u2028x"]
+        r = check({"add_protected_paths": [s(v) for v in bad] + [s("^db/ok/"), s(r"^a\ b/")]})
+        self.assertEqual([x[2]["value"] for x in r["accepted"]], ["^db/ok/"])  # r"^a\ b/" has a space too
+        self.assertEqual(len(r["refused"]), len(bad) + 1)
+        for x in r["refused"]:
+            self.assertIn("whitespace or control characters", x[3])
+
+    def test_at_most_20_new_protected_paths_per_run(self):
+        cfg = copy.deepcopy(FULL_CFG)
+        existing = cfg["protected_paths"][0]
+        r = check({"add_protected_paths": [s(existing)] + [s(f"^p{i}/") for i in range(23)]}, cfg)
+        self.assertEqual([x[2]["value"] for x in r["accepted"]], [existing] + [f"^p{i}/" for i in range(20)])
+        self.assertEqual([x[2]["value"] for x in r["refused"]], ["^p20/", "^p21/", "^p22/"])
+        self.assertTrue(all("too many protected paths in one run" in x[3] for x in r["refused"]))
+
     def test_deny_tool_must_not_break_the_config(self):
         cfg = copy.deepcopy(FULL_CFG)
         cfg["read_tools"] = ["shell(ls:*)"]
@@ -313,17 +329,17 @@ class Prompt(unittest.TestCase):
         block = FULL_CFG["init"]
         self.assertEqual(list(block), ["max_ai_credits", "prompt"])
         self.assertEqual(block["max_ai_credits"], 40)
-        text = copilot.fill(block["prompt"], {"config": "{}", "readiness": "R", "installed": "openspec", "blocked": "none",
-                                              "output_file": init.OUT}, "the init prompt")
-        self.assertIn(init.OUT, text)
+        text = copilot.fill(block["prompt"], {"config": "{}", "readiness": "R", "installed": "openspec", "blocked": "none"},
+                            "the init prompt")
+        self.assertIn("Reply with only the JSON object, no other text", text)
+        self.assertNotIn("FACTORY-INIT", text)
         for key in init.SUGGESTION_KEYS:
             self.assertIn(f'"{key}"', text)
-        self.assertEqual(init.OUT, "FACTORY-INIT.json")
 
-    def test_prompt_uses_exactly_the_five_placeholders(self):
+    def test_prompt_uses_exactly_the_four_placeholders(self):
         import string
         names = {n for _, n, _, _ in string.Formatter().parse(FULL_CFG["init"]["prompt"]) if n}
-        self.assertEqual(names, {"config", "readiness", "installed", "blocked", "output_file"})
+        self.assertEqual(names, {"config", "readiness", "installed", "blocked"})
 
 
 class ReadinessParser(unittest.TestCase):
@@ -344,15 +360,16 @@ NEW_READINESS = "# Criteria\n\n### `missing_detail`\nUnclear.\n\n### `already_ex
 
 
 class InitMode(E2E, unittest.TestCase):
-    """agentic-factory.py init: one Copilot call writes FACTORY-INIT.json, the script checks and shows it, and with --apply
-    writes config.json and readiness.md."""
+    """agentic-factory.py init: one Copilot call that may only read answers with the suggestions as JSON, the script checks
+    and shows them, and with --apply writes config.json and readiness.md."""
 
     def setUp(self):
         super().setUp()
         self.cfgp = self.d / "config.json"
 
-    def init(self, suggestions, *args, mode="init"):
-        (self.repo / "fake-init.json").write_text(json.dumps(suggestions), encoding="utf-8")
+    def init(self, suggestions, *args, mode="init", raw=None):
+        """raw: the exact text of the call's final message instead of the suggestions as JSON."""
+        (self.repo / "fake-init.json").write_text(raw if raw is not None else json.dumps(suggestions), encoding="utf-8")
         return self.run_main("init", *args, mode=mode, cfg=INIT_CFG)
 
     def calls(self):
@@ -373,7 +390,6 @@ class InitMode(E2E, unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
         self.assertEqual(self.rd.read_bytes(), before_readiness)
-        self.assertFalse((self.repo / init.OUT).exists())
         self.assertEqual(self.status(), "")
         for part in ("make test", "the README says so", "README.md:12", "--- config.json (current)",
                      "+++ readiness.md (suggested)", "+### `no_test`", "nothing was changed", "--apply"):
@@ -392,7 +408,6 @@ class InitMode(E2E, unittest.TestCase):
                          INIT_CFG["frameworks"]["openspec"]["build_tools"] + ["shell(make lint:*)"])
         self.assertEqual(list(new), list(INIT_CFG))  # keys in their order
         self.assertEqual(self.rd.read_text(encoding="utf-8"), NEW_READINESS)
-        self.assertFalse((self.repo / init.OUT).exists())
         self.assertEqual(self.status(), "")  # nothing written into the project
         self.assertIn("written", out)
 
@@ -418,6 +433,23 @@ class InitMode(E2E, unittest.TestCase):
                 self.run_main("init", "--step", step, mode="init", cfg=INIT_CFG)
         self.assertEqual(self.calls(), [])
 
+    def test_init_final_message_forms(self):
+        s1 = {"test_command": s("make test")}
+        for name, raw in (("bare", json.dumps(s1)), ("fenced", "```json\n" + json.dumps(s1, indent=1) + "\n```"),
+                          ("fenced without language", "```\n" + json.dumps(s1) + "\n```"),
+                          ("whitespace around", "\n  " + json.dumps(s1) + "  \n")):
+            with self.subTest(name):
+                rc, out = self.init(None, raw=raw)
+                self.assertEqual(rc, 0, out)
+                self.assertIn("make test", out)
+        for name, raw in (("prose before", "Here you go: " + json.dumps(s1)), ("prose after", json.dumps(s1) + " done"),
+                          ("fence with prose", "Sure:\n```json\n" + json.dumps(s1) + "\n```"), ("a list", "[1]"),
+                          ("a string", '"x"'), ("empty", ""), ("not JSON", "no suggestions"),
+                          ("unclosed fence", "```json\n" + json.dumps(s1))):
+            with self.subTest(name), self.assertRaisesRegex(config.Stop, "the init call returned no JSON object"):
+                self.init(None, "--apply", raw=raw)
+        self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
+
     def test_init_call_writing_other_files_stops(self):
         (self.repo / "fake-init.json").write_text("{}", encoding="utf-8")
         with self.assertRaisesRegex(config.Stop, "README.md"):
@@ -430,15 +462,14 @@ class InitMode(E2E, unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("keine Vorschläge", out)
         self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
-        self.assertFalse((self.repo / init.OUT).exists())
 
     def test_init_print_only_runs_no_call(self):
         rc, out = self.init(self.SUGGESTIONS, "--print-only")
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.calls(), [])
         self.assertIn("--deny-tool=shell", out)
-        self.assertIn("FACTORY-INIT.json", out)
-        self.assertFalse((self.repo / init.OUT).exists())
+        self.assertIn("--allow-tool=read", out)
+        self.assertNotIn("--allow-tool=write", out)
 
     def test_init_call_shape_and_prompt(self):
         (self.repo / "openspec/changes/x").mkdir(parents=True, exist_ok=True)
@@ -452,11 +483,16 @@ class InitMode(E2E, unittest.TestCase):
         self.assertIn("no blocked calls recorded", prompt)
         self.assertIn('"test_command"', prompt)  # the config's parts
         self.assertNotIn("forbidden_env", prompt.split("Current configuration")[1])
-        self.assertEqual([a for a in argv if a.startswith("--allow-tool=")], ["--allow-tool=read", "--allow-tool=write"])
+        self.assertEqual([a for a in argv if a.startswith("--allow-tool=")], ["--allow-tool=read"])  # no write tool
         self.assertIn("--deny-tool=shell", argv)
         self.assertEqual(argv[argv.index("--max-ai-credits") + 1], "40")
         self.assertTrue(any(a.startswith("--disable-mcp-server=") for a in argv))
         self.assertIn("INIT", str(next((self.d / ".factory-local" / "proj").glob("*-init-INIT"))))
+
+    def test_init_call_writing_any_file_stops(self):
+        (self.repo / "fake-init.json").write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "FACTORY-INIT.json"):
+            self.run_main("init", mode="writes-init", cfg=INIT_CFG)
 
     def test_init_blocked_summary_in_prompt(self):
         log = self.d / ".factory-local" / "proj" / "blocked.jsonl"

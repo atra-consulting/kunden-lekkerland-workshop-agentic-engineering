@@ -331,6 +331,26 @@ and records what happens. It also runs one build with a hand-edited spec and the
 doesn't re-enter, its build revision uses a revise-style build prompt instead
 of its normal one (`frameworks.<fw>.rebuild_prompt`), and the design is updated before planning that part.
 
+### Spike results (2026-11-25)
+
+Run offline in a fresh factory-lab clone (`factory-base`) with ticket FLAB-41, template at `0b0b0fb`, about 346 credits
+in total, no call over 74 credits or 3 minutes, all test runs green. Details:
+`.superpowers/sdd/2026-11-25-agentic-factory-template/task-7-spike.md` (local, not committed).
+
+| Framework | Second build picks up a new unchecked task | Follows a hand-edited spec (diff block) |
+|---|---|---|
+| OpenSpec | Partly: skips done tasks, but refuses a new task that proposal, spec and design don't mention, and asks to update the spec first. A task the spec covers is implemented and checked off. | Yes |
+| Spec Kit | Yes: implements only the new task, checks it off, redoes nothing. | Yes |
+| BMad | Yes: implements only the new item in `SPEC.md`; it doesn't refuse its own `done` status. | Yes (44 credits for a one-word change) |
+
+Decision: for OpenSpec, the amend call may change every file of the change folder (`proposal.md`, `specs/`,
+`design.md`, `tasks.md`) and its prompt tells it to update the spec documents as well as add tasks. Spec Kit and BMad
+keep the task-file-only amend. No `rebuild_prompt` is needed.
+
+The 13 denied calls in `blocked.jsonl` were `rm` of the agents' own temp files, compound or redirected `git diff`
+commands and `cd <abs> && …` chains (mostly BMad), and shell edits (`sed -i`, a Python heredoc, `xmllint`). The agents
+worked around all of them.
+
 ### Not part of this
 
 - No round cap: every run is started by the developer. Credit caps per call stay.

@@ -166,6 +166,7 @@ class Run:
     def __init__(self, a):
         self.a = a
         self.cfg = config.read_json(a.config)
+        config.check_required(self.cfg, a.config)
         self.local = config.load_local(a.local)
         self.repo = Path(ticket_mod.git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
         snapshot.repo_part(self.repo.name)  # the logs and spec copies need it: stop before any Copilot call

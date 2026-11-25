@@ -37,6 +37,12 @@ class EndToEnd(E2E, unittest.TestCase):
             self.run_main("build", "--ticket-file", str(self.tf), "--framework", "openspec", mode="build", cfg=cfg)
         self.assertFalse((self.d / "calls.jsonl").exists())
 
+    def test_missing_config_key_stops_with_its_name(self):
+        cfg = {k: v for k, v in CFG.items() if k not in ("assess", "deny_tools")}
+        with self.assertRaisesRegex(config.Stop, "has no key deny_tools"):
+            self.run_main("spec", "--ticket-file", str(self.tf), cfg=cfg)
+        self.assertFalse((self.d / "calls.jsonl").exists())
+
     def test_agent_commits_are_shown_and_checked(self):
         self.run_main("spec", "--ticket-file", str(self.tf))
         rc, out = self.run_main("build", "--ticket-file", str(self.tf), "--framework", "openspec", mode="commit")

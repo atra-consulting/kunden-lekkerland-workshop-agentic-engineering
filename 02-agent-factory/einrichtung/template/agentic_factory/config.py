@@ -29,6 +29,20 @@ def check_config(cfg):
         raise Stop("config.json has a rules block: team rules were removed; move them to AGENTS.md")
 
 
+REQUIRED_KEYS = ("key_pattern", "model", "agent_timeout_s", "frameworks", "default_framework", "enabled_frameworks",
+                 "label_frameworks", "framework_label_prefix", "protected_paths", "deny_tools", "forbidden_flags",
+                 "forbidden_env")  # read without a default; assess, clarify, and init have their own checks
+
+
+def check_required(cfg, path):
+    """Stops on a config.json without one of REQUIRED_KEYS, naming the key, instead of a KeyError later."""
+    if not isinstance(cfg, dict):
+        raise Stop(f"{path} must be a JSON object")
+    for k in REQUIRED_KEYS:
+        if k not in cfg:
+            raise Stop(f"{path} has no key {k}; copy it from the template's config.json")
+
+
 def test_command(cfg):
     """config.json's test_command: a string, "" when unset. The one accessor (copilot, fetch, init). Not in check_config:
     assess, clarify and spec run with an old config whose test_command is a list."""

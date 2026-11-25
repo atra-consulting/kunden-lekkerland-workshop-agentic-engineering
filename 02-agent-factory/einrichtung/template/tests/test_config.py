@@ -136,3 +136,19 @@ class TestCommand(unittest.TestCase):
     def test_not_part_of_check_config(self):
         config.check_config({"test_command": ["./bin/phpunit"]})  # assess, clarify and spec still run
 
+
+
+class RequiredKeys(unittest.TestCase):
+    def test_template_config_has_them(self):
+        config.check_required(FULL_CFG, "config.json")
+
+    def test_missing_key_is_named(self):
+        for key in config.REQUIRED_KEYS:
+            cfg = {k: v for k, v in FULL_CFG.items() if k != key}
+            with self.subTest(key=key), self.assertRaisesRegex(config.Stop, f"config.json has no key {key}; copy it "
+                                                                            "from the template's config.json"):
+                config.check_required(cfg, "config.json")
+
+    def test_not_an_object(self):
+        with self.assertRaisesRegex(config.Stop, "must be a JSON object"):
+            config.check_required([], "config.json")

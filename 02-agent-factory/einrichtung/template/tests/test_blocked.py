@@ -132,6 +132,17 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertEqual(lines[-1]["kind"], "final")
         self.assertIn(f"1 blocked call(s), see {path}", out)
 
+    def test_stopped_run_still_ends_with_the_summary_once(self):
+        (self.repo / "fake-denied").write_text("", encoding="utf-8")
+        (self.d / "fake-exit").write_text("3", encoding="utf-8")
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf), entry=True)
+        self.assertNotEqual(rc, 0)
+        path = self.d / ".factory-local" / "proj" / "blocked.jsonl"
+        self.assertIn("copilot exited with 3", out)
+        self.assertEqual(out.count("1 blocked call(s), see"), 1, out)
+        self.assertEqual(out.count(f"see {path}"), 1)
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8").splitlines()[0])["kind"], "denied")
+
 
 if __name__ == "__main__":
     unittest.main()

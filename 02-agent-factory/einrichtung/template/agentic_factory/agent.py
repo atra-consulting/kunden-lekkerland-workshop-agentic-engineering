@@ -152,6 +152,16 @@ def run_agent(run, req, p):
     fetch.clear_out(out)
     out.mkdir(parents=True, exist_ok=True)
     work = Work(run, key, p["env_extra"], {"mode": mode, "framework": p["fw"], "key": key, "run": run.log(key).name})
+    try:  # the blocked-calls line ends every run, a stopped one too
+        return _run_calls(run, req, p, work)
+    finally:
+        work.report()
+
+
+def _run_calls(run, req, p, work):
+    cfg, repo, io = run.cfg, run.repo, run.io
+    mode, key, calls = req["mode"], req["key"], p["calls"]
+    out = io / "out"
     if p["with_assess"] and (repo / config.ASSESSMENT).exists():
         (repo / config.ASSESSMENT).unlink()
         config.say(f"removed the old {config.ASSESSMENT}")
@@ -172,12 +182,10 @@ def run_agent(run, req, p):
             if v["verdict"] == "not_ready":
                 config.say(f"not ready: no spec calls. Credits {work.total:.2f}. The verdict is in {config.ASSESSMENT}; "
                     "don't commit it")
-                work.report()
                 return config.EXIT_NOT_READY
             (repo / config.ASSESSMENT).unlink()
             if mode == "assess":
                 config.say(f"ready. Credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
-                work.report()
                 return 0
             config.say("ready: the spec calls start")
         if mode == "spec" and (repo / config.QUESTIONS).exists():
@@ -186,7 +194,6 @@ def run_agent(run, req, p):
             (out / "spec-questions.md").write_bytes(text.encode("utf-8"))
             config.say(f"the agent wrote {config.QUESTIONS} instead of a spec. Answer the questions in the ticket, delete the file, "
                 f"run again. Credits {work.total:.2f}")
-            work.report()
             return config.EXIT_QUESTIONS
 
     changed = copilot.changed_paths(before, work.snap())
@@ -215,7 +222,6 @@ def run_agent(run, req, p):
         fetch.write_json(out / "build.json", {"change": p["change"], "changed": sorted(set(paths)),
                                         "test_line": fetch.test_line(events, fetch.test_command(cfg))})
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
-    work.report()
     return 0
 
 
@@ -235,8 +241,19 @@ def clarify_agent(run, req, ticket, p):
     if p["pause"]:
         config.say(p["pause"][1])
         return p["pause"][0]
-    assess_crit = run.criteria()
     work = Work(run, key, {}, {"mode": "clarify", "framework": None, "key": key, "run": run.log(key).name})
+    try:  # the blocked-calls line ends every run, a stopped one too
+        return _clarify_calls(run, req, ticket, p, work)
+    finally:
+        work.report()
+
+
+def _clarify_calls(run, req, ticket, p, work):
+    cfg, repo, key = run.cfg, run.repo, req["key"]
+    _, max_rounds = checks.clarify_config(cfg)
+    out = run.io / "out"
+    state = p["state"]
+    assess_crit = run.criteria()
     for name in (checks.CLARIFY, config.ASSESSMENT):
         if (repo / name).exists():
             (repo / name).unlink()
@@ -273,7 +290,6 @@ def clarify_agent(run, req, ticket, p):
         fetch.write_json(out / "clarify.json", {"proposal": cid, "assessment": written})
         config.say(f"{key}: {fetch.clarify_what(d, max_rounds, True)}. Credits {work.total:.2f}, {int(time.time() - t_all)} s, "
             f"logs in {work.logdir}")
-        work.report()
         return d["exit"]
     call("clarify", "clarify call", prompt, tools, cap, checks.CLARIFY)
     result = checks.check_clarify(repo / checks.CLARIFY, p["crit"][1], copied.MAX_CHARS - len(ticket["summary"]))
@@ -289,5 +305,4 @@ def clarify_agent(run, req, ticket, p):
     fetch.write_json(out / "clarify.json", saved)
     config.say(f"{key}: {fetch.clarify_what(d, max_rounds)}. Credits {work.total:.2f}, {int(time.time() - t_all)} s, "
         f"logs in {work.logdir}")
-    work.report()
     return d["exit"]

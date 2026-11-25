@@ -225,6 +225,8 @@ if not pathlib.Path("fake-denied").exists():  # with fake-denied the call's one 
     ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
 ev("assistant.message", content="fertig: " + prompt.split()[0])
 pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
+if (here / "fake-exit").exists():  # the exit code Copilot ends with
+    sys.exit(int((here / "fake-exit").read_text()))
 '''
 
 

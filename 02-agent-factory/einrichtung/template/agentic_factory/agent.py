@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from . import copied, config, copilot, readiness, checks, clarify, fetch
+from . import blocked, copied, config, copilot, readiness, checks, clarify, fetch
 from . import ticket as ticket_mod
 
 
@@ -95,7 +95,7 @@ class Work:
     environment without the Jira secrets, snapshots of the project that leave out the io folder when it lies inside
     (it isn't the agent's), and the credit total."""
 
-    def __init__(self, run, key, env_extra):
+    def __init__(self, run, key, env_extra, ctx):
         self.cfg, self.local, self.repo, self.io = run.cfg, run.local, run.repo, run.io
         try:
             self.prefix = self.io.relative_to(self.repo.resolve()).as_posix() + "/"
@@ -109,6 +109,11 @@ class Work:
             else "no MCP servers to switch off")
         self.logdir.mkdir(parents=True, exist_ok=True)
         self.total = 0.0
+        self.ctx, self.blocked = ctx, 0  # ctx: mode, framework, key, run; blocked: the calls logged to blocked.jsonl
+
+    def report(self):
+        """The run's last line about blocked calls."""
+        config.say(blocked.summary(self.blocked, blocked.log_path(self.repo)))
 
     def snap(self):
         return {k: v for k, v in copilot.snapshot(self.repo).items() if not (self.prefix and k.startswith(self.prefix))}
@@ -126,6 +131,8 @@ class Work:
         self.total += cr or 0
         config.say(f"copilot {label}: exit={rc} credits={cr} denied={denied} seconds={int(time.time() - t0)}")
         print("  final message: " + final[:1500].replace("\n", "\n    "))
+        self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl",
+                                       ["read", "write", *tools])
         if rc != 0:
             raise config.Stop(f"copilot exited with {rc}; events: {self.logdir}")
         if fetch.folder_digest(self.io) != io_before:
@@ -144,7 +151,7 @@ def run_agent(run, req, p):
     out = io / "out"
     fetch.clear_out(out)
     out.mkdir(parents=True, exist_ok=True)
-    work = Work(run, key, p["env_extra"])
+    work = Work(run, key, p["env_extra"], {"mode": mode, "framework": p["fw"], "key": key, "run": run.log(key).name})
     if p["with_assess"] and (repo / config.ASSESSMENT).exists():
         (repo / config.ASSESSMENT).unlink()
         config.say(f"removed the old {config.ASSESSMENT}")
@@ -165,10 +172,12 @@ def run_agent(run, req, p):
             if v["verdict"] == "not_ready":
                 config.say(f"not ready: no spec calls. Credits {work.total:.2f}. The verdict is in {config.ASSESSMENT}; "
                     "don't commit it")
+                work.report()
                 return config.EXIT_NOT_READY
             (repo / config.ASSESSMENT).unlink()
             if mode == "assess":
                 config.say(f"ready. Credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
+                work.report()
                 return 0
             config.say("ready: the spec calls start")
         if mode == "spec" and (repo / config.QUESTIONS).exists():
@@ -177,6 +186,7 @@ def run_agent(run, req, p):
             (out / "spec-questions.md").write_bytes(text.encode("utf-8"))
             config.say(f"the agent wrote {config.QUESTIONS} instead of a spec. Answer the questions in the ticket, delete the file, "
                 f"run again. Credits {work.total:.2f}")
+            work.report()
             return config.EXIT_QUESTIONS
 
     changed = copilot.changed_paths(before, work.snap())
@@ -205,6 +215,7 @@ def run_agent(run, req, p):
         fetch.write_json(out / "build.json", {"change": p["change"], "changed": sorted(set(paths)),
                                         "test_line": fetch.test_line(events, fetch.test_command(cfg))})
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
+    work.report()
     return 0
 
 
@@ -225,7 +236,7 @@ def clarify_agent(run, req, ticket, p):
         config.say(p["pause"][1])
         return p["pause"][0]
     assess_crit = run.criteria()
-    work = Work(run, key, {})
+    work = Work(run, key, {}, {"mode": "clarify", "framework": None, "key": key, "run": run.log(key).name})
     for name in (checks.CLARIFY, config.ASSESSMENT):
         if (repo / name).exists():
             (repo / name).unlink()
@@ -262,6 +273,7 @@ def clarify_agent(run, req, ticket, p):
         fetch.write_json(out / "clarify.json", {"proposal": cid, "assessment": written})
         config.say(f"{key}: {fetch.clarify_what(d, max_rounds, True)}. Credits {work.total:.2f}, {int(time.time() - t_all)} s, "
             f"logs in {work.logdir}")
+        work.report()
         return d["exit"]
     call("clarify", "clarify call", prompt, tools, cap, checks.CLARIFY)
     result = checks.check_clarify(repo / checks.CLARIFY, p["crit"][1], copied.MAX_CHARS - len(ticket["summary"]))
@@ -277,4 +289,5 @@ def clarify_agent(run, req, ticket, p):
     fetch.write_json(out / "clarify.json", saved)
     config.say(f"{key}: {fetch.clarify_what(d, max_rounds)}. Credits {work.total:.2f}, {int(time.time() - t_all)} s, "
         f"logs in {work.logdir}")
+    work.report()
     return d["exit"]

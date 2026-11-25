@@ -181,6 +181,10 @@ if (here / "fake-shell").exists():  # "<ran|denied> <tool name>": a shell call t
     ev("tool.execution_start", toolCallId="sh-1", toolName=tool, arguments={"command": "ls; cat .env"})
     if how == "denied":
         ev("tool.execution_complete", toolCallId="sh-1", success=False, error={"code": "denied", "message": "no"})
+if pathlib.Path("fake-denied").exists():  # a bash call Copilot denied, the way unattended Copilot denies one
+    ev("tool.execution_start", toolCallId="dn-1", toolName="bash", arguments={"command": "cat x | python3 y"})
+    ev("tool.execution_complete", toolCallId="dn-1", success=False, error={"code": "denied",
+       "message": "Permission denied because no interactive user response was available."})
 if "FACTORY-ASSESSMENT.json" in prompt:
     verdict = pathlib.Path("fake-verdict").read_text().strip() if pathlib.Path("fake-verdict").exists() else "ready"
     v = {"verdict": "ready", "reasons": [], "questions": []} if verdict == "ready" else json.loads(verdict) \
@@ -217,7 +221,8 @@ else:
     d = pathlib.Path("openspec/changes/lower-tags"); d.mkdir(parents=True, exist_ok=True)
     body = "x" * int(pathlib.Path("fake-size").read_text()) + "\n" if mode == "big" else "p\n"
     (d / "proposal.md").write_text(body); (d / "tasks.md").write_text("- [ ] t\n")
-ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
+if not pathlib.Path("fake-denied").exists():  # with fake-denied the call's one denied call is the bash call above
+    ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
 ev("assistant.message", content="fertig: " + prompt.split()[0])
 pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
 '''
@@ -319,7 +324,7 @@ class E2E:
         self.tf.write_text(json.dumps(TICKET), encoding="utf-8")
         self.lj = self.d / "local.json"
         self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "fake.py")]}), encoding="utf-8")
-        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\n",
+        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\nfake-denied\n",
                                                      encoding="utf-8")
         self.rd = self.d / "readiness.md"
         self.rd.write_text(READINESS, encoding="utf-8")

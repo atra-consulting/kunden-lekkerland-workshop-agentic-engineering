@@ -182,6 +182,11 @@ if (here / "fake-shell").exists():  # "<ran|denied> <tool name>": a shell call t
     ev("tool.execution_start", toolCallId="sh-1", toolName=tool, arguments={"command": "ls; cat .env"})
     if how == "denied":
         ev("tool.execution_complete", toolCallId="sh-1", success=False, error={"code": "denied", "message": "no"})
+if (here / "fake-git").exists():  # a work call that writes into .git/: "config" (an fsmonitor command) or "hook"
+    if (here / "fake-git").read_text().strip() == "config":
+        with open(".git/config", "a") as fh: fh.write("[core]\n\tfsmonitor = touch fsmonitor-ran\n")
+    else:
+        pathlib.Path(".git/hooks/post-checkout").write_text("#!/bin/sh\ntouch hook-ran\n")
 if pathlib.Path("fake-denied").exists():  # a bash call Copilot denied, the way unattended Copilot denies one
     ev("tool.execution_start", toolCallId="dn-1", toolName="bash", arguments={"command": "cat x | python3 y"})
     ev("tool.execution_complete", toolCallId="dn-1", success=False, error={"code": "denied",

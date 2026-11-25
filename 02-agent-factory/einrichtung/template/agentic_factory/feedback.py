@@ -177,7 +177,7 @@ def first_build_missing(repo, start, files):
     if not isinstance(start, str) or not re.fullmatch(r"[0-9a-f]{40}", start):
         raise config.Stop(f"the first build is gone: its start commit {str(start)[:60]!r} is not a commit id; run "
                           "build --fresh")
-    known = subprocess.run(["git", "cat-file", "-e", f"{start}^{{commit}}"], cwd=repo, stdout=subprocess.DEVNULL,
+    known = subprocess.run(ticket_mod.git_argv("cat-file", "-e", f"{start}^{{commit}}"), cwd=repo, stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL).returncode == 0
     if not known:
         raise config.Stop(f"the first build is gone: its start commit {start} is not in this repository; run build "

@@ -2,7 +2,9 @@
 import json
 import os
 import subprocess
+import re
 import unittest
+from unittest import mock
 
 from agentic_factory import config
 from agentic_factory import ticket as ticket_mod
@@ -182,3 +184,39 @@ class ShellBackstop(E2E, unittest.TestCase):
                                 cfg=self.acfg)
         self.assertEqual(rc, 0, out)
         self.assertIn("'--deny-tool=shell(npx:*)' --deny-tool=shell\n", out)
+
+
+class GitGuard(E2E, unittest.TestCase):
+    """A work call that changes .git/config or a hook stops the run before the script runs any git command, and every
+    git command of the script runs without fsmonitor and hooks."""
+
+    def stops_before_any_git(self, what, name):
+        (self.d / "fake-git").write_text(what, encoding="utf-8")
+        with mock.patch("subprocess.run", wraps=subprocess.run) as runs, \
+                self.assertRaisesRegex(config.Stop, f"changed {re.escape(name)}; nothing is posted.*inspect .* with cat "
+                                                    "and ls before you run any git command"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        calls = [c.args[0] for c in runs.call_args_list if c.args and c.args[0][:1] == ["git"]]
+        self.assertTrue(calls, "git ran before the call")
+        self.assertEqual(calls[-1][-4:], ["rev-parse", "-q", "--verify", "HEAD"])  # the last one came before the call
+        self.assertFalse((self.repo / "fsmonitor-ran").exists())
+
+    def test_changed_git_config_stops_before_any_git(self):
+        self.stops_before_any_git("config", ".git/config")
+
+    def test_changed_hook_stops_before_any_git(self):
+        self.stops_before_any_git("hook", ".git/hooks/post-checkout")
+
+    def test_git_runs_without_fsmonitor_and_hooks(self):
+        marker = self.repo / "fsmonitor-ran"
+        subprocess.run(["git", "config", "core.fsmonitor", f"touch {marker}"], cwd=self.repo, check=True)
+        with mock.patch.dict(os.environ, {"HOME": str(self.d)}):
+            ticket_mod.git(self.repo, "status", "--porcelain")
+            ticket_mod.head_commit(self.repo)
+            with mock.patch("subprocess.run", wraps=subprocess.run) as runs:
+                ticket_mod.git(self.repo, "status")
+                ticket_mod.head_commit(self.repo)
+        self.assertFalse(marker.exists())
+        no_hooks = (self.d / ".factory-local" / "no-hooks").as_posix()
+        for c in runs.call_args_list:
+            self.assertEqual(c.args[0][:5], ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks}"])

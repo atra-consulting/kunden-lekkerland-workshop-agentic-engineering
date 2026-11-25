@@ -16,7 +16,7 @@ class PluginCheck(E2E, unittest.TestCase):
                                                 "agentic-factory-plugin next to agentic-factory.py"):
             self.run_main("assess", "--key", KEY, "--jira", "mcp", "--readiness", str(self.rd), cfg=self.acfg)
         self.assertFalse((self.d / "calls.jsonl").exists())
-        self.assertFalse((self.d / ".factory-local").exists())  # stopped before the log folder, too
+        self.assertFalse((self.d / ".factory-local" / "proj").exists())  # stopped before the log folder, too
         with self.assertRaisesRegex(config.Stop, "no MCP server named 'atlassian'"):  # with the plugin it gets further
             self.run_main("assess", "--key", KEY, "--jira", "mcp", "--readiness", str(self.rd), cfg=self.acfg)
 
@@ -124,7 +124,7 @@ class Steps(JiraE2E, unittest.TestCase):
         with self.assertRaisesRegex(config.Stop, "log folder .* lies inside the project"):
             self.run_main("assess", "--ticket-file", str(self.tf), "--readiness", str(self.rd), cfg=self.acfg,
                           env={"HOME": str(self.repo), "USERPROFILE": str(self.repo)})
-        self.assertFalse((self.repo / ".factory-local").exists())
+        self.assertFalse((self.repo / ".factory-local" / "proj").exists())  # only git's empty no-hooks folder
 
     def test_agent_step_refuses_a_changed_io_folder(self):
         io = self.repo / "agentic-io"

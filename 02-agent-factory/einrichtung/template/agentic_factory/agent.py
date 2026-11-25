@@ -163,6 +163,7 @@ class Work:
         allowed = [*file_tools, *tools]
         config.say(f"copilot {label}: tools {allowed}")
         t0 = time.time()
+        git_before = ticket_mod.git_dir_files(self.repo)
         rc, final, denied = copilot.run_call(argv, self.repo, self.env, self.logdir / f"events-{tag}.jsonl",
                                      self.cfg["agent_timeout_s"])
         cr = copilot.credits_of(usage)
@@ -170,6 +171,7 @@ class Work:
         config.say(f"copilot {label}: exit={rc} credits={cr} denied={denied} seconds={int(time.time() - t0)}")
         print("  final message: " + final[:1500].replace("\n", "\n    "))
         self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl", allowed)
+        ticket_mod.check_git_dir(self.repo, git_before)  # before any git command: git could run code from there
         if rc != 0:
             raise config.Stop(f"copilot exited with {rc}; events: {self.logdir}")
         if fetch.folder_digest(self.io) != io_before:

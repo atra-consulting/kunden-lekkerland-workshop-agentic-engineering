@@ -9,7 +9,6 @@ import subprocess
 import threading
 
 from . import copied, config
-from . import rules as rules_mod  # plan() has a local "rules": the factory rules text
 from . import ticket as ticket_mod
 
 JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on to Copilot
@@ -171,9 +170,8 @@ def fill(template, values, where):
         raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
 
 
-def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, team_rules=""):
-    """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
-    team_rules: the block of the team's rules for the mode (rules.block), appended after every prompt."""
+def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None):
+    """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them."""
     F = cfg["frameworks"][fw]
     env_extra = {}
     if mode == "spec":
@@ -191,7 +189,7 @@ def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, team_rule
             env_extra[F["env_feature_dir"]] = f"specs/{change}"
     else:
         raise config.Stop(f"unknown mode {mode}")
-    return [rules_mod.append(p, team_rules) for p in prompts], tools, env_extra
+    return prompts, tools, env_extra
 
 
 def has_shell_tool(tools):

@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from . import copied, config, copilot, jira_rest, clarify, rules
+from . import copied, config, copilot, jira_rest, clarify
 from . import ticket as ticket_mod
 
 
@@ -193,13 +193,13 @@ def clarify_config(cfg):
     return C, rounds
 
 
-def clarify_call(cfg, ticket, comments_block, crit, team_rules=""):
+def clarify_call(cfg, ticket, comments_block, crit):
     """The clarify call's prompt, tools, and credit cap, built like assess_call. comments_block: the tagged comments,
-    wrapped by comments_block(). team_rules: the block of the team's rules for clarify (rules.block); "" adds nothing."""
+    wrapped by comments_block()."""
     C = cfg["clarify"]
     text, ids = crit
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "criteria": text,
             "ids": ", ".join(ids), "output_file": CLARIFY, "max_items": MAX_ITEMS,
             "protected_paths": "\n".join("- " + p for p in cfg["protected_paths"])}
-    prompt = rules.append(copilot.fill(C["prompt"], vals, "the clarify prompt"), team_rules)
+    prompt = copilot.fill(C["prompt"], vals, "the clarify prompt")
     return prompt, list(C.get("tools", [])), C.get("max_ai_credits", 40)

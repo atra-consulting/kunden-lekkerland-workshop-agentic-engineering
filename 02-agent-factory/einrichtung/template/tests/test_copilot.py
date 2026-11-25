@@ -19,7 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from agentic_factory import copied, config, copilot, jira_mcp, rules
+from agentic_factory import copied, config, copilot, jira_mcp
 from agentic_factory import ticket as ticket_mod
 from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, LAB_CFG, TICKET, drop_usage
 
@@ -136,22 +136,6 @@ class Parity(unittest.TestCase):
         ours = copilot.copilot_argv(LAB_CFG, {}, prompts[0], tools, "/x/usage-1.json", mcp_off=["a-b", "jira"])
         self.assertEqual(drop_usage(ours), drop_usage(theirs) + ["--disable-mcp-server=a-b", "--disable-mcp-server=jira"])
         self.assertIn("--disable-builtin-mcps", theirs)
-
-    def test_team_rules_only_append_to_the_prompts(self):
-        """What the rules block adds: each prompt is the factory's prompt, a blank line, and the block."""
-        loaded = rules.load(FULL_CFG, HERE)
-        for mode, fw in (("spec", "speckit"), ("build", "openspec")):
-            with self.subTest(mode=mode, fw=fw):
-                block = rules.block(loaded, mode)
-                self.assertTrue(block.startswith("<<<TEAM RULES (regeln/"))
-                theirs = agent_calls(mode, fw)
-                change, paths = BUILD[fw]
-                prompts, tools, _ = copilot.plan(LAB_CFG, mode, KEY, fw, dict(TICKET), change, paths[0], block)
-                self.assertEqual(len(prompts), len(theirs))
-                for p, (t, _) in zip(prompts, theirs):
-                    i = t.index("-p") + 1
-                    want = t[:i] + [t[i] + "\n\n" + block] + t[i + 1:]
-                    self.assertEqual(drop_usage(copilot.copilot_argv(LAB_CFG, {}, p, tools, "/x/u.json")), drop_usage(want))
 
 
 class ShellDeny(unittest.TestCase):

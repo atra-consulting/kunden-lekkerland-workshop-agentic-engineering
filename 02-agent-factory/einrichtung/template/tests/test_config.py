@@ -20,6 +20,19 @@ class TemplateConfig(unittest.TestCase):
         for name, fw in FULL_CFG["frameworks"].items():
             self.assertNotIn("run2_editable_re", fw, name)
 
+    def test_no_team_rules_left(self):
+        self.assertNotIn("rules", FULL_CFG)
+        self.assertFalse((HERE / "regeln").exists())
+        for path in sorted((HERE / "agentic_factory").glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            for word in ("TEAM RULES", "team_rules"):
+                self.assertNotIn(word, text, f"{path.name} still mentions {word}")
+
+    def test_rules_block_stops(self):
+        with self.assertRaisesRegex(config.Stop, "AGENTS.md"):
+            config.check_config({**FULL_CFG, "rules": {}})
+        self.assertIsNone(config.check_config(FULL_CFG))
+
 
 class Route(unittest.TestCase):
     API_ENV = {"JIRA_BASE_URL": "https://j.example.invalid", "JIRA_API_TOKEN": "tok"}

@@ -2,7 +2,7 @@
 import re
 from pathlib import Path
 
-from . import config, copilot, rules
+from . import config, copilot
 from . import ticket as ticket_mod
 
 
@@ -25,14 +25,13 @@ def criteria(path):
     return text, ids
 
 
-def assess_call(cfg, ticket, crit, team_rules=""):
-    """The readiness check's prompt, tools, and credit cap, as factory/assess.py and agent.py build them. team_rules:
-    the block of the team's rules for assess (rules.block), appended after the prompt; "" adds nothing."""
+def assess_call(cfg, ticket, crit):
+    """The readiness check's prompt, tools, and credit cap, as factory/assess.py and agent.py build them."""
     A = cfg["assess"]
     text, ids = crit
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "criteria": text, "ids": ", ".join(ids), "output_file": config.ASSESSMENT,
             "protected_paths": "\n".join("- " + p for p in cfg["protected_paths"])}
-    prompt = rules.append(copilot.fill(A["prompt"], vals, "the assess prompt"), team_rules)
+    prompt = copilot.fill(A["prompt"], vals, "the assess prompt")
     return prompt, list(A.get("tools", [])), A.get("max_ai_credits", 40)
 
 

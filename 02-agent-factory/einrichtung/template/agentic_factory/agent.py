@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from . import copied, config, copilot, readiness, checks, clarify, fetch, rules
+from . import copied, config, copilot, readiness, checks, clarify, fetch
 from . import ticket as ticket_mod
 
 
@@ -18,7 +18,7 @@ def work_plan(run, req, ticket, comments=()):
     calls = p["calls"]  # (tag, prompt, tools, credit cap)
     if p["with_assess"]:
         p["crit"] = run.criteria()
-        prompt, tools, cap = readiness.assess_call(cfg, ticket, p["crit"], rules.block(run.rules, "assess"))
+        prompt, tools, cap = readiness.assess_call(cfg, ticket, p["crit"])
         calls.append(("assess", prompt, tools, cap))
         if mode == "assess" and not run.A.get("enabled"):
             config.say("note: assess.enabled is false in config.json, so the factory skips this check; running it anyway")
@@ -36,13 +36,11 @@ def work_plan(run, req, ticket, comments=()):
             me = (run.layers[req["route"]].myself()
                   if req["route"] in run.layers and not run.a.print_only else None)
             p["proposal"] = fetch.proposal_description(state, ticket["summary"], req["route"], me)
-            prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": p["proposal"][1]}, run.criteria(),
-                                                       rules.block(run.rules, "assess"))
+            prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": p["proposal"][1]}, run.criteria())
             calls.append(("assess", prompt, tools, cap))
             config.say(f"{key}: clarify --apply, the proposal in comment {p['proposal'][0]}, project {repo}")
         else:
-            prompt, tools, cap = checks.clarify_call(cfg, ticket, clarify.comments_block(key, state["tagged"]), p["crit"],
-                                                     rules.block(run.rules, "clarify"))
+            prompt, tools, cap = checks.clarify_call(cfg, ticket, clarify.comments_block(key, state["tagged"]), p["crit"])
             calls.append(("clarify", prompt, tools, cap))
             config.say(f"{key}: clarify, project {repo}")
     elif mode != "assess":
@@ -63,8 +61,7 @@ def work_plan(run, req, ticket, comments=()):
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
             config.say(f"building change {change} ({len(paths)} spec files)")
-        prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file,
-                                                      rules.block(run.rules, mode))
+        prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file)
         if fw == "speckit":
             tools = ticket_mod.speckit_tool_map(repo, tools)
         calls += [(str(i), x, tools, None) for i, x in enumerate(prompts, 1)]
@@ -81,8 +78,7 @@ def print_calls(run, req, p):
     print("# environment: " + " ".join(f"{k}={v}" for k, v in {**copied.SAFE_ENV, **p['env_extra']}.items()))
     for n, (tag, prompt, tools, cap) in enumerate(calls, 1):
         argv = copilot.copilot_argv(run.cfg, run.local, prompt, tools, (logdir / f"usage-{tag}.json").as_posix(), cap=cap)
-        rl = rules.line(run.rules, tag if tag in ("assess", "clarify") else req["mode"])
-        print(("\n# " + rl if rl else "") + f"\n# call {n}/{len(calls)}{' (readiness check)' if tag == 'assess' else ''}"
+        print(f"\n# call {n}/{len(calls)}{' (readiness check)' if tag == 'assess' else ''}"
               f"\n{shlex.join(argv)}")
     if req["mode"] == "clarify" and p["proposal"]:
         print(f"\n# no clarify call: this run sets the text of the proposal in comment {p['proposal'][0]} when the "
@@ -275,8 +271,7 @@ def clarify_agent(run, req, ticket, p):
     if d["kind"] == "needs_assess":
         (out / "description.md").write_bytes(result["description"].encode("utf-8"))
         config.say(f"ready, every assumption confirmed: the readiness check runs on {out / 'description.md'}")
-        prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": result["description"]}, assess_crit,
-                                                   rules.block(run.rules, "assess"))
+        prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": result["description"]}, assess_crit)
         v, saved["assessment"] = check_readiness(prompt, tools, cap)
         d = clarify.decide(result, state, v, max_rounds, fetch.apply_wanted(run) and fetch.can_post(run, req))
     fetch.write_json(out / "clarify.json", saved)

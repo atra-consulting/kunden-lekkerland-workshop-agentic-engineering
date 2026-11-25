@@ -23,6 +23,12 @@ def say(msg):
 
 # --- configuration --------------------------------------------------------------------------------------------------
 
+def check_config(cfg):
+    """Stops on a config.json with a rules block: team rules were removed, AGENTS.md carries the team's guidance."""
+    if "rules" in cfg:
+        raise Stop("config.json has a rules block: team rules were removed; move them to AGENTS.md")
+
+
 def read_json(path):
     try:
         with open(path, encoding="utf-8") as fh:

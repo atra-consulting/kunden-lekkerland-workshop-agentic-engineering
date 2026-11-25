@@ -6,7 +6,7 @@ import re
 import time
 from pathlib import Path
 
-from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify, rules
+from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify
 from . import ticket as ticket_mod
 
 
@@ -157,7 +157,7 @@ class Run:
         self.local = config.load_local(a.local)
         self.repo = Path(ticket_mod.git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
         self.A = self.cfg.get("assess") or {}
-        self.rules = rules.load(self.cfg, Path(a.config).resolve().parent)  # every step, before any Copilot call
+        config.check_config(self.cfg)  # every step, before any Copilot call
         self.io = None
         self.logdir = None
         self.layers = {}
@@ -183,11 +183,9 @@ class Run:
             raise config.Stop("--io-dir must be a folder of its own, not the project")
 
     def criteria(self, call="assess"):
-        """(text, ids) of readiness.md as the call's block (assess or clarify) names it. The ids gain team_rules when
-        the team's rules apply to the call, for its prompt and for every check of its result."""
+        """(text, ids) of readiness.md as the call's block (assess or clarify) names it."""
         name = (self.A if call == "assess" else self.cfg["clarify"]).get("criteria_file", "readiness.md")
-        text, ids = readiness.criteria(self.a.readiness or Path(self.a.config).resolve().parent / name)
-        return text, rules.with_ids(self.rules, call, ids)
+        return readiness.criteria(self.a.readiness or Path(self.a.config).resolve().parent / name)
 
     def jira(self, route, key):
         """The Jira layer of the route, made once per process. None when offline."""

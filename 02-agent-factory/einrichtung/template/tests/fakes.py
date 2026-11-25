@@ -21,8 +21,8 @@ FACTORY_BASE = os.environ.get("FACTORY_BASE")
 if FACTORY_BASE:  # agent.py imports common.py, which reads its own config.json next to itself
     sys.path.insert(0, FACTORY_BASE)
 
-FULL_CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))  # with the rules block (regeln/)
-CFG = {k: v for k, v in FULL_CFG.items() if k != "rules"}  # the config of today's prompts: the parity tests compare it
+FULL_CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
+CFG = FULL_CFG  # the config of today's prompts: the parity tests compare it
 # The factory-base lab's config: the template's plus what the lab has and the template dropped (its PHP test command,
 # Spec Kit stack sentence, PHP protected paths, and composer/npm deny entries). The parity tests compare with the lab's
 # agent.py, which reads those values from the lab's own config.json.

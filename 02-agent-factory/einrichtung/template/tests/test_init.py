@@ -44,6 +44,18 @@ class Refusals(unittest.TestCase):
         for t in ("shell(npm run lint:*)", "shell(cargo test:*)", "shell(go test:*)", "shell(mvn test:*)", "shell(pip list:*)"):
             self.assertIsNone(init.refusal(t, {"deny_tools": []}), t)
 
+    def test_refuses_bare_package_managers_and_options_before_the_subcommand(self):
+        none = {"deny_tools": []}
+        for t in ("shell(npm:*)", "shell(yarn:*)", "shell(pnpm:*)", "shell(gem:*)", "shell(bundle:*)", "shell(cargo:*)",
+                  "shell(go:*)", "shell(composer:*)", "shell(poetry:*)", "shell(uv:*)", "shell(pip3:*)",
+                  "shell(npm --global install:*)", "shell(pip --quiet install x:*)", "shell(yarn --silent add x:*)",
+                  "shell(cargo --locked install:*)", "shell(uv --quiet pip install:*)"):
+            self.assertIsNotNone(init.refusal(t, none), t)
+        self.assertIn("installs packages", init.refusal("shell(npm:*)", none))
+        self.assertIn("installs packages", init.refusal("shell(pip --quiet install x:*)", none))
+        for t in ("shell(npm --silent run lint:*)", "shell(npm test:*)", "shell(cargo --locked test:*)", "shell(go test ./...:*)"):
+            self.assertIsNone(init.refusal(t, none), t)
+
     def test_refuses_commands_that_write_or_run(self):
         for t in ("shell(find:*)", "shell(find . -name x:*)", "shell(sed -i:*)", "shell(awk:*)", "shell(xargs rm:*)", "shell(rg:*)",
                   "shell(tree:*)", "shell(sort:*)", "shell(tar x:*)", "shell(docker run:*)", "shell(podman:*)",

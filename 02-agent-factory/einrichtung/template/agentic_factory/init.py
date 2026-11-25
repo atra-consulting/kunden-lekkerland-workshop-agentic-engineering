@@ -19,6 +19,7 @@ INSTALLERS = {("pip", "install"), ("uv", "pip"), ("uv", "add"), ("poetry", "add"
               ("npm", "i"), ("npm", "ci"), ("yarn", "add"), ("yarn", "install"), ("pnpm", "add"), ("pnpm", "install"),
               ("gem", "install"), ("bundle", "install"), ("cargo", "install"), ("go", "install"), ("go", "get"),
               ("composer", "install"), ("composer", "require")}  # package installers run the packages' setup code
+INSTALLER_MANAGERS = {m for m, _ in INSTALLERS}  # a bare "shell(npm:*)" allows their install commands too
 PIP = re.compile(r"pip\d*(\.\d+)*")  # pip, pip3, pip3.12
 SHAPE = "not a suggestion {value, reason, source}"
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
@@ -84,8 +85,9 @@ def refusal(tool, cfg, interpreters=True):
         return CAN_WRITE[first]
     if first in LAUNCHERS or (len(words) > 1 and words[1] in LAUNCHER_SUBCOMMANDS.get(first, ())):
         return f"{first} downloads and runs a package"
-    head = ("pip" if PIP.fullmatch(first) else first,) + tuple(words[1:2])
-    if head in INSTALLERS or (len(words) == 1 and PIP.fullmatch(first)):
+    manager = "pip" if PIP.fullmatch(first) else first
+    sub = next((w for w in words[1:] if not w.startswith("-")), None)  # npm --global install: skip the options
+    if (manager, sub) in INSTALLERS or (len(words) == 1 and manager in INSTALLER_MANAGERS | {"pip"}):
         return "installs packages, which runs their setup code"
     if first in copilot.RUNNERS and len(words) == 1:
         return f"{first} runs any command; use a specific command such as {first} run pytest"

@@ -10,7 +10,9 @@ Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus 
   - Die Bereitschaftsprüfung bekommt `--deny-tool=shell`: Sie hat kein Shell-Werkzeug.
   - Der Plan-Prompt von Spec Kit sagt „Use the existing stack and test setup“ statt „Use the existing Symfony 7 / PHP stack and PHPUnit“.
   - Die verbotenen Befehle nennen `composer` nicht mehr. Von `npm` verbieten sie nur `npm install`, `npm i`, `npm ci` und `npm exec`, nicht ganz `npm`: Sonst liefe `npm test` nicht.
-  - Die geschützten Pfade nennen keine Dateien von Symfony und PHP mehr.
+  - Die geschützten Pfade nennen keine Dateien von Symfony und PHP mehr, auch nicht `bin/`.
+  - Die Regeln für Spec und Bauen (`spec_rules`, `build_rules`) enden mit „Read and follow AGENTS.md in the repository root if it exists.“
+  - Der Prompt der Bereitschaftsprüfung und `readiness.md` nennen Teile des Codes ohne Begriffe aus Symfony, etwa „modules, entry points, user interface, data model“ statt „pages, routes, controllers, templates, entities, translations“.
 
 ## Das Ticket
 

@@ -49,7 +49,9 @@ class AssessParity(unittest.TestCase):
         if not hasattr(agent, "run_assessment") or not CFG.get("assess"):
             self.skipTest("this agent.py has no readiness check (session A's branch lab/t2-30-readiness adds it)")
         theirs = agent_assess_call()
-        crit = readiness.criteria(HERE / CFG["assess"].get("criteria_file", "readiness.md"))
+        # the lab's readiness.md, as its agent.py reads it: the template's text is stack-neutral, the IDs are the same
+        crit = readiness.criteria(Path(FACTORY_BASE) / CFG["assess"].get("criteria_file", "readiness.md"))
+        self.assertEqual(crit[1], readiness.criteria(HERE / "readiness.md")[1])
         prompt, tools, cap = readiness.assess_call(LAB_CFG, dict(TICKET), crit)
         ours = copilot.copilot_argv(LAB_CFG, {}, prompt, tools, "/x/usage-assess.json", cap=cap)
         self.assertEqual(len(theirs), 1)

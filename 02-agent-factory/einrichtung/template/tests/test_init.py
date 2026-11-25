@@ -35,6 +35,15 @@ class Refusals(unittest.TestCase):
             r = tool(t)
             self.assertEqual((r["accepted"], len(r["refused"])), ([], 1), t)
 
+    def test_refuses_package_installers(self):
+        for t in ("shell(pip install:*)", "shell(pip3 install requests:*)", "shell(pip:*)", "shell(uv pip install:*)",
+                  "shell(uv add:*)", "shell(poetry add:*)", "shell(npm i:*)", "shell(yarn add:*)", "shell(pnpm install:*)",
+                  "shell(gem install:*)", "shell(bundle install:*)", "shell(cargo install:*)", "shell(go get:*)",
+                  "shell(composer require:*)"):
+            self.assertIn("installs packages, which runs their setup code", init.refusal(t, {"deny_tools": []}), t)
+        for t in ("shell(npm run lint:*)", "shell(cargo test:*)", "shell(go test:*)", "shell(mvn test:*)", "shell(pip list:*)"):
+            self.assertIsNone(init.refusal(t, {"deny_tools": []}), t)
+
     def test_refuses_every_git_tool(self):
         for t in ("shell(git:*)", "shell(git status:*)", "shell(git add:*)", "shell(git -c core.x=y status:*)"):
             self.assertIsNotNone(init.refusal(t, FULL_CFG), t)

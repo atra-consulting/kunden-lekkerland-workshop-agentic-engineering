@@ -15,6 +15,11 @@ MODES = ("spec", "build")  # the modes whose tool lists add_tools may extend
 NETWORK = {"curl", "wget", "ssh", "scp", "nc", "ncat", "netcat", "telnet", "sftp", "ftp", "rsync"}
 LAUNCHERS = {"npx", "pnpx", "bunx", "uvx", "pipx"}  # download and run a package
 LAUNCHER_SUBCOMMANDS = {"npm": {"exec", "x"}, "pnpm": {"dlx", "exec"}, "yarn": {"dlx"}}
+INSTALLERS = {("pip", "install"), ("uv", "pip"), ("uv", "add"), ("poetry", "add"), ("poetry", "install"), ("npm", "install"),
+              ("npm", "i"), ("npm", "ci"), ("yarn", "add"), ("yarn", "install"), ("pnpm", "add"), ("pnpm", "install"),
+              ("gem", "install"), ("bundle", "install"), ("cargo", "install"), ("go", "install"), ("go", "get"),
+              ("composer", "install"), ("composer", "require")}  # package installers run the packages' setup code
+PIP = re.compile(r"pip\d*(\.\d+)*")  # pip, pip3, pip3.12
 SHAPE = "not a suggestion {value, reason, source}"
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
 
@@ -56,6 +61,9 @@ def refusal(tool, cfg):
         return f"{first} runs any command"
     if first in LAUNCHERS or (len(words) > 1 and words[1] in LAUNCHER_SUBCOMMANDS.get(first, ())):
         return f"{first} downloads and runs a package"
+    head = ("pip" if PIP.fullmatch(first) else first,) + tuple(words[1:2])
+    if head in INSTALLERS or (len(words) == 1 and PIP.fullmatch(first)):
+        return "installs packages, which runs their setup code"
     if first in copilot.RUNNERS and len(words) == 1:
         return f"{first} runs any command; use a specific command such as {first} run pytest"
     for w in words:

@@ -77,6 +77,29 @@ def _fenced_after(body, head):
     return []
 
 
+TEST_LINE_RE = re.compile(r"Testbefehl .+: (?:bestanden|fehlgeschlagen)\.|Der Agent hat den Testbefehl nicht ausgeführt\.")
+
+
+def _files_of(body):
+    """The changed files of a build comment: the fenced block after the first `Geänderte Dateien:` line. Over --jira
+    api the fence comes back as plain lines (Cloud's ADF codeBlock, Data Center's {noformat}); then the non-blank lines
+    up to the test line (fetch.test_lines) count. The first head line only: the files come before the spec diff, so a
+    diff line can't pose as them. [] when there is none."""
+    lines = [line.strip() for line in body.split("\n")]
+    if FILES_HEAD not in lines:
+        return []
+    i = lines.index(FILES_HEAD)
+    rest = [x for x in lines[i + 1:] if x]
+    if rest and jira_rest.FENCE_LINE.fullmatch(rest[0]):
+        return _fenced_after(body, FILES_HEAD)
+    found = []
+    for x in rest:
+        if TEST_LINE_RE.fullmatch(x):
+            return found
+        found.append(x)
+    return []
+
+
 def _line_value(lines, regex):
     """The group of the last full-line match of `regex`, or None."""
     hits = [m.group(1) for m in (regex.fullmatch(line) for line in lines) if m]
@@ -128,7 +151,7 @@ def state(comments, key, me=None):
         phase = "spec" if results else "none"
     lines = _outside_fences(last["body"]) if last else []
     # the files of the latest result when it is a build; a spec comment names none
-    files = _fenced_after(last["body"], FILES_HEAD) if last_kind == "build" else []
+    files = _files_of(last["body"]) if last_kind == "build" else []
     change = next((m.group(1) for m in map(CHANGE_RE.search, lines) if m), None)
     return {
         "phase": phase,

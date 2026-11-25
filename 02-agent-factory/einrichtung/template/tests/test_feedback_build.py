@@ -414,6 +414,33 @@ class BuildComment(unittest.TestCase):
                          ("build", 3, CHANGE, "b" * 40, "c" * 64, ["src/A.php"]))
         self.assertEqual(s["handled"], {"11", "12"})
 
+    def test_files_survive_the_api_round_trip(self):
+        """Over --jira api the fence comes back as ADF codeBlock (Cloud) or {noformat} (Data Center), both read as plain
+        lines; the file list must still be read."""
+        files = ["src/A.php", "tests/ATest.php"]
+        for test_line in fetch.test_lines("make test"):
+            for revision, extra in ((1, {}), (2, {"handled": ("21",), "amended": True,
+                                                  "spec_diff": " x\n+Geänderte Dateien:\n+evil.php\n"})):
+                body = clarify.render_build(KEY, CHANGE, files, test_line, revision=revision, start_commit="b" * 40,
+                                            checksum="c" * 64, **extra)
+                for route, back in (("cloud", jira_rest.make_comment(13, at(3), jira_rest.text_to_adf(body))["body"]),
+                                    ("dc", jira_rest.wiki_text(jira_rest.text_to_wiki(body))),
+                                    ("mcp", body)):
+                    with self.subTest(test_line=test_line, revision=revision, route=route):
+                        s = feedback.state([jira_rest.make_comment(13, at(3), back)], KEY)
+                        self.assertEqual(s["files"], files)
+                        self.assertEqual((s["start_commit"], s["checksum"]), ("b" * 40, "c" * 64))
+
+    def test_test_lines_end_the_plain_file_list(self):
+        for line in fetch.test_lines("./vendor/bin/phpunit --testdox"):
+            self.assertTrue(feedback.TEST_LINE_RE.fullmatch(line), line)
+
+    def test_no_files_round_trip(self):
+        body = clarify.render_build(KEY, CHANGE, [], fetch.NO_TEST_RUN, start_commit="b" * 40)
+        for back in (jira_rest.make_comment(13, at(3), jira_rest.text_to_adf(body))["body"],
+                     jira_rest.wiki_text(jira_rest.text_to_wiki(body))):
+            self.assertEqual(feedback.state([jira_rest.make_comment(13, at(3), back)], KEY)["files"], [])
+
     def test_first_build_text(self):
         t = clarify.render_build("LL-1", "add-tags", ["src/A.php"], "Testbefehl make test: bestanden.",
                                  start_commit="b" * 40, checksum="c" * 64)

@@ -44,6 +44,31 @@ class Refusals(unittest.TestCase):
         for t in ("shell(npm run lint:*)", "shell(cargo test:*)", "shell(go test:*)", "shell(mvn test:*)", "shell(pip list:*)"):
             self.assertIsNone(init.refusal(t, {"deny_tools": []}), t)
 
+    def test_refuses_commands_that_write_or_run(self):
+        for t in ("shell(find:*)", "shell(find . -name x:*)", "shell(sed -i:*)", "shell(awk:*)", "shell(xargs rm:*)", "shell(rg:*)",
+                  "shell(tree:*)", "shell(sort:*)", "shell(tar x:*)", "shell(docker run:*)", "shell(podman:*)",
+                  "shell(uv run find:*)", "shell(/usr/bin/sed:*)"):
+            self.assertIsNotNone(init.refusal(t, {"deny_tools": []}), t)
+        self.assertIn("-exec", init.refusal("shell(find:*)", {"deny_tools": []}))
+        self.assertIsNone(init.refusal("shell(make find:*)", {"deny_tools": []}))  # only the command word counts
+
+    def test_refuses_open_endings(self):
+        for t in ("shell(uv run:*)", "shell(poetry run:*)", "shell(npm exec:*)", "shell(pnpm dlx:*)", "shell(npx:*)",
+                  "shell(uv run:*)", "shell(npm exec jest:*)"):
+            self.assertIsNotNone(init.refusal(t, {"deny_tools": []}), t)
+        self.assertIsNone(init.refusal("shell(uv run pytest:*)", {"deny_tools": []}))
+        self.assertIsNone(init.refusal("shell(poetry run pytest -q:*)", {"deny_tools": []}))
+
+    def test_test_command_goes_through_refusal(self):
+        for cmd in ("curl http://x/y", "git status", "npm install", "npx jest", "find . -name x", "pip install x", "docker compose run t",
+                    "uv run find", "ssh host make"):
+            r = check({"test_command": s(cmd)})
+            self.assertEqual((r["accepted"], len(r["refused"])), ([], 1), cmd)
+            self.assertIn("test_command", r["refused"][0][3])
+        for cmd in ("python3 -m pytest", "uv run pytest", "npm test", "npm run test", "make test", "mvn -q test", "./gradlew test"):
+            r = check({"test_command": s(cmd)})
+            self.assertEqual((len(r["accepted"]), r["refused"]), (1, []), cmd)
+
     def test_refuses_every_git_tool(self):
         for t in ("shell(git:*)", "shell(git status:*)", "shell(git add:*)", "shell(git -c core.x=y status:*)"):
             self.assertIsNotNone(init.refusal(t, FULL_CFG), t)

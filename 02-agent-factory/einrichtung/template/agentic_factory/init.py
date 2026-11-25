@@ -33,10 +33,25 @@ def shell_prefix(tool):
     return x or None
 
 
-def refusal(tool, cfg):
+CAN_WRITE = {  # left out of read_tools on purpose: they can write files or run commands
+    "find": "find can run commands (-exec) and delete files (-delete)",
+    "sed": "sed can write files (-i, the w command) and run commands (the e command)",
+    "awk": "awk can write files and run commands (system())",
+    "rg": "rg can run commands (--pre)",
+    "tree": "tree can write files (-o)",
+    "sort": "sort can write files (-o)",
+    "tar": "tar can write files and run commands (--to-command, --checkpoint-action)",
+    "docker": "docker runs any code in a container that can mount the project",
+    "podman": "podman runs any code in a container that can mount the project",
+}
+
+
+def refusal(tool, cfg, interpreters=True):
     """Why init may not add this tool to an allow list, or None. Bare shell, tools a deny_tools entry covers, any git
-    tool (.git/config can turn git calls into code execution), network tools, interpreters, wrappers, and package
-    launchers are refused: they let the agent run what it likes."""
+    tool (.git/config can turn git calls into code execution), network tools, package installers and launchers, commands
+    that can write files or run commands (find, sed, ...), wrappers, runners without a concrete command, and
+    interpreters are refused: they let the agent run what it likes. interpreters=False skips the wrapper and
+    interpreter rules, for a test_command suggestion (check_test_command judges those: python3 -m pytest is fine)."""
     if not isinstance(tool, str):
         return "not a string"
     if tool == "shell":
@@ -52,13 +67,21 @@ def refusal(tool, cfg):
     entry = copilot.denied_by(x, cfg["deny_tools"])
     if entry:
         return f"covered by {entry} in deny_tools, which beats every allow"
-    first = copilot.base_name(words[0])
+    if interpreters and copilot.base_name(words[0]) in copilot.WRAPPERS:
+        return f"{copilot.base_name(words[0])} runs any command"
+    try:
+        start = copilot.command_start(x, words)  # past wrappers and "<runner> run"
+    except config.Stop as e:
+        return str(e)
+    if start == len(words):
+        return f"{x!r} ends right after a wrapper or runner; name the script, module, or target to run"
+    first, words = copilot.base_name(words[start]), words[start:]
     if first == "git":
         return "git tools are refused: .git/config can turn git calls into code execution"
     if first in NETWORK:
         return f"{first} reaches the network"
-    if first in copilot.WRAPPERS:
-        return f"{first} runs any command"
+    if first in CAN_WRITE:
+        return CAN_WRITE[first]
     if first in LAUNCHERS or (len(words) > 1 and words[1] in LAUNCHER_SUBCOMMANDS.get(first, ())):
         return f"{first} downloads and runs a package"
     head = ("pip" if PIP.fullmatch(first) else first,) + tuple(words[1:2])
@@ -66,10 +89,11 @@ def refusal(tool, cfg):
         return "installs packages, which runs their setup code"
     if first in copilot.RUNNERS and len(words) == 1:
         return f"{first} runs any command; use a specific command such as {first} run pytest"
-    for w in words:
-        name = copilot.interpreter_name(w)
-        if name:
-            return f"{name} is an interpreter that runs any code"
+    if interpreters:
+        for w in x.split(" "):
+            name = copilot.interpreter_name(w)
+            if name:
+                return f"{name} is an interpreter that runs any code"
     return None
 
 
@@ -158,9 +182,9 @@ def check_suggestions(d, cfg, readiness_text, installed):
             if not isinstance(cmd, str):
                 raise config.Stop(f"test_command {cmd!r} is not a string")
             copilot.check_test_command(cmd)
-            entry = copilot.denied_by(cmd, deny)
-            if entry:
-                raise config.Stop(f"test_command {cmd!r} is covered by {entry} in deny_tools, which beats every allow")
+            why = refusal(f"shell({cmd}:*)", checked, interpreters=False)
+            if why:
+                raise config.Stop(f"test_command {cmd!r}: {why}")
             yes("test_command", "", sg)
         except config.Stop as e:
             no("test_command", "", sg, str(e))

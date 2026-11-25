@@ -1,5 +1,6 @@
 """Step post: checks out/ against in/ again, renders the comment, and posts it."""
 import difflib
+import re
 
 from . import copied, config, checks, clarify, fetch, revise
 from . import ticket as ticket_mod
@@ -38,17 +39,46 @@ def checked_spec(run, req, ticket, comments, path, d=None):
                           revise.decide(run, req, comments, quiet=True) if d is None else d)
 
 
-def checked_build(run, path):
-    d = config.read_json(path)
-    if not isinstance(d, dict) or sorted(d) != sorted(fetch.BUILD_OUT_KEYS):
+def checked_build(run, req, comments, path, d=None):
+    """out/build.json against in/: the keys and types; revision and handled ids as revise.decide gives them from
+    in/comments.json, and for a revision also the change and the first build's Start-Commit. A first build's
+    Start-Commit, the spec diff, and the checksum reflect the local repository, so they are only checked for form
+    (and the diff is scanned like a comment). Returns the arguments of clarify.render_build."""
+    d = revise.decide(run, req, comments, quiet=True) if d is None else d
+    b = config.read_json(path)
+    if not isinstance(b, dict) or sorted(b) != sorted(fetch.BUILD_OUT_KEYS):
         raise config.Stop(f"{path.name} must have exactly the keys {', '.join(fetch.BUILD_OUT_KEYS)}")
-    if not isinstance(d["change"], str) or not ticket_mod.CHANGE_NAME.fullmatch(d["change"]) or len(d["change"]) > 100:
+    if not isinstance(b["change"], str) or not ticket_mod.CHANGE_NAME.fullmatch(b["change"]) or len(b["change"]) > 100:
         raise config.Stop(f"{path.name}: change is not a valid change name")
-    if not isinstance(d["changed"], list) or not all(isinstance(x, str) and x.strip() for x in d["changed"]):
+    if not isinstance(b["changed"], list) or not all(isinstance(x, str) and x.strip() for x in b["changed"]):
         raise config.Stop(f"{path.name}: changed must be a list of paths")
-    if d["test_line"] not in fetch.test_lines(fetch.test_command(run.cfg)):
+    if b["test_line"] not in fetch.test_lines(fetch.test_command(run.cfg)):
         raise config.Stop(f"{path.name}: test_line is not one of {list(fetch.test_lines(fetch.test_command(run.cfg)))}")
-    return d
+    strings = ("spec_diff", "start_commit", "checksum")
+    if not all(isinstance(b[k], str) for k in strings) or type(b["revision"]) is not int:
+        raise config.Stop(f"{path.name}: revision must be a whole number, and spec_diff, start_commit, and checksum "
+                          "strings")
+    if not isinstance(b["handled"], list) or not all(isinstance(x, str) for x in b["handled"]):
+        raise config.Stop(f"{path.name}: handled must be a list of comment ids")
+    want = {"revision": d["revision"], "handled": d["handled"]}
+    if d["kind"] == "first":
+        want["spec_diff"] = ""
+    else:
+        want.update(change=d["change"], start_commit=d["start_commit"])
+    for k, v in want.items():
+        if b[k] != v:
+            raise config.Stop(f"{path.name}: {k} is not {str(v)[:200]!r}, which in/ gives; nothing is posted")
+    if b["start_commit"] and not re.fullmatch(r"[0-9a-f]{40}", b["start_commit"]):
+        raise config.Stop(f"{path.name}: start_commit is not a commit id")
+    if not revise.HEX64.fullmatch(b["checksum"]):
+        raise config.Stop(f"{path.name}: checksum is not a sha256 in hex")
+    if d["kind"] != "first" and not d["handled"] and not b["spec_diff"]:
+        raise config.Stop(f"{path.name}: a build revision without new comments must come from hand edits; nothing is "
+                          "posted")
+    found = copied.token_findings(b["spec_diff"]) + copied.invisible_findings(b["spec_diff"])
+    if found:
+        raise config.Stop(f"{path.name}: spec_diff: {'; '.join(found)}")
+    return b
 
 
 def outcome(run, req, ticket, comments=()):
@@ -56,7 +86,7 @@ def outcome(run, req, ticket, comments=()):
     cfg, out = run.cfg, run.io / "out"
     mode, key = req["mode"], req["key"]
     found = [n for n in fetch.OUT_FILES if (out / n).exists()]
-    d = revise.decide(run, req, comments, quiet=True) if mode == "spec" else None  # refused reruns stop here too
+    d = revise.decide(run, req, comments, quiet=True) if mode in fetch.FEEDBACK_MODES else None  # refused reruns stop
 
     def only(*names):
         extra = [n for n in found if n not in names]
@@ -64,12 +94,12 @@ def outcome(run, req, ticket, comments=()):
             raise config.Stop(f"{out} holds results that a {mode} run doesn't make: {extra}; nothing is posted")
 
     with_assess = fetch.assesses(cfg, mode, req["no_assess"]) and (d is None or d["kind"] == "first")
-    if mode == "spec" and fetch.NOTHING_NEW in found:
+    if d is not None and fetch.NOTHING_NEW in found:
         only(fetch.NOTHING_NEW)
         reason = revise.checked_nothing_new(out / fetch.NOTHING_NEW, mode)
         if d["kind"] != "revision" or d["handled"]:
             raise config.Stop(f"{out / fetch.NOTHING_NEW} says nothing is new, but in/ has "
-                              f"{'new [Mensch] comments' if d['handled'] else 'no earlier spec'}; nothing is posted")
+                              f"{'new [Mensch] comments' if d['handled'] else f'no earlier {mode}'}; nothing is posted")
         return None, 0, reason
     if mode in ("assess", "spec"):
         if (out / "assessment.json").exists():
@@ -102,7 +132,10 @@ def outcome(run, req, ticket, comments=()):
         only("build.json")
         if "build.json" not in found:
             raise config.Stop(f"{out / 'build.json'} is missing: did the agent step run?")
-        return clarify.render_build(key, **checked_build(run, out / "build.json")), 0, "build done"
+        b = checked_build(run, req, comments, out / "build.json", d)
+        limit = (cfg.get("jira") or {}).get("max_comment_chars", 30000)
+        return (revise.render_build(key, b, limit), 0,
+                "build done" if b["revision"] == 1 else f"build revision {b['revision']} done")
     raise config.Stop(f"mode {mode} has nothing to post")
 
 
@@ -240,7 +273,7 @@ def step_post(run, req, ticket, comments=()):
     if req["mode"] == "clarify":
         text, code, what, desc, set_desc = clarify_outcome(run, req, ticket, comments)
     else:
-        if req["mode"] == "spec" and route != "offline":  # before decide() uses in/'s me
+        if req["mode"] in fetch.FEEDBACK_MODES and route != "offline":  # before decide() uses in/'s me
             revise.verify_me(run, req, comments)
         text, code, what = outcome(run, req, ticket, comments)
     if text is None:

@@ -4,6 +4,7 @@ import json
 import unittest
 
 from agentic_factory import config, jira_rest, clarify, fetch
+from agentic_factory import ticket as ticket_mod
 from .fakes import JiraE2E, KEY, NOT_READY_FAKE
 
 
@@ -61,7 +62,11 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
         self.run_main("spec", "--ticket-file", str(self.tf))
         rc, out = self.api("build", mode="build")
         self.assertEqual(rc, 0, out)
-        text = clarify.render_build(KEY, "lower-tags", ["src/New.php"], "Testbefehl ./bin/phpunit: bestanden.")
+        build = json.loads((self.io / "out/build.json").read_text(encoding="utf-8"))
+        self.assertEqual((build["revision"], build["handled"], build["spec_diff"], build["start_commit"]),
+                         (1, [], "", ticket_mod.head_commit(self.repo)))
+        text = clarify.render_build(KEY, "lower-tags", ["src/New.php"], "Testbefehl ./bin/phpunit: bestanden.",
+                                    start_commit=build["start_commit"], checksum=build["checksum"])
         self.assertEqual(self.comment(), text)
         self.assertEqual(self.posts(), [jira_rest.text_to_wiki(text)])
 

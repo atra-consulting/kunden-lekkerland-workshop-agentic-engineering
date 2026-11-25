@@ -170,9 +170,11 @@ def fill(template, values, where):
         raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
 
 
-def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers=""):
+def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers="", spec_changes=""):
     """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
-    answers: spec after a `spec fragen` comment: the questions and their answers as a fenced block after the ticket."""
+    answers: spec after a `spec fragen` comment: the questions and their answers as a fenced block after the ticket.
+    spec_changes: a build revision after hand edits of the spec: the text appended to every build prompt (the
+    instruction and the fenced spec diff). The one place a build prompt is made."""
     F = cfg["frameworks"][fw]
     env_extra = {}
     if mode == "spec":
@@ -186,7 +188,7 @@ def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers="
         rules = fill(cfg.get("build_rules", copied.BUILD_RULES), {"test_command": cmd}, "build_rules")
         tools = [*F["build_tools"], *check_read_tools(cfg), test_tool(cmd)]
         vals = {"change": change, "build_rules": rules, "key": key, "spec_file": spec_file}
-        prompts = [fill(p, vals, f"{fw} build_prompts") for p in F["build_prompts"]]
+        prompts = [fill(p, vals, f"{fw} build_prompts") + spec_changes for p in F["build_prompts"]]
         if fw == "speckit" and F.get("env_feature_dir"):
             env_extra[F["env_feature_dir"]] = f"specs/{change}"
     else:
@@ -204,6 +206,19 @@ def revise_plan(cfg, key, fw, ticket, change, comments_block):
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
             "spec_root": root, "spec_rules": cfg.get("spec_rules", copied.SPEC_RULES).format(folder=root), "key": key}
     prompt = fill(F["revise_prompt"], vals, f"{fw} revise_prompt")
+    env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
+    return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra
+
+
+def amend_plan(cfg, key, fw, ticket, change, comments_block, task_file, revision):
+    """A build revision's amend call: the framework's amend_prompt, its spec tools and read_tools (no test tool), and
+    its extra environment. The call turns the new [Mensch] comments into new, unchecked tasks in task_file."""
+    F = cfg["frameworks"][fw]
+    if not isinstance(F.get("amend_prompt"), str) or not F["amend_prompt"]:
+        raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the template's config.json")
+    vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
+            "task_file": task_file, "revision": revision, "key": key}
+    prompt = fill(F["amend_prompt"], vals, f"{fw} amend_prompt")
     env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
     return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra
 

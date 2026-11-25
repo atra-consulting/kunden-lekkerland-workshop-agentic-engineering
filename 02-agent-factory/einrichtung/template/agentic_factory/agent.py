@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from . import blocked, copied, config, copilot, readiness, checks, clarify, fetch, revise
+from . import blocked, copied, config, copilot, readiness, checks, clarify, feedback, fetch, revise
 from . import ticket as ticket_mod
 
 
@@ -13,7 +13,8 @@ def work_plan(run, req, ticket, comments=()):
     readiness check on the proposed description follows only when the result calls for it (clarify_agent)."""
     cfg, local, repo = run.cfg, run.local, run.repo
     mode, key = req["mode"], req["key"]
-    fb = revise.decide(run, req, comments) if mode == "spec" else None  # a refused or untrusted rerun stops here
+    # spec and build: what the comments say; a refused or untrusted rerun stops here
+    fb = revise.decide(run, req, comments) if mode in fetch.FEEDBACK_MODES else None
     p = {"calls": [], "env_extra": {}, "fw": None, "source": None, "F": None, "change": None, "crit": None, "fb": fb,
          # a revision has no readiness check: the ticket passed it the first time
          "with_assess": fetch.assesses(cfg, mode, req["no_assess"]) and (fb is None or fb["kind"] == "first")}
@@ -56,14 +57,19 @@ def work_plan(run, req, ticket, comments=()):
             raise config.Stop(f"{config.QUESTIONS} exists from an earlier run: answer the questions in the ticket, delete it, "
                        "run again")
         if mode == "build":
-            change, files = ticket_mod.find_change(repo, F, req["change"])
+            if fb["kind"] == "revision":  # the change the previous build built, still there, and what is new since
+                p["fb"] = fb = revise.plan_build(run, req, F, fb)
+                change, files = fb["change"], ticket_mod.repo_files(repo)
+                config.say(revise.describe(fb))
+            else:
+                change, files = ticket_mod.find_change(repo, F, req["change"])
             paths = ticket_mod.spec_paths_for(F, change, files)
             specs = [x for x in paths if x.endswith("SPEC.md")]
             specs = [x for x in specs if f"/{change}/" in x] or specs
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
             config.say(f"building change {change} ({len(paths)} spec files)")
-        if fb and fb["kind"] == "revision":  # the spec rerun: one revise call (new comments), or none (hand edits)
+        if mode == "spec" and fb["kind"] == "revision":  # the spec rerun: a revise call (new comments), or none
             p["fb"] = fb = revise.plan(run, req, F, fb)
             p["change"] = fb["change"]
             config.say(revise.describe(fb))
@@ -72,9 +78,20 @@ def work_plan(run, req, ticket, comments=()):
                 prompt, tools, p["env_extra"] = copilot.revise_plan(cfg, key, fw, ticket, fb["change"],
                                                                     clarify.comments_block(key, fb["new"]))
                 prompts = [("revise", prompt)]
+        elif mode == "build" and fb["kind"] == "nothing":
+            prompts, tools = [], []
         else:
+            if mode == "build" and fb["new"]:  # the amend call first: the new comments become new, unchecked tasks
+                fb["task_file"] = feedback.task_file(fw, F, p["change"], spec_file)
+                prompt, amend_tools, _ = copilot.amend_plan(cfg, key, fw, ticket, p["change"],
+                                                            clarify.comments_block(key, fb["new"]), fb["task_file"],
+                                                            fb["revision"])
+                if fw == "speckit":
+                    amend_tools = ticket_mod.speckit_tool_map(repo, amend_tools)
+                calls.append(("amend", prompt, amend_tools, None))
             prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file,
-                                                          revise.answers_block(key, fb) if fb else "")
+                                                          revise.answers_block(key, fb) if mode == "spec" else "",
+                                                          revise.spec_changes(fb) if mode == "build" else "")
             prompts = [(str(i), x) for i, x in enumerate(prompts, 1)]
         if fw == "speckit" and prompts:
             tools = ticket_mod.speckit_tool_map(repo, tools)
@@ -199,7 +216,16 @@ def _run_calls(run, req, p, work):
         config.say(f"note: the working tree already has {len(before)} uncommitted change(s)")
     t_all = time.time()
     for n, (tag, prompt, tools, cap) in enumerate(calls, 1):
+        at = work.snap() if tag == "amend" else None
         work.call(tag, "readiness check" if tag == "assess" else f"call {n}/{len(calls)}", prompt, tools, cap)
+        if tag == "amend":  # it may change only the task file
+            task = p["fb"]["task_file"]
+            other = [x for x in copilot.changed_paths(at, work.snap()) if x[3:] != task]
+            if other or ticket_mod.head_commit(repo) != head:
+                raise config.Stop(f"the amend call changed more than {task}: {other[:10] or 'it made a commit'}; "
+                                  "nothing is posted")
+            if not copilot.changed_paths(at, work.snap()):
+                config.say(f"note: the amend call added no task to {task}")
         if tag == "assess":
             other = [x for x in copilot.changed_paths(before, work.snap()) if x[3:] != config.ASSESSMENT]
             if other or ticket_mod.head_commit(repo) != head:
@@ -245,9 +271,8 @@ def _run_calls(run, req, p, work):
     elif mode == "spec":
         revise.first_out(run, req, p, paths)
     elif mode == "build":
-        events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls if tag != "assess"]
-        fetch.write_json(out / "build.json", {"change": p["change"], "changed": sorted(set(paths)),
-                                        "test_line": fetch.test_line(events, fetch.test_command(cfg))})
+        events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls if tag not in ("assess", "amend")]
+        revise.build_out(run, req, p, paths, fetch.test_line(events, fetch.test_command(cfg)), head)
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
     return 0
 

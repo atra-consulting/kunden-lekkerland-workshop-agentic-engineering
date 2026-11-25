@@ -218,6 +218,18 @@ elif mode.startswith("revise"):  # a spec revision: edits the change a first spe
     elif mode == "revise-second":  # writes a second change
         o = pathlib.Path("openspec/changes/other-change"); o.mkdir(parents=True, exist_ok=True)
         (o / "proposal.md").write_text("o\n")
+elif mode.startswith("rebuild"):  # build runs and reruns: the amend call (tag amend) adds a task; a build call
+    d = pathlib.Path("openspec/changes/lower-tags")  # changes the code and checks every box
+    if usage.endswith("usage-amend.json"):
+        with open(d / "tasks.md", "a") as fh: fh.write("- [ ] neu\n")
+        if mode == "rebuild-other":  # an amend call that writes code, too
+            pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/Other.php").write_text("<?php\n")
+    else:
+        pathlib.Path("src").mkdir(exist_ok=True)
+        with open("src/New.php", "a") as fh: fh.write("// build\n")
+        (d / "tasks.md").write_text((d / "tasks.md").read_text().replace("- [ ]", "- [x]"))
+        ev("tool.execution_start", toolCallId="t-test", toolName="bash", arguments={"command": "./bin/phpunit"})
+        ev("tool.execution_complete", toolCallId="t-test", success=True)
 elif mode in ("build", "commit", "commit-io"):
     pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/New.php").write_text("<?php\n")
     ev("tool.execution_start", toolCallId="t-test", toolName="bash", arguments={"command": "./bin/phpunit"})

@@ -148,7 +148,7 @@ def _deny_problem(entry, cfg, deny):
         copilot.check_read_tools({"read_tools": cfg.get("read_tools"), "deny_tools": deny + [entry]})
     except config.Stop as e:
         return str(e)
-    cmd = cfg.get("test_command")
+    cmd = config.test_command(cfg)
     if cmd and copilot.denied_by(cmd, [entry]):
         return f"would cover the test command {cmd!r}, which a deny entry beats"
     return None
@@ -403,7 +403,8 @@ def installed_frameworks(repo, cfg):
 
 def config_view(cfg):
     """The parts of config.json init may change, as the prompt shows them."""
-    view = {k: cfg.get(k) for k in ("test_command", "enabled_frameworks", "protected_paths", "deny_tools")}
+    view = {k: cfg.get(k) for k in ("enabled_frameworks", "protected_paths", "deny_tools")}
+    view = {"test_command": config.test_command(cfg), **view}
     view["frameworks"] = {fw: {k: F.get(k, []) for k in ("spec_tools", "build_tools")} for fw, F in cfg["frameworks"].items()}
     return json.dumps(view, ensure_ascii=False, indent=2)
 

@@ -26,6 +26,16 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertIn("building change lower-tags", out)
         self.assertIn("src/New.php", out)
 
+    def test_old_list_test_command_stops_build_before_any_call(self):
+        self.run_main("spec", "--ticket-file", str(self.tf))
+        (self.d / "calls.jsonl").unlink()
+        cfg = {k: v for k, v in CFG.items() if k != "assess"}
+        cfg["test_command"] = ["./bin/phpunit"]
+        with self.assertRaisesRegex(config.Stop, 'test_command must be a string such as "make test"; an old config '
+                                                 'has a list'):
+            self.run_main("build", "--ticket-file", str(self.tf), "--framework", "openspec", mode="build", cfg=cfg)
+        self.assertFalse((self.d / "calls.jsonl").exists())
+
     def test_agent_commits_are_shown_and_checked(self):
         self.run_main("spec", "--ticket-file", str(self.tf))
         rc, out = self.run_main("build", "--ticket-file", str(self.tf), "--framework", "openspec", mode="commit")

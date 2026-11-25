@@ -136,7 +136,7 @@ def denied_by(cmd, deny_tools):
 def build_test_command(cfg):
     """The checked test command of config.json for a build call. A deny entry beats every allow, so a command a deny
     entry covers stops here, before any call."""
-    cmd = cfg.get("test_command") or ""
+    cmd = config.test_command(cfg)
     if not cmd:
         raise config.Stop("set test_command in config.json (or run init)")
     check_test_command(cmd)

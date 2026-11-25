@@ -29,6 +29,18 @@ def check_config(cfg):
         raise Stop("config.json has a rules block: team rules were removed; move them to AGENTS.md")
 
 
+def test_command(cfg):
+    """config.json's test_command: a string, "" when unset. The one accessor (copilot, fetch, init). Not in check_config:
+    assess, clarify and spec run with an old config whose test_command is a list."""
+    cmd = cfg.get("test_command")
+    if cmd is None:
+        return ""
+    if not isinstance(cmd, str):
+        raise Stop('config.json: test_command must be a string such as "make test"; an old config has a list — write '
+                   "it as one string")
+    return cmd
+
+
 def read_json(path):
     try:
         with open(path, encoding="utf-8") as fh:

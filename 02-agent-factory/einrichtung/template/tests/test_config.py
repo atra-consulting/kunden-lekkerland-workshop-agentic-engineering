@@ -117,3 +117,22 @@ class LocalFile(unittest.TestCase):
         text = (HERE / "local.example.json").read_text(encoding="utf-8")
         self.assertNotIn("test_command", text)
         self.assertNotIn("stack_hint", text)
+
+
+class TestCommand(unittest.TestCase):
+    MSG = 'test_command must be a string such as "make test"; an old config has a list'
+
+    def test_string_or_empty(self):
+        self.assertEqual(config.test_command({"test_command": "make test"}), "make test")
+        self.assertEqual(config.test_command({"test_command": ""}), "")
+        self.assertEqual(config.test_command({"test_command": None}), "")
+        self.assertEqual(config.test_command({}), "")
+
+    def test_old_list_stops_with_a_clear_message(self):
+        for value in (["./bin/phpunit"], 3, {"cmd": "x"}):
+            with self.subTest(value=value), self.assertRaisesRegex(config.Stop, self.MSG):
+                config.test_command({"test_command": value})
+
+    def test_not_part_of_check_config(self):
+        config.check_config({"test_command": ["./bin/phpunit"]})  # assess, clarify and spec still run
+

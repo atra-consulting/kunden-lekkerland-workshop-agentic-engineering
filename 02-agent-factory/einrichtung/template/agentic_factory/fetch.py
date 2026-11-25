@@ -73,7 +73,7 @@ def source_label(cfg, fw, source):
 
 
 def test_command(cfg):
-    return cfg["test_command"]
+    return config.test_command(cfg)
 
 
 def test_lines(cmd):

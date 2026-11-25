@@ -147,7 +147,7 @@ Ihr habt `local.py` mit `config.json`, `readiness.md` und vielleicht `local.json
 9. Prüft ohne Jira. Erst `python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only`: Das zeigt die Copilot-Befehle und kostet nichts. Dann derselbe Befehl ohne `--print-only`: Das kostet Credits. Das Skript fragt Jira nicht und postet nichts. Den Kommentar schreibt es in eine Datei, die letzte Zeile nennt sie. Die Spec liegt danach uncommittet im Projekt. Verwerft sie, wenn ihr sie nicht braucht.
 10. Committet `factory/` und `AGENTS.md`.
 
-Läuft in eurem Repo die Pipeline von factory-base aus demselben Ordner `factory/`, ersetzt `config.json` nicht. Die Pipeline nimmt die Datei in ihr Image auf und braucht ihre Schlüssel, etwa `project_key`, `bitbucket` und `test_command` als Liste. Mit dieser Liste stoppt `build` von `agentic-factory.py` aber mit `STOP: unexpected AttributeError`. Legt die Vorlage dann in einen eigenen Ordner. Der Skill [`schreibe-ticket`](../../werkzeuge/schreibe-ticket/README.md) sucht sie allerdings in `factory/`.
+Läuft in eurem Repo die Pipeline von factory-base aus demselben Ordner `factory/`, ersetzt `config.json` nicht. Die Pipeline nimmt die Datei in ihr Image auf und braucht ihre Schlüssel, etwa `project_key`, `bitbucket` und `test_command` als Liste. Mit dieser Liste stoppen `build` und `init` von `agentic-factory.py` aber vor dem ersten Copilot-Aufruf mit `config.json: test_command must be a string such as "make test"; an old config has a list — write it as one string`. Legt die Vorlage dann in einen eigenen Ordner. Der Skill [`schreibe-ticket`](../../werkzeuge/schreibe-ticket/README.md) sucht sie allerdings in `factory/`.
 
 | Alter Schlüssel | Neuer Ort |
 |---|---|
@@ -204,7 +204,7 @@ Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test
    [agentic-factory] STOP: …/factory/local.json: stack_hint moved to AGENTS.md (describe the stack there), test_command moved to config.json (key test_command); remove it from local.json
    ```
 
-   Habt ihr die alte `config.json` behalten, stoppt es danach mit `config.json has a rules block: team rules were removed; move them to AGENTS.md`. Löscht ihr nur den Block `rules`, stoppt `build` später mit `STOP: unexpected AttributeError`: Die alte Datei hat `test_command` als Liste. Nehmt deshalb die neue `config.json`.
+   Habt ihr die alte `config.json` behalten, stoppt es danach mit `config.json has a rules block: team rules were removed; move them to AGENTS.md`. Löscht ihr nur den Block `rules`, stoppen `build` und `init` danach mit `test_command must be a string such as "make test"`: Die alte Datei hat `test_command` als Liste. Nehmt deshalb die neue `config.json`.
 5. Tragt die Werte um, wie die Tabelle unten sagt. `test_command` kommt als Text in `config.json`. Den Text von `stack_hint`, `regeln/code.md` und `regeln/stil.md` schreibt ihr in `AGENTS.md`. `regeln/ticket.md` ging in die Bereitschaftsprüfung und in `clarify`, als Kriterium `team_rules`. Soll eine Regel ein Ticket weiter „nicht bereit“ machen, schreibt sie als Kriterium mit eigener ID in `readiness.md`. Sonst gehört sie in `AGENTS.md`. Löscht `test_command` und `stack_hint` aus `local.json`. Eure Änderungen an `config.json` übertragt ihr von Hand in die neue Datei.
 6. Startet `python3 -I factory/agentic-factory.py init --print-only` noch einmal. Jetzt zeigt es den Copilot-Befehl und endet mit Exit-Code 0.
 7. Startet `init`, lest den Bericht, dann `init --apply` und `git diff factory/`. Wie in A, Schritt 7.

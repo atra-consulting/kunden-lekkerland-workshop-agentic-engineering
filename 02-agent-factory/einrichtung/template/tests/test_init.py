@@ -437,6 +437,12 @@ class InitMode(E2E, unittest.TestCase):
                      "+++ readiness.md (suggested)", "+### `no_test`", "nothing was changed", "--apply"):
             self.assertIn(part, out)
 
+    def test_old_list_test_command_stops_init_before_the_call(self):
+        (self.repo / "fake-init.json").write_text(json.dumps(self.SUGGESTIONS), encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, 'test_command must be a string such as "make test"'):
+            self.run_main("init", mode="init", cfg={**INIT_CFG, "test_command": ["./bin/phpunit"]})
+        self.assertEqual(self.calls(), [])
+
     def test_init_apply_writes_both(self):
         rc, out = self.init(self.SUGGESTIONS, "--apply")
         self.assertEqual(rc, 0, out)

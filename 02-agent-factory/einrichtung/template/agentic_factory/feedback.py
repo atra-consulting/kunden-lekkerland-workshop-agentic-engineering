@@ -80,17 +80,31 @@ def _line_value(lines, regex):
     return hits[-1] if hits else None
 
 
-def state(comments, key):
+def _believable(c, me):
+    """Whether a marker comment counts: with me, the account running this script, it must have written it (an empty
+    author doesn't match) and must not have been edited (an empty updated, as in an offline file, is unedited)."""
+    if me is None:
+        return True
+    return (c.get("author") or "") == me and (not c.get("updated") or c["updated"] == c.get("created"))
+
+
+def state(comments, key, me=None):
     """What the comments of one ticket say about its spec and build feedback. Only `[KI]` comments whose first line is
-    a marker of this ticket count as results; the others are data. A plain marker is revision 1."""
+    a marker of this ticket count as results; the others are data. A plain marker is revision 1. With me, a marker
+    comment that another account wrote, or that was edited, is treated like any other comment and its id goes into
+    `ignored`, so the caller can warn."""
     cs = sorted(comments, key=lambda c: c["created"])  # stable: equal timestamps keep their order
     patterns = {k: _revision_re(f"{k}_revision", key) for k in ("spec", "build")}
-    results, handled, questions_at, plain_spec_at = [], set(), None, None
+    results, handled, questions_at, plain_spec_at, ignored = [], set(), None, None, []
     for i, c in enumerate(cs):
         if clarify.tag_of(c["body"]) != "KI":
             continue
         line = clarify.first_line(c["body"])
         found = _result_of(line, key, patterns)
+        is_questions = line == clarify.marker("spec_questions", key)
+        if (found or is_questions) and not _believable(c, me):
+            ignored.append(c["id"])
+            continue
         if found:
             kind, rnd, plain = found
             results.append((i, kind, rnd, c))
@@ -99,7 +113,7 @@ def state(comments, key):
             for m in map(HANDLED_RE.fullmatch, _outside_fences(c["body"])):
                 if m:
                     handled.update(m.group(1).split(", "))
-        elif line == clarify.marker("spec_questions", key):
+        elif is_questions:
             questions_at = i
     last_at, last_kind, revision, last = results[-1] if results else (None, None, 0, None)
     last_spec = next((r[3] for r in reversed(results) if r[1] == "spec"), None)
@@ -128,6 +142,7 @@ def state(comments, key):
         "answers": [c for j, c in enumerate(cs) if questions_at is not None and j > questions_at
                     and (last_at is None or last_at < questions_at) and clarify.tag_of(c["body"]) == "Mensch"],
         "handled": handled,
+        "ignored": ignored,
     }
 
 

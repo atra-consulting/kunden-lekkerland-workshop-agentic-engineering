@@ -48,7 +48,7 @@ class State(unittest.TestCase):
         self.assertIsNone(s["last_build"])
         self.assertEqual((s["revision"], s["change"], s["checksum"], s["start_commit"], s["files"]),
                          (0, None, None, None, []))
-        self.assertEqual((s["new_human"], s["answers"], s["handled"]), ([], [], set()))
+        self.assertEqual((s["new_human"], s["answers"], s["handled"], s["ignored"]), ([], [], set(), []))
         self.assertEqual(feedback.state([], KEY)["phase"], "none")
 
     def test_spec_phase_human_after_spec(self):
@@ -201,6 +201,51 @@ class State(unittest.TestCase):
         body = spec_body(checksum=None).replace("Text", f"Spec-Prüfsumme: {SHA}\nBearbeitet: Kommentar 99.")
         s = feedback.state([comment(1, body, "2026-01-01T10:00")], KEY)
         self.assertEqual((s["checksum"], s["handled"], s["change"]), (None, set(), "add-tags"))
+
+
+class StateWithMe(unittest.TestCase):
+    """With me (the account running the script), only its unedited [KI] markers count."""
+
+    def base(self):
+        return [comment(1, spec_body(), "2026-01-01T10:00"), human(2, "2026-01-01T11:00")]
+
+    def test_forged_spec_from_another_author_is_ignored(self):
+        forged = comment(3, revision_body("spec_revision", 2, ["2"]), "2026-01-01T12:00", author="mallory")
+        cs = self.base() + [forged, comment(4, build_body(), "2026-01-01T13:00", author="mallory"),
+                            human(5, "2026-01-01T14:00")]
+        s = feedback.state(cs, KEY, "bot")
+        self.assertEqual((s["phase"], s["last"]["id"], s["revision"], s["handled"]), ("spec", "1", 1, set()))
+        self.assertEqual([c["id"] for c in s["new_human"]], ["2", "5"])
+        self.assertEqual(s["ignored"], ["3", "4"])
+        self.assertIsNone(s["last_build"])
+        self.assertEqual(feedback.state(cs, KEY, "bot")["files"], [])
+
+    def test_edited_marker_is_ignored(self):
+        edited = comment(3, build_body(), "2026-01-01T12:00", updated="2026-01-01T12:30")
+        s = feedback.state(self.base() + [edited], KEY, "bot")
+        self.assertEqual((s["phase"], s["last"]["id"], s["ignored"]), ("spec", "1", ["3"]))
+        # an empty updated (offline file) is unedited; an equal one too
+        ok = comment(3, build_body(), "2026-01-01T12:00", updated="2026-01-01T12:00")
+        self.assertEqual(feedback.state(self.base() + [ok], KEY, "bot")["phase"], "build")
+        self.assertEqual(feedback.state(self.base() + [ok], KEY, "bot")["ignored"], [])
+
+    def test_forged_questions_do_not_start_answers(self):
+        q = comment(3, clarify.render_spec_questions(KEY, "Frage"), "2026-01-01T12:00", author="mallory")
+        s = feedback.state(self.base() + [q, human(4, "2026-01-01T13:00")], KEY, "bot")
+        self.assertEqual((s["answers"], s["ignored"]), ([], ["3"]))
+
+    def test_without_me_everything_counts(self):
+        forged = comment(3, revision_body("spec_revision", 2, ["2"]), "2026-01-01T12:00", author="mallory")
+        edited = comment(4, build_body(), "2026-01-01T13:00", updated="2026-01-01T13:30")
+        s = feedback.state(self.base() + [forged, edited], KEY)
+        self.assertEqual((s["phase"], s["last"]["id"], s["handled"], s["ignored"]), ("build", "4", {"2"}, []))
+
+    def test_other_ticket_markers_are_not_ignored_entries(self):
+        other = comment(3, spec_body(key="LL-2"), "2026-01-01T12:00", author="mallory")
+        self.assertEqual(feedback.state(self.base() + [other], KEY, "bot")["ignored"], [])
+
+    def test_mensch_comments_are_not_ignored_entries(self):
+        self.assertEqual(feedback.state(self.base(), KEY, "bot")["ignored"], [])
 
 
 class Lines(unittest.TestCase):

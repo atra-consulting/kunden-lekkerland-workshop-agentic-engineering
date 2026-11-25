@@ -469,3 +469,16 @@ tests).
   (`git show origin/main:<T>`), with a `local.json` that has `test_command` and a `regeln/` folder; every step works;
   the moved-key stop appears where the page says.
 - [ ] **Step 4: Commit** — "Add change log and migration guide".
+
+### Task 14: Design page of the factory (German)
+
+Added at the user's request after Task 11.
+
+**Files:**
+- Create: `aufbau.md` (template), linked from the template README's intro and file table
+
+- [ ] **Step 1: „Ziel"** — what the factory is for (Copilot-based spec-driven development from Jira tickets, run locally or as pipeline steps, a person in the loop through comments), and what it deliberately doesn't do (no status transitions, no PRs, no push, build only locally).
+- [ ] **Step 2: „Design"** — the modes (`assess`, `clarify`, `spec`, `build`, `init`); the steps `fetch` → `agent` → `post` and the hand-over through `in/` and `out/` (who has which secret, what post re-checks); the Jira routes (`mcp`, `api`, offline); the state in `[KI]`/`[Mensch]` comments; the feedback phases; copies and logs under `~/.factory-local/`. A small diagram (Mermaid or ASCII) for the step flow.
+- [ ] **Step 3: „Leitplanken und Hooks"** — a table: guardrail, what it prevents, where in the code, limits. Covers allow lists (framework tools, `read_tools`, derived test tool), `deny_tools`, `forbidden_flags`/`forbidden_env`, `--deny-tool=shell` and the `shell_ran` backstop, MCP servers switched off, read-only `init` call, `protected_paths` warnings, token/invisible scans before posting, trust of `[KI]` comments (running account, unedited), `me` recorded in fetch and verified in post, snapshot path/symlink guards, `init` refusals, test-command check (misconfiguration only), the guard plugin (`agentic-factory-plugin/hooks/hooks.json` → `guard.py`, `preToolUse`, not run by Copilot 1.0.115) plus the after-call event check of every Jira call. Then „Was nicht geschützt ist" in plain words.
+- [ ] **Step 4: „Aufteilung auf Dateien"** — every file in the template (starter, each module in `agentic_factory/`, config files, plugin, tests) with its job in one or two lines and the main dependencies; verified against the code (`grep -n "^from \. import"`).
+- [ ] **Step 5: Verify** every file name, function name and flag against the code; commit — "Add the factory's design page".

@@ -335,6 +335,8 @@ class RevisionComment(unittest.TestCase):
             "```\n-x\n+y\n```",
             "Die vollständige Spec:",
             "```\n=== a/p.md ===\nx\n```",
+            "Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von spec "
+            "arbeitet ihn ein.",
             "Spec-Prüfsumme: " + "c" * 64]))
 
 

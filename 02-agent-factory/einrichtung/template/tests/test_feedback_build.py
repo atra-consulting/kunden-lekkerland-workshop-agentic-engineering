@@ -403,6 +403,16 @@ class BuildRerun(JiraE2E, unittest.TestCase):
 
 
 class BuildComment(unittest.TestCase):
+    def test_every_sample_says_how_to_answer(self):
+        """Each spec and build comment says, outside any fence, how to ask for changes (change-advisor I2)."""
+        for t in clarify.RENDER_SAMPLES:
+            first = t.split("\n", 1)[0]
+            if " spec key=" in first or " spec überarbeitung=" in first or " build" in first:
+                mode = "build" if " build" in first else "spec"
+                with self.subTest(first=first):
+                    self.assertIn(clarify.FEEDBACK_LINES[mode], feedback._outside_fences(t))
+                    self.assertIn("[Mensch]", clarify.FEEDBACK_LINES[mode])
+
     def test_state_reads_what_render_build_writes(self):
         """Bearbeitet, Change, Start-Commit, Spec-Prüfsumme, and the changed files come from outside the diff."""
         diff = (" Geänderte Dateien:\n ```\n evil.php\n ```\n+Bearbeitet: Kommentar 99.\n"
@@ -450,6 +460,8 @@ class BuildComment(unittest.TestCase):
             "Geänderte Dateien:",
             "```\nsrc/A.php\n```",
             "Testbefehl make test: bestanden.",
+            "Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von build "
+            "arbeitet ihn ein.",
             "Start-Commit: " + "b" * 40,
             "Spec-Prüfsumme: " + "c" * 64]))
 

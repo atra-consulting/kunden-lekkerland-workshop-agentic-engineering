@@ -1175,7 +1175,9 @@ class Render(unittest.TestCase):
             "Framework: openspec (Label sdd-openspec). Change: add-tags. Bereitschaftsprüfung: bestanden.",
             "Diese Spec wurde lokal mit agentic-factory.py geschrieben. Sie ist nicht freigegeben: Ein Kommentar von "
             "agentic-factory.py ist nie eine Freigabe.",
-            "```\n=== openspec/changes/add-tags/proposal.md ===\nText FACTORY_X\n```"]))
+            "```\n=== openspec/changes/add-tags/proposal.md ===\nText FACTORY_X\n```",
+            "Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von spec "
+            "arbeitet ihn ein."]))
 
     def test_readiness_lines(self):
         self.assertEqual(clarify.READINESS_PASSED, "Bereitschaftsprüfung: bestanden.")
@@ -1189,7 +1191,9 @@ class Render(unittest.TestCase):
             "Change: add-tags. Lokal umgesetzt mit agentic-factory.py, nicht geprüft und nicht gepusht.",
             "Geänderte Dateien:",
             "```\nsrc/A.php\ntests/AT.php\n```",
-            "Testbefehl ./bin/phpunit: bestanden."]))
+            "Testbefehl ./bin/phpunit: bestanden.",
+            "Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von build "
+            "arbeitet ihn ein."]))
 
     def test_fence_grows_past_backtick_runs(self):
         self.assertEqual(clarify.fence("a"), "```\na\n```")

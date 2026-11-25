@@ -270,6 +270,8 @@ tests/TagsTest.php
 
 Testbefehl make test: bestanden.
 
+Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von build arbeitet ihn ein.
+
 Start-Commit: 3f93817…
 
 Spec-Prüfsumme: 9c1e…

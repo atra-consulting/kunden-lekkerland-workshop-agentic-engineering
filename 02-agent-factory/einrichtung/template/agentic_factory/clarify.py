@@ -329,6 +329,9 @@ def render_assess(key, verdict):
 
 
 NOT_APPROVED = "Sie ist nicht freigegeben: Ein Kommentar von agentic-factory.py ist nie eine Freigabe."
+# How to ask for changes, outside the fences of a spec or build comment (like ANSWER_LINE for clarify)
+FEEDBACK_LINES = {m: f"Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste "
+                     f"Lauf von {m} arbeitet ihn ein." for m in ("spec", "build")}
 
 
 def render_spec(key, fw, source, change, readiness_line, spec_text, revision=1, handled=(), hand_edited=False, diff="",
@@ -370,6 +373,7 @@ def render_spec(key, fw, source, change, readiness_line, spec_text, revision=1, 
         parts += [f"Der vollständige Spec-Text ist zu lang für einen Kommentar. Er liegt im Projekt im Change-Ordner "
                   f"{one_line(change)}, in diesen Dateien:",
                   fence("\n".join(one_line(p) for p in snapshot.paths_in_spec_text(spec_text)))]
+    parts.append(FEEDBACK_LINES["spec"])
     if checksum:  # the line feedback.CHECKSUM_RE reads
         parts.append(f"Spec-Prüfsumme: {checksum}")
     return "\n\n".join(parts)
@@ -419,6 +423,7 @@ def render_build(key, change, changed, test_line, revision=1, handled=(), spec_d
         parts += ["Änderungen an der Spec seit dem letzten Build, von Hand:", fence(neutral(spec_diff).rstrip("\n"))]
     elif spec_diff:
         parts.append("Der Diff der Spec-Änderungen ist zu lang für einen Kommentar und fehlt darum.")
+    parts.append(FEEDBACK_LINES["build"])
     if start_commit:  # the line feedback.COMMIT_RE reads
         parts.append(f"Start-Commit: {start_commit}")
     if checksum:  # the line feedback.CHECKSUM_RE reads

@@ -169,6 +169,7 @@ class Run:
         self.local = config.load_local(a.local)
         self.repo = Path(ticket_mod.git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
         snapshot.repo_part(self.repo.name)  # the logs and spec copies need it: stop before any Copilot call
+        ticket_mod.trust_git_dir(self.repo)  # every later git call checks .git/config, hooks, and includes against it
         self.A = self.cfg.get("assess") or {}
         config.check_config(self.cfg)  # every step, before any Copilot call
         self.io = None

@@ -164,14 +164,16 @@ class Work:
         config.say(f"copilot {label}: tools {allowed}")
         t0 = time.time()
         git_before = ticket_mod.git_dir_files(self.repo)
-        rc, final, denied = copilot.run_call(argv, self.repo, self.env, self.logdir / f"events-{tag}.jsonl",
-                                     self.cfg["agent_timeout_s"])
+        try:
+            rc, final, denied = copilot.run_call(argv, self.repo, self.env, self.logdir / f"events-{tag}.jsonl",
+                                                 self.cfg["agent_timeout_s"])
+        finally:  # an interrupted call too: before any git command, git could run code from there
+            ticket_mod.check_git_dir(self.repo, git_before)
         cr = copilot.credits_of(usage)
         self.total += cr or 0
         config.say(f"copilot {label}: exit={rc} credits={cr} denied={denied} seconds={int(time.time() - t0)}")
         print("  final message: " + final[:1500].replace("\n", "\n    "))
         self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl", allowed)
-        ticket_mod.check_git_dir(self.repo, git_before)  # before any git command: git could run code from there
         if rc != 0:
             raise config.Stop(f"copilot exited with {rc}; events: {self.logdir}")
         if fetch.folder_digest(self.io) != io_before:
@@ -279,7 +281,7 @@ def _run_calls(run, req, p, work):
     now = ticket_mod.head_commit(repo)
     if now and now != head:
         commits = ticket_mod.git(repo, "log", "--oneline", f"{head}..HEAD" if head else "HEAD").splitlines()
-        files = ticket_mod.git(repo, "diff", "--name-status", "--no-renames", head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
+        files = ticket_mod.git(repo, "diff", "--no-ext-diff", "--no-textconv", "--name-status", "--no-renames", head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
         config.say(f"the agent made {len(commits)} commit(s) on your branch, with {len(files)} file(s):")
         for l in commits[:20] + files[:80]:
             print("    " + l)

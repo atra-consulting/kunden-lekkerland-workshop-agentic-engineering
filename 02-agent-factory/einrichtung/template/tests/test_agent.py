@@ -4,6 +4,7 @@ import os
 import subprocess
 import re
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from agentic_factory import config
@@ -229,4 +230,60 @@ class GitGuard(E2E, unittest.TestCase):
         self.assertFalse(marker.exists())
         no_hooks = (self.d / ".factory-local" / "no-hooks").as_posix()
         for c in runs.call_args_list:
-            self.assertEqual(c.args[0][:5], ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks}"])
+            self.assertEqual(c.args[0][:9], ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks}",
+                                             "-c", "diff.external=", "-c", "core.pager=cat"])
+
+    def test_diff_calls_run_no_external_diff_or_textconv(self):
+        for path in ("agentic_factory/agent.py", "agentic_factory/feedback.py"):
+            text = (Path(__file__).resolve().parent.parent / path).read_text(encoding="utf-8")
+            for m in re.finditer(r'git\(repo, "diff", ([^)]*)\)', text):
+                with self.subTest(path=path, call=m.group(0)):
+                    self.assertTrue(m.group(1).startswith('"--no-ext-diff", "--no-textconv"'), m.group(0))
+
+    def test_every_git_call_checks_the_git_files_first(self):
+        """After the run's baseline, a git call stops when .git/config, a hook, or an included file changed."""
+        inc = self.repo / "conf" / "extra.cfg"
+        inc.parent.mkdir()
+        inc.write_text("[user]\n\tname = x\n", encoding="utf-8")
+        with open(self.repo / ".git/config", "a", encoding="utf-8") as fh:
+            fh.write('[include]\n\tpath = ../conf/extra.cfg\n[includeIf "gitdir:/nowhere/"]\n\tpath = "../conf/if.cfg"\n')
+        cases = {"config": (self.repo / ".git/config", "[core]\n\tfsmonitor = touch fsmonitor-ran\n"),
+                 "hook": (self.repo / ".git/hooks/pre-commit", "#!/bin/sh\n"),
+                 "include": (inc, "[core]\n\tfsmonitor = touch fsmonitor-ran\n"),
+                 "includeIf, created": (self.repo / "conf" / "if.cfg", "[core]\n\tpager = touch x\n")}
+        with mock.patch.dict(os.environ, {"HOME": str(self.d)}):
+            for name, (path, text) in cases.items():
+                with self.subTest(name=name):
+                    old = path.read_bytes() if path.exists() else None
+                    ticket_mod.trust_git_dir(self.repo)
+                    ticket_mod.git(self.repo, "status")
+                    with open(path, "a", encoding="utf-8") as fh:
+                        fh.write(text)
+                    for call in (lambda: ticket_mod.git(self.repo, "status"), lambda: ticket_mod.head_commit(self.repo)):
+                        with self.assertRaisesRegex(config.Stop, f"{re.escape(path.relative_to(self.repo).as_posix())} "
+                                                                 "changed since the run started; nothing is posted"):
+                            call()
+                    if old is None:
+                        path.unlink()
+                    else:
+                        path.write_bytes(old)
+        self.assertFalse((self.repo / "fsmonitor-ran").exists())
+
+    def test_included_file_outside_the_repo_is_not_hashed(self):
+        out = self.d / "outside.cfg"
+        out.write_text("[user]\n", encoding="utf-8")
+        with open(self.repo / ".git/config", "a", encoding="utf-8") as fh:
+            fh.write(f"[include]\n\tpath = {out.as_posix()}\n")
+        files = ticket_mod.git_dir_files(self.repo)
+        self.assertNotIn(out.resolve().as_posix(), files)
+        self.assertIn((self.repo.resolve() / ".git/config").as_posix(), files)
+
+    def test_interrupted_call_is_checked_too(self):
+        def interrupted(argv, repo, env, events_path, timeout):
+            with open(repo / ".git/config", "a", encoding="utf-8") as fh:
+                fh.write("[core]\n\tfsmonitor = touch fsmonitor-ran\n")
+            raise KeyboardInterrupt
+        with mock.patch("agentic_factory.copilot.run_call", interrupted), \
+                self.assertRaisesRegex(config.Stop, r"the work call changed \.git/config; nothing is posted"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertFalse((self.repo / "fsmonitor-ran").exists())

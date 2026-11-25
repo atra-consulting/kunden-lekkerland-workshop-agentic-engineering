@@ -127,20 +127,56 @@ def no_hooks_dir():
 
 
 def git_argv(*args):
-    """A git command line that runs no code from the repo's .git/config: no fsmonitor, and hooks from an empty folder
-    (ruling R29). A work call can write .git/config; git status would then run what it put there."""
-    return ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks_dir().as_posix()}", *args]
+    """A git command line that runs no code from the repo's .git/config: no fsmonitor, hooks from an empty folder, no
+    external diff, no pager (rulings R29, R31). A work call can write .git/config; git status would then run what it
+    put there. The script's git diff calls add --no-ext-diff --no-textconv."""
+    return ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks_dir().as_posix()}",
+            "-c", "diff.external=", "-c", "core.pager=cat", *args]
+
+
+SECTION = re.compile(r'\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"[^"]*")?\s*\]')
+INCLUDE_PATH = re.compile(r"\s*path\s*=\s*(.*?)\s*$", re.I)
+
+
+def _included(config_file, repo):
+    """The files a git config file includes (include.path, includeIf.*.path) that lie inside the repo: the agent can
+    write them. Missing ones too, so creating one counts as a change."""
+    try:
+        lines = config_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    out, section = [], ""
+    for line in lines:
+        m = SECTION.match(line)
+        if m:
+            section = m.group(1).lower()
+            continue
+        m = INCLUDE_PATH.match(line)
+        if m and section in ("include", "includeif"):
+            value = m.group(1).split(" #")[0].split(" ;")[0].strip().strip('"')
+            if not value:
+                continue
+            f = Path(value).expanduser()
+            f = f if f.is_absolute() else config_file.parent / f
+            try:
+                f.resolve().relative_to(Path(repo).resolve())
+            except (ValueError, OSError):
+                continue
+            out.append(f)
+    return out
 
 
 def git_dir_files(repo):
-    """{path: sha256} of the git files that can make a git command run code: config, config.worktree, and every file
-    under hooks/, of the repo's git folder and, for a worktree, the shared one. Read directly, without git."""
-    dirs, dot = [], Path(repo) / ".git"
+    """{path: sha256, or "missing"} of the git files that can make a git command run code: config, config.worktree,
+    every file under hooks/, and the files their include.path and includeIf entries name inside the repo; of the repo's
+    git folder and, for a worktree, the shared one. Read directly, without git."""
+    repo = Path(repo).resolve()  # the same keys whichever spelling of the folder a caller has
+    dirs, dot = [], repo / ".git"
     if dot.is_file():  # a worktree or submodule: "gitdir: <path>"
         line = dot.read_text(encoding="utf-8", errors="replace").strip()
         if line.startswith("gitdir:"):
             g = Path(line[len("gitdir:"):].strip())
-            dirs.append(g if g.is_absolute() else Path(repo) / g)
+            dirs.append(g if g.is_absolute() else repo / g)
     elif dot.is_dir():
         dirs.append(dot)
     for g in list(dirs):
@@ -151,33 +187,54 @@ def git_dir_files(repo):
     out = {}
     for g in dirs:
         try:
-            files = [g / "config", g / "config.worktree", *sorted((g / "hooks").rglob("*"))]
+            configs = [g / "config", g / "config.worktree"]
+            files = [*configs, *sorted((g / "hooks").rglob("*"))]
+            files += [f for c in configs for f in _included(c, repo)]
             for f in files:
                 if f.is_file() or f.is_symlink():
                     data = f.read_bytes() if f.is_file() else b"symlink:" + str(f.readlink()).encode()
                     out[f.as_posix()] = hashlib.sha256(data).hexdigest()
+                elif f.parent != g:  # an included file that isn't there (yet)
+                    out[f.as_posix()] = "missing"
         except OSError as e:
             raise config.Stop(f"can't read {g}: {e.strerror or e}")
     return out
 
 
-def check_git_dir(repo, before):
-    """Stops when a work call changed the repo's git config or hooks: the next git command could run code."""
+def check_git_dir(repo, before, who="the work call changed {}"):
+    """Stops when the repo's git config, hooks, or included config files differ from before: the next git command
+    could run code."""
     after = git_dir_files(repo)
     changed = sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
     if changed:
         rel = []
         for p in changed:
             try:
-                rel.append(Path(p).relative_to(Path(repo)).as_posix())
+                rel.append(Path(p).relative_to(Path(repo).resolve()).as_posix())
             except ValueError:
                 rel.append(p)
-        raise config.Stop(f"the work call changed {', '.join(rel[:10])}; nothing is posted. Git could run code from "
-                          "there: inspect these files with cat and ls before you run any git command")
+        raise config.Stop(who.format(", ".join(rel[:10])) + "; nothing is posted. Git could run code from there: "
+                          "inspect these files with cat and ls before you run any git command")
+
+
+_BASELINE = {}  # the resolved project folder -> git_dir_files at the start of the run (fetch.Run)
+
+
+def trust_git_dir(repo):
+    """The state of the git files at the start of a run: every later git call of the script checks against it."""
+    _BASELINE[str(Path(repo).resolve())] = git_dir_files(repo)
+
+
+def run_git(repo, args, **kw):
+    """subprocess.run of git_argv(args) in repo, after checking the git files against the run's baseline."""
+    base = _BASELINE.get(str(Path(repo).resolve()))
+    if base is not None:
+        check_git_dir(repo, base, "{} changed since the run started")
+    return subprocess.run(git_argv(*args), cwd=repo, **kw)
 
 
 def git(repo, *args):
-    r = subprocess.run(git_argv(*args), cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r = run_git(repo, args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if r.returncode != 0:
         raise config.Stop(f"git {' '.join(args[:2])} failed: {r.stderr.decode(errors='replace').strip()[:300]}")
     return r.stdout.decode("utf-8", errors="replace")
@@ -196,8 +253,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # git's empty tree: the
 
 
 def head_commit(repo):
-    r = subprocess.run(git_argv("rev-parse", "-q", "--verify", "HEAD"), cwd=repo, stdout=subprocess.PIPE,
-                       stderr=subprocess.DEVNULL)
+    r = run_git(repo, ("rev-parse", "-q", "--verify", "HEAD"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     return r.stdout.decode().strip() or None
 
 

@@ -1,0 +1,115 @@
+# Example pipelines for factory/agentic-factory.py (Bitbucket). Copy to the repo root as bitbucket-pipelines.yml, or merge it in.
+# - The script, agentic_factory/ next to it, and its config.json, readiness.md, regeln/ and local.json live in factory/ (the
+#   template README says how to copy them).
+# - Two custom pipelines, no default or branch pipeline: agentic-clarify (variables JIRA_KEY, APPLY) and agentic-assess (JIRA_KEY).
+#   Start them on the branch you run the factory from, with Jira Automation or the API; how Jira Automation starts
+#   agentic-clarify is in 02-agent-factory/bedienung/lokal-ausfuehren.md.
+# - Three steps per pipeline, because a step's processes can read its own environment (/proc) and every step runs in its own
+#   container: fetch and post get the Jira secrets (deployment agentic-jira, agentic-post: JIRA_BASE_URL, JIRA_API_TOKEN,
+#   JIRA_EMAIL for Jira Cloud), agent gets COPILOT_GITHUB_TOKEN only (deployment agentic-agent). The script stops by itself if a
+#   step sees the other step's token. In a pipeline it refuses --step all and the mcp route (the route there is api).
+# - Hand-over: the only artifacts are agentic-io/in/** (after fetch) and agentic-io/out/** (after agent). The post step reads
+#   config.json, readiness.md, regeln/ and local.json from its own fresh clone, never from artifacts.
+# - APPLY is read from the environment by the script (APPLY=1 sets the clarified description in the post step, and the agent
+#   step reads it too). It is not passed as a flag. Leave it empty for a dry run.
+# - build is not offered: the script refuses it in a pipeline, its code would vanish with the step. Run build locally.
+#   spec is possible (same three steps, mode spec) but is not part of this example.
+# - The agent image needs python3, git, and GitHub Copilot CLI. Replace the image below with yours.
+# - Unlike the factory-base pipeline, which runs its code from the image (/opt/factory), this example runs the script from the
+#   working tree. That is fine for an example. In production it is a risk: anyone who can push to the start branch changes
+#   the script, and with it what runs next to the secrets. Move the script into the image and pin the image by digest.
+# - Every step: explicit auth scopes, max-time <= 30, no caches. Every deployment step has concurrency-group agentic: a second
+#   run's step queues and starts by itself instead of halting. The name is fixed on purpose, Bitbucket does not substitute
+#   variables in it. It orders steps, it doesn't promise to hold back a whole second run: two runs can fetch the same answer.
+#   So the clarify post step (api route) reads the comments again just before posting; if a newer [KI] comment for the
+#   ticket is there, it stops with "another run posted meanwhile; nothing posted" and posts nothing.
+image:
+  name: your-registry/agentic-factory-agent:1
+
+options:
+  max-time: 30
+
+pipelines:
+  custom:
+    agentic-clarify:
+      - variables:
+          - name: JIRA_KEY
+          - name: APPLY
+      - step:
+          name: fetch (Jira token only)
+          runs-on: [self.hosted, linux.arm64]
+          deployment: agentic-jira
+          concurrency-group: agentic
+          max-time: 5
+          auth:
+            system:
+              scopes: [read:git:bitbucket]
+          script:
+            - python3 -I factory/agentic-factory.py clarify --key "$JIRA_KEY" --step fetch
+          artifacts:
+            - agentic-io/in/**
+      - step:
+          name: agent (Copilot token only)
+          runs-on: [self.hosted, linux.arm64]
+          deployment: agentic-agent
+          concurrency-group: agentic
+          max-time: 25
+          auth:
+            system:
+              scopes: [read:git:bitbucket]
+          script:
+            - python3 -I factory/agentic-factory.py clarify --key "$JIRA_KEY" --step agent
+          artifacts:
+            - agentic-io/out/**
+      - step:
+          name: post (Jira token only)
+          runs-on: [self.hosted, linux.arm64]
+          deployment: agentic-post
+          concurrency-group: agentic
+          max-time: 5
+          auth:
+            system:
+              scopes: [read:git:bitbucket]
+          script:
+            - python3 -I factory/agentic-factory.py clarify --key "$JIRA_KEY" --step post
+
+    agentic-assess:
+      - variables:
+          - name: JIRA_KEY
+      - step:
+          name: fetch (Jira token only)
+          runs-on: [self.hosted, linux.arm64]
+          deployment: agentic-jira
+          concurrency-group: agentic
+          max-time: 5
+          auth:
+            system:
+              scopes: [read:git:bitbucket]
+          script:
+            - python3 -I factory/agentic-factory.py assess --key "$JIRA_KEY" --step fetch
+          artifacts:
+            - agentic-io/in/**
+      - step:
+          name: agent (Copilot token only)
+          runs-on: [self.hosted, linux.arm64]
+          deployment: agentic-agent
+          concurrency-group: agentic
+          max-time: 25
+          auth:
+            system:
+              scopes: [read:git:bitbucket]
+          script:
+            - python3 -I factory/agentic-factory.py assess --key "$JIRA_KEY" --step agent
+          artifacts:
+            - agentic-io/out/**
+      - step:
+          name: post (Jira token only)
+          runs-on: [self.hosted, linux.arm64]
+          deployment: agentic-post
+          concurrency-group: agentic
+          max-time: 5
+          auth:
+            system:
+              scopes: [read:git:bitbucket]
+          script:
+            - python3 -I factory/agentic-factory.py assess --key "$JIRA_KEY" --step post

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merkt sich den Arbeitsstand eines Git-Repos und stellt ihn nach dem Skill wieder her.
 
-Teil des Skills ticket-schreiben. Nur Python-Standardbibliothek. Aufruf immer mit `python3 -I`.
+Teil des Skills schreibe-ticket. Nur Python-Standardbibliothek. Aufruf immer mit `python3 -I`.
 
     python3 -I arbeitsstand.py merken       # vor der Arbeit mit dem Framework
     python3 -I arbeitsstand.py zeigen       # was aufraeumen ändern würde
@@ -15,7 +15,8 @@ Teil des Skills ticket-schreiben. Nur Python-Standardbibliothek. Aufruf immer mi
 - zurück auf den gemerkten Branch wechseln und neue Branches ohne eigene Commits löschen.
 
 Neue Commits auf dem gemerkten Branch fasst das Skript nicht an. Es meldet sie und endet mit Exit-Code 1.
-Der gemerkte Stand liegt in `.git/ticket-schreiben-stand.json`, also außerhalb des Arbeitsbaums.
+Der gemerkte Stand liegt in `.git/schreibe-ticket-stand.json`, also außerhalb des Arbeitsbaums.
+Liegt nur die alte Datei `.git/ticket-schreiben-stand.json` da (Skill vor der Umbenennung), liest das Skript sie.
 """
 
 import argparse
@@ -25,7 +26,8 @@ import shutil
 import subprocess
 import sys
 
-STAND_DATEI = "ticket-schreiben-stand.json"
+STAND_DATEI = "schreibe-ticket-stand.json"
+ALTE_STAND_DATEI = "ticket-schreiben-stand.json"  # Name vor der Umbenennung des Skills
 FRAMEWORK_ORDNER = ("specs", "openspec", "_bmad-output", ".specify")
 
 
@@ -47,9 +49,23 @@ def wurzel():
         raise Fehler("Kein Git-Repository. Starte den Skill im Projektordner.")
 
 
-def stand_pfad(root):
-    p = git("rev-parse", "--git-path", STAND_DATEI, cwd=root).strip()
+def stand_pfad(root, name=STAND_DATEI):
+    p = git("rev-parse", "--git-path", name, cwd=root).strip()
     return p if os.path.isabs(p) else os.path.join(root, p)
+
+
+def stand_pfad_lesen(root):
+    """Der neue Pfad; nur wenn es allein die alte Datei gibt, deren Pfad."""
+    neu = stand_pfad(root)
+    alt = stand_pfad(root, ALTE_STAND_DATEI)
+    return alt if not os.path.exists(neu) and os.path.exists(alt) else neu
+
+
+def alten_stand_entfernen(root):
+    try:
+        os.remove(stand_pfad(root, ALTE_STAND_DATEI))
+    except FileNotFoundError:
+        pass
 
 
 def status_eintraege(root):
@@ -137,6 +153,7 @@ def merken(root):
     pfad = stand_pfad(root)
     with open(pfad, "w", encoding="utf-8") as f:
         json.dump(stand, f, ensure_ascii=False, indent=1)
+    alten_stand_entfernen(root)  # sonst läse `lade` ihn nach dem Aufräumen wieder
     print(f"Gemerkt: Branch {stand['branch'] or '(losgelöst)'}, HEAD {stand['head'][:10]}.")
     if stand["status"]:
         print(f"Achtung: {len(stand['status'])} Datei(en) sind schon geändert oder neu. Sie bleiben, wie sie sind:")
@@ -148,7 +165,7 @@ def merken(root):
 
 
 def lade(root):
-    pfad = stand_pfad(root)
+    pfad = stand_pfad_lesen(root)
     try:
         with open(pfad, encoding="utf-8") as f:
             return json.load(f)
@@ -249,7 +266,8 @@ def aufraeumen(root, alt, p):
         print("Nicht alles ließ sich zurücksetzen:")
         zeigen(root, rest)
         return 1
-    os.remove(stand_pfad(root))
+    os.remove(stand_pfad_lesen(root))
+    alten_stand_entfernen(root)
     print("Fertig. Der Arbeitsstand ist wie beim Merken.")
     return 0
 

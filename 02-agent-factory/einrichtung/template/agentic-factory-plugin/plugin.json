@@ -1,0 +1,8 @@
+{
+  "name": "agentic-factory-guard",
+  "description": "agentic-factory.py's guard for its Jira calls over MCP: allows only the one expected Atlassian tool call, with the expected ticket, site, and text.",
+  "version": "1.0.0",
+  "author": {
+    "name": "agentic-factory"
+  }
+}

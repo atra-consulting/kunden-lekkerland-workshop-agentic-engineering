@@ -14,14 +14,19 @@ Bitbucket und Jira greifen ineinander. Die Reihenfolge steht am Anfang der [Bitb
 
 ## Factory-Schritte lokal: die Vorlage
 
-Der Ordner [`template/`](template/README.md) enthält die vier Dateien, mit denen Entwickler die Copilot-Aufrufe der Factory im eigenen Projekt starten, ohne Pipeline:
+Der Ordner [`template/`](template/README.md) enthält die Dateien, mit denen Entwickler die Copilot-Aufrufe der Factory im eigenen Projekt starten, ohne Pipeline:
 
-- `local.py`, das Programm,
-- `config.json` mit Prompts, Werkzeug-Freigaben und Modell, dieselbe Datei wie in der Pipeline,
+- `agentic-factory.py`, das Programm (früher `local.py`). Es kennt vier Modi: `assess`, `clarify`, `spec` und `build`. Es liest Kommentare im Ticket und schreibt `[KI]`-Kommentare.
+- `agentic_factory/`, der Code, den das Programm lädt,
+- `agentic-factory-plugin/`, der Hook für die Jira-Aufrufe über MCP,
+- `regeln/`, die Regeln eures Teams als Markdown-Dateien,
+- `config.json` mit Prompts, Werkzeug-Freigaben und Modell,
 - `readiness.md` mit den Kriterien der Bereitschaftsprüfung,
-- `local.example.json`, die Vorlage für eigene Anpassungen wie den Testbefehl.
+- `local.example.json`, die Vorlage für eigene Anpassungen wie den Testbefehl,
+- `pipelines.example.yml`, ein Beispiel für Bitbucket Pipelines,
+- `tests/`, die Tests der Vorlage.
 
-Sie sind eine unveränderte Kopie aus dem Lab-Repo, Branch `factory-base`. Die [README der Vorlage](template/README.md) erklärt das Kopieren, die Sicherheitsrisiken und das Aktualisieren. Die Anleitung: [Factory-Schritte lokal ausführen](../bedienung/lokal-ausfuehren.md), im Workshop [Übung 1](../../01-erstworkshop/tag-2/uebung-factory-lokal.md).
+Sie sind aus dem Lab-Repo, Branch `factory-base`, entstanden und keine unveränderte Kopie mehr. Die [README der Vorlage](template/README.md) erklärt das Kopieren, die Sicherheitsrisiken und das Aktualisieren. Die Anleitung: [Factory-Schritte lokal ausführen](../bedienung/lokal-ausfuehren.md), im Workshop [Übung 1](../../01-erstworkshop/tag-2/uebung-factory-lokal.md).
 
 ## Zum Nachlesen
 

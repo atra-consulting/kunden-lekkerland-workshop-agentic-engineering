@@ -51,7 +51,7 @@ Gegen 300 Euro bleibt viel Luft. Gegen den Anteil am Pool nicht. Welche Grenze b
 | Metriken-Schnittstelle von GitHub | Copilot-Admin | Credits je Person und Tag. Keine Aufteilung nach Modell oder Werkzeug, und keine Rechnung |
 | `/usage` in Copilot CLI | jede Person | Token je Modell und Credits der Sitzung |
 | `/context` und `/mcp` in Copilot CLI | jede Person | Wie viel Platz Werkzeuge und Verlauf belegen |
-| `--usage-output-file` | Factory, `local.py` | Credits je Lauf. So messen wir im Lab |
+| `--usage-output-file` | Factory, `agentic-factory.py` | Credits je Lauf. So messen wir im Lab |
 
 Verbrauch je Person misst Menschen. Ob dafür Betriebsrat und Datenschutz zustimmen müssen, entscheidet ihr. Bis dahin messen wir je Team und je Ticket.
 

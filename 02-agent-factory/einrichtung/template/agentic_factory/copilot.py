@@ -1,0 +1,300 @@
+"""The Copilot calls: prompts and flags as factory/agent.py builds them, the environment, running a call,
+reading its events, and what changed in the project afterwards."""
+import hashlib
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import threading
+
+from . import copied, config
+from . import rules as rules_mod  # plan() has a local "rules": the factory rules text
+from . import ticket as ticket_mod
+
+STACK_DEFAULT = "Use the existing Symfony 7 / PHP stack and PHPUnit"  # replaced by local.json stack_hint
+JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on to Copilot
+
+
+# --- the calls --------------------------------------------------------------------------------------------------------
+
+def test_override(cfg, local, rules, tools):
+    """local.json test_command replaces the config's test command in the build rules and in the allowed tools."""
+    new = local.get("test_command")
+    old = " ".join(cfg["test_command"])
+    if not new or new == old:
+        return rules, tools
+    if old not in rules:
+        raise config.Stop(f"the build rules don't name the config's test command {old!r}; can't apply test_command")
+    old_tool, new_tool = f"shell({cfg['test_command'][0]}:*)", f"shell({shlex.split(new)[0]}:*)"
+    return rules.replace(old, new), [new_tool if t == old_tool else t for t in tools]
+
+
+def stack_override(local, prompts, fw):
+    hint = local.get("stack_hint")
+    if not hint or fw != "speckit":
+        return prompts
+    if not any(STACK_DEFAULT in p for p in prompts):
+        raise config.Stop(f"stack_hint: no Spec Kit prompt in config.json contains {STACK_DEFAULT!r}")
+    return [p.replace(STACK_DEFAULT, hint) for p in prompts]
+
+
+def fill(template, values, where):
+    try:
+        return template.format(**values)
+    except KeyError as e:
+        raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
+
+
+def plan(cfg, local, mode, key, fw, ticket=None, change=None, spec_file=None, team_rules=""):
+    """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
+    team_rules: the block of the team's rules for the mode (rules.block), appended after every prompt."""
+    F = cfg["frameworks"][fw]
+    env_extra = {}
+    if mode == "spec":
+        rules = cfg.get("spec_rules", copied.SPEC_RULES).format(folder=F["spec_rule_folder"])
+        vals = {"ticket_block": ticket_mod.ticket_block(ticket), "spec_rules": rules, "key": key, "slug": key.lower()}
+        prompts = [fill(p, vals, f"{fw} spec_prompts") for p in F["spec_prompts"]]
+        prompts = stack_override(local, prompts, fw)
+        tools = list(F["spec_tools"])
+    elif mode == "build":
+        rules, tools = test_override(cfg, local, cfg.get("build_rules", copied.BUILD_RULES), list(F["build_tools"]))
+        vals = {"change": change, "build_rules": rules, "key": key, "spec_file": spec_file}
+        prompts = [fill(p, vals, f"{fw} build_prompts") for p in F["build_prompts"]]
+        if fw == "speckit" and F.get("env_feature_dir"):
+            env_extra[F["env_feature_dir"]] = f"specs/{change}"
+    else:
+        raise config.Stop(f"unknown mode {mode}")
+    return [rules_mod.append(p, team_rules) for p in prompts], tools, env_extra
+
+
+def has_shell_tool(tools):
+    """Whether a call may use the shell: one of its allowed tools is shell or shell(...)."""
+    return any(t == "shell" or t.startswith("shell(") for t in tools)
+
+
+def copilot_argv(cfg, local, prompt, tools, usage_file, exe=("copilot",), cap=None, mcp_off=(),
+                 file_tools=("read", "write"), extra=()):
+    """One Copilot call, flag for flag as factory/agent.py builds it. mcp_off: your own MCP servers, switched off
+    by name, because the factory's container has none (see mcp_servers). file_tools: the tools every work call
+    gets; the Jira calls get none. extra: flags at the end, such as the Jira calls' --plugin-dir.
+    A call without a shell tool also gets --deny-tool=shell after the config's deny list: Copilot 1.0.115 runs shell
+    commands it thinks are read-only even when no shell tool is allowed. Never in config.json: a deny beats every
+    allow, so spec and build would lose their shell(...) tools."""
+    model = local.get("model") or cfg["model"]
+    argv = [*exe, "-p", prompt, "--no-ask-user", "--model", model, "--output-format", "json",
+            "--no-auto-update", "--disallow-temp-dir", "--disable-builtin-mcps", "--max-ai-credits",
+            str(cap if cap is not None else cfg.get("max_ai_credits", copied.MAX_AI_CREDITS)),
+            "--secret-env-vars=COPILOT_GITHUB_TOKEN", f"--usage-output-file={usage_file}"]
+    argv += [f"--allow-tool={x}" for x in [*file_tools, *tools]]
+    argv += [f"--deny-tool={x}" for x in cfg["deny_tools"]]
+    if not has_shell_tool([*file_tools, *tools]):
+        argv.append("--deny-tool=shell")
+    argv += [f"--disable-mcp-server={x}" for x in mcp_off]
+    argv += list(extra)
+    for a in argv:  # including a local.json "copilot" prefix
+        for f in cfg["forbidden_flags"]:
+            if a == f or a.startswith(f + "="):
+                raise config.Stop(f"forbidden flag {f}")
+    return argv
+
+
+def child_env(cfg, env_extra, base=None):
+    """Your own environment (so your Copilot login works), minus the Jira credentials, plus the factory's safety
+    settings. Stops if a permissive mode is switched on, as the factory does."""
+    env = dict(os.environ if base is None else base)
+    for k, bad in cfg["forbidden_env"].items():
+        if k in env and (bad == "" or env[k] == bad):
+            raise config.Stop(f"forbidden environment variable {k} is set; unset it first")
+    for k in JIRA_ENV:
+        env.pop(k, None)
+    env.update(copied.SAFE_ENV)
+    env.update(env_extra)
+    return env
+
+
+def mcp_servers(exe, repo, env):
+    """Names of every MCP server your Copilot would start in this project: yours (~/.copilot/mcp-config.json),
+    the project's (.mcp.json, .github/mcp.json, if you trusted the folder), plugins' and built-in ones.
+    A local -p run starts them and shows their tools to the model; the allow list then denies each call.
+    The factory's container has none, so agentic-factory.py switches each one off by name. Reads only the names:
+    the listing also has your servers' env and headers, which may contain tokens."""
+    try:
+        out = subprocess.run([*exe, "mcp", "list", "--json"], cwd=repo, env=env, capture_output=True, timeout=60)
+        servers = json.loads(out.stdout.decode("utf-8")).get("mcpServers") if out.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        servers = None
+    if not isinstance(servers, dict):
+        raise config.Stop("can't list your MCP servers with `copilot mcp list --json`, so agentic-factory.py can't switch "
+                   "them off; update GitHub Copilot CLI")
+    return sorted(str(k) for k in servers)
+
+
+def resolve_copilot(local):
+    if local.get("copilot"):
+        return list(local["copilot"])
+    exe = shutil.which("copilot")
+    if not exe:
+        raise config.Stop("copilot not found on PATH: install GitHub Copilot CLI and run `copilot` once to log in")
+    if os.name == "nt" and os.path.splitext(exe)[1].lower() in (".cmd", ".bat"):
+        raise config.Stop(f"{exe} is a batch file; multi-line prompts can't pass through cmd.exe safely. Install Copilot CLI "
+                   "as copilot.exe (WinGet), or set \"copilot\" in local.json to a command without cmd.exe")
+    return [exe]
+
+
+def run_call(argv, repo, env, events_path, timeout):
+    """Start Copilot, show its tool calls live, keep the JSON events. Returns (exit code, final message, denied)."""
+    final, denied = "", 0
+    with open(events_path, "wb") as log, subprocess.Popen(argv, cwd=repo, env=env, stdin=subprocess.DEVNULL,
+                                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as p:
+        timer = threading.Timer(timeout, p.kill)
+        timer.start()
+        try:
+            for raw in p.stdout:
+                log.write(raw)
+                try:
+                    ev = json.loads(raw)
+                except ValueError:
+                    continue
+                t, d = ev.get("type"), ev.get("data") or {}
+                if t == "tool.execution_start":
+                    a = d.get("arguments", {})
+                    arg = (a.get("command") or a.get("path") or json.dumps(a)[:120]) if isinstance(a, dict) else str(a)
+                    print(f"    {d.get('toolName')} {str(arg)[:140]}".replace("\n", " "), flush=True)
+                elif t == "tool.execution_complete" and not d.get("success", True):
+                    if (d.get("error") or {}).get("code") == "denied":
+                        denied += 1
+                        print(f"      DENIED: {str((d.get('error') or {}).get('message', ''))[:160]}", flush=True)
+                elif t == "assistant.message" and d.get("content"):
+                    final = d["content"]
+            rc = p.wait()
+        finally:
+            timed_out = not timer.is_alive()
+            timer.cancel()
+    return ("timeout" if timed_out and rc != 0 else rc), final, denied
+
+
+def credits_of(usage_file):
+    try:
+        return config.read_json(usage_file).get("totalNanoAiu", 0) / 1e9
+    except Exception:  # noqa: BLE001 - credits are informational
+        return None
+
+
+# --- a call's JSON events: its tool calls, and the shell backstop -----------------------------------------------------
+
+def mcp_events(events_path):
+    """{"version", "calls": [{"id", "tool", "args", "ok", "raw", "denied"}]} from a call's JSON events. Start and
+    complete pair by toolCallId. denied: Copilot refused the call (error code "denied"), so it did nothing.
+    raw is the tool's own text: the text items of result.contents joined in order (the MCP server's complete answer).
+    result.detailedContent is only the fallback (older Copilot): Copilot 1.0.115 cuts it off at about 10 KB, so a long
+    ticket would not parse. result.content is never used: it has Copilot's cost note added.
+    A complete without a start still counts as a call, with tool None."""
+    version, calls, by_id = None, [], {}
+    try:
+        with open(events_path, "rb") as fh:
+            lines = fh.read().splitlines()
+    except OSError as e:
+        raise config.Stop(f"can't read the events of the Jira call: {e}")
+    for line in lines:
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        d = e.get("data") if isinstance(e, dict) else None
+        if not isinstance(d, dict):
+            continue
+        t = e.get("type")
+        if t == "session.start" and version is None:
+            version = d.get("copilotVersion")
+        elif t == "tool.execution_start":
+            args = d.get("arguments")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except ValueError:
+                    pass
+            c = {"id": d.get("toolCallId"), "tool": d.get("toolName"), "args": args, "ok": False, "raw": None,
+                 "denied": False}
+            calls.append(c)
+            by_id[c["id"]] = c
+        elif t == "tool.execution_complete":
+            c = by_id.pop(d.get("toolCallId"), None)
+            if c is None:
+                c = {"id": d.get("toolCallId"), "tool": None, "args": None, "ok": False, "raw": None, "denied": False}
+                calls.append(c)
+            res = d.get("result") if isinstance(d.get("result"), dict) else {}
+            c["ok"] = d.get("success") is True
+            err = d.get("error") if isinstance(d.get("error"), dict) else {}
+            c["denied"] = not c["ok"] and err.get("code") == "denied"
+            items = res.get("contents") if isinstance(res.get("contents"), list) else []
+            texts = [i["text"] for i in items if isinstance(i, dict) and i.get("type") == "text"
+                     and isinstance(i.get("text"), str)]
+            if texts:
+                c["raw"] = "".join(texts)
+            else:
+                c["raw"] = res.get("detailedContent") if isinstance(res.get("detailedContent"), str) else None
+    return {"version": version, "calls": calls}
+
+
+SHELL_TOOLS = ("bash", "shell", "powershell")
+
+
+def shell_ran(events_path):
+    """The shell tools a call started and Copilot didn't deny, from its JSON events: bash, shell, powershell, and
+    names that start with shell. A start without a complete counts: the command may have run."""
+    out = []
+    for c in mcp_events(events_path)["calls"]:
+        name = c["tool"] if isinstance(c["tool"], str) else ""
+        if (name.lower() in SHELL_TOOLS or name.lower().startswith("shell")) and not c["denied"]:
+            out.append(name)
+    return out
+
+
+# --- after the run ----------------------------------------------------------------------------------------------------
+
+def snapshot(repo):
+    """{path: (git status code, sha256 of the content)} for every uncommitted path. Content hashes catch an agent
+    that changes a file which was already modified before the run (its status line stays the same)."""
+    out = ticket_mod.git(repo, "status", "--porcelain=v1", "-z", "-uall").split("\0")
+    snap, i = {}, 0
+    while i < len(out):
+        e = out[i]
+        i += 1
+        if len(e) < 4:
+            continue
+        code, path = e[:2], e[3:]
+        if "R" in code or "C" in code:
+            i += 1  # the rename's old path follows
+        f = repo / path
+        try:
+            digest = hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else None
+        except OSError:
+            digest = None
+        snap[path] = (code, digest)
+    return snap
+
+
+def changed_paths(before, after):
+    """Lines like `git status --short` for every path whose status or content changed during the run."""
+    return [f"{after[p][0] if p in after else 'ok'} {p}" for p in sorted(set(before) | set(after))
+            if before.get(p) != after.get(p)]
+
+
+def warnings_for(cfg, mode, fw, paths):
+    out = []
+    prot = [re.compile(p) for p in cfg["protected_paths"]]
+    hit = [p for p in paths if any(r.search(p) for r in prot) and p not in (config.QUESTIONS, config.ASSESSMENT)]
+    if hit:
+        out.append(f"protected paths changed (the factory's check step would refuse): {hit[:20]}")
+    if mode == "spec":
+        rx = re.compile(cfg["frameworks"][fw].get("spec_any_under") or cfg["frameworks"][fw]["spec_change_re"])
+        outside = [p for p in paths if not rx.match(p) and p != config.QUESTIONS]
+        if outside:
+            out.append(f"files outside the spec folder changed (the factory refuses this in a spec run): {outside[:20]}")
+    if mode == "assess":
+        other = [p for p in paths if p != config.ASSESSMENT]
+        if other:
+            out.append(f"the readiness check changed files besides {config.ASSESSMENT}: {other[:20]}")
+    return out

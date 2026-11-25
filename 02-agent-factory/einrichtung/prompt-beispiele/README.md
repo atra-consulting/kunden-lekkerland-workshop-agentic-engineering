@@ -2,9 +2,10 @@
 
 Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus dem Lab, [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md): Bereitschaft prüfen, Spec schreiben, bauen, mit OpenSpec, Spec Kit und BMad. Sie sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines.
 
-- **Quelle:** die Ausgabe von `local.py --print-only`. Dieselben Prompts, Flags und dieselbe Reihenfolge nutzt `factory/agent.py` in der Pipeline. Ein Test im Lab-Repo prüft, dass beide dieselben Befehle bauen.
+- **Quelle:** die Ausgabe von `local.py --print-only` (heute `agentic-factory.py`). Dieselben Prompts, Flags und dieselbe Reihenfolge nutzt `factory/agent.py` in der Pipeline. Ein Test im Lab-Repo prüft, dass beide dieselben Befehle bauen.
 - **Stand:** 24. November 2026, Lab-Repo Branch `factory-base`, Commit `a414237`, Modell `claude-sonnet-5.5`.
 - **Kosten:** `--print-only` startet nichts und kostet nichts.
+- **Regeln des Teams:** `agentic-factory.py` hängt die Dateien aus `factory/regeln/` an die Prompts an, die der Block `rules` in `config.json` nennt. Die Beispiele hier zeigen die Prompts ohne diesen Block.
 
 ## Das Ticket
 
@@ -30,7 +31,7 @@ So steht FLAB-41 in Jira:
 >
 > Andere Sprachen als Deutsch und Englisch.
 
-FLAB-41 hat das Label `sdd-openspec`. Für Spec Kit und BMad haben wir das Framework mit `--framework` gewählt. `local.py` liest das Ticket als JSON, eine Zeile je Absatz. Die Datei: [`ticket-FLAB-41.json`](ticket-FLAB-41.json).
+FLAB-41 hat das Label `sdd-openspec`. Für Spec Kit und BMad haben wir das Framework mit `--framework` gewählt. `agentic-factory.py` liest das Ticket als JSON, eine Zeile je Absatz. Die Datei: [`ticket-FLAB-41.json`](ticket-FLAB-41.json).
 
 ```json
 {
@@ -126,7 +127,7 @@ Die Pipeline setzt sie vor jedem Aufruf:
 - Beim Bauen mit Spec Kit zusätzlich `SPECIFY_FEATURE_DIRECTORY=specs/<Spec-Ordner>`.
 - Dazu kommt in der Pipeline das Copilot-Token als `COPILOT_GITHUB_TOKEN`. `--print-only` zeigt es nicht.
 
-**Nur lokal:** Startet `local.py` die Aufrufe selbst, hängt es für jeden MCP-Server aus `copilot mcp list` noch `--disable-mcp-server=<Name>` an. In der Pipeline ist kein MCP-Server eingerichtet.
+**Nur lokal:** Startet `agentic-factory.py` die Aufrufe selbst, hängt es für jeden MCP-Server aus `copilot mcp list` noch `--disable-mcp-server=<Name>` an. In der Pipeline ist kein MCP-Server eingerichtet.
 
 ## Wo der Branch entsteht
 
@@ -147,16 +148,15 @@ Copilot legt in Bitbucket keinen Branch an. Das macht erst der letzte Schritt de
 
 ## So sind die Beispiele entstanden
 
-In einem frischen Klon des Lab-Repos, Branch `factory-base`, mit Python 3.13 und Copilot CLI 1.0.114:
+Aufgenommen in einem frischen Klon des Lab-Repos, Branch `factory-base`, mit Python 3.13 und Copilot CLI 1.0.114. Dort hieß das Skript `factory/local.py`. In eurem Projekt, in dem die [Vorlage](../template/README.md) in `factory/` liegt, erzeugt ihr die Prompts auf dieselbe Weise. Die Ausgabe ist nicht Byte für Byte die der Aufnahmen: Das heutige Skript schreibt `[agentic-factory]` statt `[local]` und hängt in Aufrufen ohne Shell-Werkzeuge `--deny-tool=shell` an. Mit einem Block `rules` in `config.json` enden die Prompts außerdem mit den Regeln des Teams. Die Ticket-Datei liegt in diesem Ordner: [`ticket-FLAB-41.json`](ticket-FLAB-41.json).
 
 ```bash
-git clone --branch factory-base https://bitbucket.org/factory-lab/factory-lab.git projekt
-cd projekt
-python3 -I factory/local.py assess --ticket-file ../FLAB-41.json --print-only
-python3 -I factory/local.py spec   --ticket-file ../FLAB-41.json --framework openspec --print-only   # ebenso speckit, bmad
-python3 -I factory/local.py build  --ticket-file ../FLAB-41.json --framework openspec --change post-reading-time --print-only
-python3 -I factory/local.py build  --ticket-file ../FLAB-41.json --framework speckit --print-only
-python3 -I factory/local.py build  --ticket-file ../FLAB-41.json --framework bmad --print-only
+T=~/workshop-agentic-engineering/02-agent-factory/einrichtung/prompt-beispiele/ticket-FLAB-41.json   # Pfad zu eurem Klon dieses Repos
+python3 -I factory/agentic-factory.py assess --ticket-file "$T" --print-only
+python3 -I factory/agentic-factory.py spec   --ticket-file "$T" --framework openspec --print-only   # ebenso speckit, bmad
+python3 -I factory/agentic-factory.py build  --ticket-file "$T" --framework openspec --change post-reading-time --print-only
+python3 -I factory/agentic-factory.py build  --ticket-file "$T" --framework speckit --print-only
+python3 -I factory/agentic-factory.py build  --ticket-file "$T" --framework bmad --print-only
 ```
 
 - **Keine `local.json`.** Prompts und Flags sind also genau die der Pipeline: Testbefehl `./bin/phpunit`, Stack-Satz für Symfony. Mit einer `local.json` ändern sich nur `test_command`, `stack_hint`, `model` und der Befehl, der Copilot startet.

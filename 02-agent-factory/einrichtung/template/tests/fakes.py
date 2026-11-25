@@ -1,0 +1,270 @@
+"""Shared by the tests: the template folder, the lab config, a local Jira (Fake), and the E2E harness that runs
+main() in a throwaway git repository with a fake copilot.
+"""
+import contextlib
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from unittest import mock
+
+from agentic_factory import main
+
+HERE = Path(__file__).resolve().parent.parent  # the template folder: agentic-factory.py, agentic_factory/, config.json
+FACTORY_BASE = os.environ.get("FACTORY_BASE")
+if FACTORY_BASE:  # agent.py imports common.py, which reads its own config.json next to itself
+    sys.path.insert(0, FACTORY_BASE)
+
+FULL_CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))  # with the rules block (regeln/)
+CFG = {k: v for k, v in FULL_CFG.items() if k != "rules"}  # the config of today's prompts: the parity tests compare it
+KEY = "FLAB-7"
+TICKET = {"key": KEY, "summary": "Tags klein schreiben",
+          "description": "Beim Speichern sollen Tags klein geschrieben werden.\nÄnderung: nur im Formular.",
+          "labels": ["sdd-openspec", "test-nacht"]}
+
+
+try:
+    import pwd  # noqa: F401
+    HAVE_PWD = True
+except ImportError:
+    HAVE_PWD = False
+
+
+def drop_usage(argv):
+    return [a for a in argv if not a.startswith("--usage-output-file=")]
+
+
+READINESS = """# Criteria
+
+### `missing_detail`
+Unclear.
+
+### `already_exists`
+Done already.
+"""
+
+
+class Fake:
+    """A local Jira: GET issue, GET comment pages, GET myself, POST comment, PUT issue. Records every request.
+    myself: the token's own account, with the ids of both Cloud (accountId) and Data Center (key, name)."""
+
+    def __init__(self, tc, status=200, description=None, comments=(), error_body=b""):
+        self.seen = []  # (method, path, Authorization, parsed JSON body)
+        outer = self
+        self.comments, self.status, self.error_body = list(comments), status, error_body
+        self.fields = {"summary": " S ", "description": description, "labels": ["sdd-bmad"],
+                       "status": {"name": "Bereit"}}
+        self.myself = {"accountId": "acc-bot", "key": "JIRAUSER-bot", "name": "bot"}
+
+        class H(BaseHTTPRequestHandler):
+            def handle_any(self):
+                n = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(n) if n else b""
+                outer.seen.append((self.command, self.path, self.headers.get("Authorization"),
+                                   json.loads(raw) if raw else None))
+                if outer.status != 200:
+                    return self.reply(outer.status, outer.error_body)
+                path, _, query = self.path.partition("?")
+                q = dict(p.split("=") for p in query.split("&") if "=" in p)
+                if self.command == "GET" and path.endswith("/comment"):
+                    start, mx = int(q.get("startAt", 0)), min(int(q.get("maxResults", 50)), 100)
+                    return self.reply(200, json.dumps({"startAt": start, "maxResults": mx, "total": len(outer.comments),
+                                                       "comments": outer.comments[start:start + mx]}).encode())
+                if self.command == "GET" and path.endswith("/myself"):
+                    return self.reply(200, json.dumps(outer.myself).encode())
+                if self.command == "GET":
+                    return self.reply(200, json.dumps({"fields": outer.fields}).encode())
+                if self.command == "POST" and path.endswith("/comment"):
+                    return self.reply(201, json.dumps({"id": "10050"}).encode())
+                if self.command == "PUT":
+                    return self.reply(204, b"")
+                self.reply(404, b"{}")
+
+            do_GET = do_POST = do_PUT = handle_any  # noqa: N815
+
+            def reply(self, status, body):
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        tc.addCleanup(srv.server_close)
+        tc.addCleanup(srv.shutdown)
+        self.url = f"http://127.0.0.1:{srv.server_port}"
+
+
+FAKE_COPILOT = r'''
+import json, pathlib, sys
+argv = sys.argv[1:]
+here = pathlib.Path(__file__).parent
+if argv[:2] == ["mcp", "list"]:
+    if (here / "mcp-fail").exists():
+        sys.exit(1)
+    print(json.dumps({"mcpServers": {
+        "jira-cloud": {"type": "http", "url": "https://mcp.example.invalid/v1/sse", "source": "user",
+                       "headers": {"Authorization": "Bearer not-a-real-token-123"}},
+        "github-mcp-server": {"type": "http", "source": "builtin"}}}))
+    sys.exit(0)
+with open(here / "calls.jsonl", "a") as fh: fh.write(json.dumps(argv) + "\n")
+prompt = argv[argv.index("-p") + 1]
+usage = next(a.split("=", 1)[1] for a in argv if a.startswith("--usage-output-file="))
+mode = pathlib.Path("fake-mode").read_text().strip() if pathlib.Path("fake-mode").exists() else "spec"
+def ev(t, **d): print(json.dumps({"type": t, "data": d}), flush=True)
+ev("tool.execution_start", toolName="write", arguments={"path": "x"})
+if (here / "fake-shell").exists():  # "<ran|denied> <tool name>": a shell call that ran, or one Copilot denied
+    how, tool = (here / "fake-shell").read_text().split()
+    ev("tool.execution_start", toolCallId="sh-1", toolName=tool, arguments={"command": "ls; cat .env"})
+    if how == "denied":
+        ev("tool.execution_complete", toolCallId="sh-1", success=False, error={"code": "denied", "message": "no"})
+if "FACTORY-ASSESSMENT.json" in prompt:
+    verdict = pathlib.Path("fake-verdict").read_text().strip() if pathlib.Path("fake-verdict").exists() else "ready"
+    v = {"verdict": "ready", "reasons": [], "questions": []} if verdict == "ready" else json.loads(verdict) \
+        if verdict.startswith("{") else {"verdict": "not_ready",
+        "reasons": [{"id": "already_exists", "detail": "src/X.php macht das schon"}], "questions": ["Wirklich?"]}
+    pathlib.Path("FACTORY-ASSESSMENT.json").write_text(json.dumps(v))
+    if mode == "tamper":
+        with open("README.md", "a") as fh: fh.write("more\n")
+elif "FACTORY-CLARIFY.json" in prompt:
+    pathlib.Path("FACTORY-CLARIFY.json").write_text(pathlib.Path("fake-clarify.json").read_text(encoding="utf-8"),
+                                                    encoding="utf-8")
+    if mode == "tamper":
+        with open("README.md", "a") as fh: fh.write("more\n")
+elif mode == "io":  # a work call that writes into the hand-over folder inside the clone
+    with open("agentic-io/in/ticket.json", "a") as fh: fh.write(" ")
+elif mode == "questions":
+    pathlib.Path("FACTORY-QUESTIONS.md").write_text("# Fragen\n- Welche Seite?\n")
+elif mode in ("build", "commit", "commit-io"):
+    pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/New.php").write_text("<?php\n")
+    ev("tool.execution_start", toolCallId="t-test", toolName="bash", arguments={"command": "./bin/phpunit"})
+    ev("tool.execution_complete", toolCallId="t-test", success=True)
+    if mode == "commit-io":  # commits the hand-over folder unchanged, too
+        import subprocess
+        subprocess.run(["git", "add", "src/New.php", "agentic-io"], check=True)
+        subprocess.run(["git", "-c", "user.name=a", "-c", "user.email=a@example.invalid", "commit", "-q", "-m",
+                        "agent commit"], check=True)
+    if mode == "commit":
+        import subprocess
+        pathlib.Path("bin").mkdir(exist_ok=True); pathlib.Path("bin/x").write_text("x\n")
+        subprocess.run(["git", "add", "src/New.php", "bin/x"], check=True)
+        subprocess.run(["git", "-c", "user.name=a", "-c", "user.email=a@example.invalid", "commit", "-q", "-m",
+                        "agent commit"], check=True)
+else:
+    d = pathlib.Path("openspec/changes/lower-tags"); d.mkdir(parents=True, exist_ok=True)
+    body = "x" * int(pathlib.Path("fake-size").read_text()) + "\n" if mode == "big" else "p\n"
+    (d / "proposal.md").write_text(body); (d / "tasks.md").write_text("- [ ] t\n")
+ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
+ev("assistant.message", content="fertig: " + prompt.split()[0])
+pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
+'''
+
+
+class E2E:
+    """main() in a throwaway git repository with a fake copilot (a Python script). A mixin for the test classes."""
+    CLEAN_ENV = ("BITBUCKET_PIPELINE_UUID", "COPILOT_GITHUB_TOKEN", "JIRA_BASE_URL", "JIRA_API_TOKEN", "JIRA_EMAIL",
+                 "APPLY")
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp(prefix="local-e2e-"))
+        self.addCleanup(shutil.rmtree, self.d, True)
+        self.repo = self.d / "proj"
+        (self.repo / "openspec/changes/archive").mkdir(parents=True)
+        (self.repo / "openspec/config.yaml").write_text("x: 1\n", encoding="utf-8")
+        (self.repo / "README.md").write_text("r\n", encoding="utf-8")
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        for args in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                                                    "commit", "-q", "-m", "base"]):
+            subprocess.run(["git", *args], cwd=self.repo, check=True, env=env)
+        (self.d / "fake.py").write_text(FAKE_COPILOT, encoding="utf-8")
+        self.tf = self.d / "ticket.json"
+        self.tf.write_text(json.dumps(TICKET), encoding="utf-8")
+        self.lj = self.d / "local.json"
+        self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "fake.py")]}), encoding="utf-8")
+        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\n",
+                                                     encoding="utf-8")
+        self.rd = self.d / "readiness.md"
+        self.rd.write_text(READINESS, encoding="utf-8")
+        self.acfg = {**CFG, "assess": {"enabled": True, "tools": [], "max_ai_credits": 40, "prompt":
+                     "Check {ticket_block}; ids {ids}; write {output_file}.\n{protected_paths}\n{criteria}"}}
+
+    def run_main(self, *args, mode="spec", cfg=None, verdict="ready", env=None, entry=False):
+        """env: extra environment; None as a value removes the variable. The shell's Jira, Copilot, and pipeline
+        variables never leak in. entry: run through entry() as the command line does; returns its exit code."""
+        (self.repo / "fake-mode").write_text(mode, encoding="utf-8")
+        (self.repo / "fake-verdict").write_text(verdict, encoding="utf-8")
+        if cfg is None:  # the lab config, without a readiness check, so these tests don't depend on it
+            cfg = {k: v for k, v in CFG.items() if k != "assess"}
+        cfgp = self.d / "config.json"
+        cfgp.write_text(json.dumps(cfg), encoding="utf-8")
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"HOME": str(self.d), "USERPROFILE": str(self.d), "no_proxy": "*",
+                                          "NO_PROXY": "*"}), contextlib.redirect_stdout(out):
+            for k, v in {**dict.fromkeys(self.CLEAN_ENV), **(env or {})}.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            argv = [*args, "--repo", str(self.repo), "--local", str(self.lj), "--config", str(cfgp)]
+            try:
+                if entry:
+                    with mock.patch.object(sys, "argv", ["agentic-factory.py", *argv]), \
+                            self.assertRaises(SystemExit) as cm:
+                        main.entry()
+                    rc = cm.exception.code
+                else:
+                    rc = main.main(argv)
+            finally:
+                self.last_out = out.getvalue()
+        return rc, out.getvalue()
+
+
+PAT = "pat-test-0000001"
+PIPE = {"BITBUCKET_PIPELINE_UUID": "{11111111-2222-3333-4444-555555555555}"}
+NOT_READY_FAKE = {"verdict": "not_ready", "reasons": [{"id": "already_exists", "detail": "src/X.php macht das schon"}],
+                  "questions": ["Wirklich?"]}
+
+
+class JiraE2E(E2E):
+    """E2E with a fake Jira over REST (Data Center: the comment goes out as wiki markup)."""
+
+    def setUp(self):
+        super().setUp()
+        self.fake = Fake(self)
+        self.fake.fields["labels"] = ["sdd-openspec"]
+        self.env = {"JIRA_BASE_URL": self.fake.url, "JIRA_API_TOKEN": PAT}
+        self.io = self.d / "io"
+
+    def posts(self):
+        return [body["body"] for method, _, _, body in self.fake.seen if method == "POST"]
+
+    def writes(self):
+        return [(method, path) for method, path, _, _ in self.fake.seen if method != "GET"]
+
+    def comment(self, io=None, n=1):
+        return ((io or self.io) / "out" / f"comment-{n}.txt").read_text(encoding="utf-8")
+
+    def api(self, *args, **kw):
+        kw.setdefault("env", self.env)
+        return self.run_main(*args, "--key", KEY, "--jira", "api", "--io-dir", str(self.io), **kw)
+
+
+def ev_line(t, **d):
+    return json.dumps({"type": t, "data": d, "id": "e-" + t, "timestamp": "2026-11-24T21:13:21.174Z"},
+                      ensure_ascii=False)
+
+
+def start(cid, tool, args):
+    server, _, bare = tool.partition("-")
+    extra = {"mcpServerName": server, "mcpToolName": bare} if bare else {}
+    return ev_line("tool.execution_start", toolCallId=cid, toolName=tool, arguments=args, turnId="1", **extra)

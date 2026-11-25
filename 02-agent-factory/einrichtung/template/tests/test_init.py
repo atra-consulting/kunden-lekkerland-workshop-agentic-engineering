@@ -38,51 +38,67 @@ class Refusals(unittest.TestCase):
             r = tool(t)
             self.assertEqual((r["accepted"], len(r["refused"])), ([], 1), t)
 
-    def test_refuses_package_installers(self):
-        for t in ("shell(pip install:*)", "shell(pip3 install requests:*)", "shell(pip:*)", "shell(uv pip install:*)",
-                  "shell(uv add:*)", "shell(poetry add:*)", "shell(npm i:*)", "shell(yarn add:*)", "shell(pnpm install:*)",
-                  "shell(gem install:*)", "shell(bundle install:*)", "shell(cargo install:*)", "shell(go get:*)",
-                  "shell(composer require:*)"):
-            self.assertIn("installs packages, which runs their setup code", init.refusal(t, {"deny_tools": []}), t)
-        for t in ("shell(npm run lint:*)", "shell(cargo test:*)", "shell(go test:*)", "shell(mvn test:*)", "shell(pip list:*)"):
-            self.assertIsNone(init.refusal(t, {"deny_tools": []}), t)
-
-    def test_refuses_bare_package_managers_and_options_before_the_subcommand(self):
+    def test_package_managers_accept_only_test_and_run_subcommands(self):
         none = {"deny_tools": []}
-        for t in ("shell(npm:*)", "shell(yarn:*)", "shell(pnpm:*)", "shell(gem:*)", "shell(bundle:*)", "shell(cargo:*)",
-                  "shell(go:*)", "shell(composer:*)", "shell(poetry:*)", "shell(uv:*)", "shell(pip3:*)",
-                  "shell(npm --global install:*)", "shell(pip --quiet install x:*)", "shell(yarn --silent add x:*)",
-                  "shell(cargo --locked install:*)", "shell(uv --quiet pip install:*)"):
-            self.assertIsNotNone(init.refusal(t, none), t)
-        for t in ("shell(npm --prefix dir install:*)", "shell(pip --index-url x install y:*)", "shell(npm --silent:*)",
-                  "shell(yarn --cwd sub add x:*)", "shell(cargo --manifest-path m install:*)"):
-            self.assertIn("installs packages", init.refusal(t, none), t)
-        for t in ("shell(npm run ci:*)", "shell(npm --prefix dir run install-deps:*)", "shell(npm --prefix dir test:*)"):
-            self.assertIsNone(init.refusal(t, none), t)
-        self.assertIn("installs packages", init.refusal("shell(npm:*)", none))
-        self.assertIn("installs packages", init.refusal("shell(pip --quiet install x:*)", none))
-        for t in ("shell(npm --silent run lint:*)", "shell(npm test:*)", "shell(cargo --locked test:*)", "shell(go test ./...:*)"):
-            self.assertIsNone(init.refusal(t, none), t)
+        refused = {
+            "pip": ("pip install", "pip3 install requests", "pip list", "pip3.12 download x", "pip --quiet install x",
+                    "pip --index-url x install y"),
+            "uv": ("uv pip install", "uv add", "uv sync", "uv --quiet pip install", "uv --quiet run pytest", "uv lock"),
+            "poetry": ("poetry add", "poetry install", "poetry build"), "pipenv": ("pipenv install", "pipenv sync"),
+            "pdm": ("pdm add x", "pdm install", "pdm sync"),
+            "npm": ("npm i", "npm add x", "npm in", "npm isntall", "npm it", "npm install-test", "npm update", "npm rebuild",
+                    "npm install", "npm ci", "npm --prefix dir install", "npm --prefix run install", "npm --silent run lint",
+                    "npm --silent", "npm --silent=1", "npm --prefix=dir", "npm publish", "npm link"),
+            "pnpm": ("pnpm i", "pnpm up", "pnpm update", "pnpm install", "pnpm add x"),
+            "yarn": ("yarn add", "yarn up", "yarn install", "yarn --cwd run add x", "yarn --cwd sub add x"),
+            "bun": ("bun install", "bun add x", "bun x cowsay", "bun update"),
+            "gem": ("gem install x", "gem update"), "bundle": ("bundle install", "bundle exec rake", "bundle update"),
+            "cargo": ("cargo install", "cargo run", "cargo --locked test", "cargo --manifest-path m install", "cargo publish"),
+            "go": ("go get", "go install", "go run main.go", "go generate", "go -x test"),
+            "composer": ("composer install", "composer require x", "composer update", "composer exec x")}
+        for manager, cmds in refused.items():
+            for cmd in cmds:
+                self.assertEqual(init.refusal(f"shell({cmd}:*)", none), f"only test/run-style subcommands of {manager} are accepted",
+                                 cmd)
+        for cmd in ("npm test", "npm t", "npm tst", "npm run lint", "npm run ci", "npm test --silent", "npm --prefix=dir test",
+                    "npm --prefix=dir run install-deps", "npm --prefix=dir --silent=1 run ci", "npm run x",
+                    "pnpm test", "pnpm run build", "yarn test", "yarn run lint",
+                    "uv run pytest", "uv --quiet=1 run pytest", "poetry run pytest -q", "pipenv run pytest", "pdm run pytest",
+                    "cargo test", "cargo build", "cargo check", "cargo clippy", "cargo fmt", "cargo test --all", "go test ./...",
+                    "go build", "go vet ./...", "composer test", "composer run-script lint", "mvn test", "make test"):
+            self.assertIsNone(init.refusal(f"shell({cmd}:*)", none), cmd)
 
-    def test_run_cuts_the_installer_scan_only_as_the_first_word_after_the_options(self):
+    def test_bun_is_an_interpreter_but_a_test_command_may_use_it(self):
         none = {"deny_tools": []}
-        # "--prefix" may take "run" as its value, so the next word is the subcommand
-        for t in ("shell(npm --prefix run install:*)", "shell(yarn --cwd run add x:*)", "shell(npm --silent run install:*)",
-                  "shell(npm foo run install:*)", "shell(npm install run:*)"):
-            self.assertIn("installs packages", init.refusal(t, none), t)
-        for t in ("shell(npm run ci:*)", "shell(npm --prefix=dir run install-deps:*)", "shell(npm --prefix=dir run ci:*)",
-                  "shell(yarn run add:*)"):
-            self.assertIsNone(init.refusal(t, none), t)
+        self.assertIn("bun is an interpreter", init.refusal("shell(bun test:*)", none))
+        for cmd in ("bun test", "bun run build"):
+            self.assertIsNone(init.refusal(f"shell({cmd}:*)", none, interpreters=False), cmd)
+        self.assertEqual(init.refusal("shell(bun add x:*)", none, interpreters=False),
+                         "only test/run-style subcommands of bun are accepted")
 
-    def test_refuses_the_installers_aliases(self):
+    def test_refuses_bare_package_managers(self):
         none = {"deny_tools": []}
-        for t in ("shell(npm add x:*)", "shell(npm in:*)", "shell(npm isntall:*)", "shell(npm it:*)", "shell(npm install-test:*)",
-                  "shell(npm update:*)", "shell(npm rebuild:*)", "shell(pnpm i:*)", "shell(pnpm up:*)", "shell(pnpm update:*)",
-                  "shell(yarn up:*)", "shell(pipenv install:*)", "shell(pipenv:*)", "shell(pdm add x:*)", "shell(pdm install:*)",
-                  "shell(pdm:*)", "shell(uv sync:*)", "shell(npm --prefix dir update:*)"):
-            self.assertIn("installs packages", init.refusal(t, none), t)
-        for t in ("shell(npm test:*)", "shell(pnpm test:*)", "shell(pdm run pytest:*)", "shell(pipenv run pytest:*)"):
-            self.assertIsNone(init.refusal(t, none), t)
+        for m in ("npm", "yarn", "pnpm", "bun", "gem", "bundle", "cargo", "go", "composer", "poetry", "uv", "pip", "pip3",
+                  "pipenv", "pdm", "/usr/local/bin/npm"):
+            self.assertEqual(init.refusal(f"shell({m}:*)", none), "installs packages, which runs their setup code", m)
+            self.assertEqual(init.refusal(f"shell({m})", none), "installs packages, which runs their setup code", m)
+
+    def test_runner_run_is_judged_by_the_command_after_it(self):
+        none = {"deny_tools": []}
+        for tool_, why in (("uv --q=1 run curl x", "curl reaches the network"), ("poetry --q=1 run find .", "-exec"),
+                           ("pdm --q=1 run python3", "python3 is an interpreter"), ("uv --q=1 run git status", "git tools are refused"),
+                           ("uv --q=1 run npm install", "only test/run-style subcommands of npm"),
+                           ("uv --q=1 run pip install x", "only test/run-style subcommands of pip"),
+                           ("uv --q=1 run", "ends right after a wrapper or runner"),
+                           ("pipenv --q=1 run env x", "env runs any command")):
+            self.assertIn(why, init.refusal(f"shell({tool_}:*)", none), tool_)
+        self.assertIsNone(init.refusal("shell(uv --q=1 run pytest -q:*)", none))
+        self.assertIsNone(init.refusal("shell(uv --q=1 run python3 -m pytest:*)", none, interpreters=False))
+
+    def test_run_script_names_are_not_checked_as_subcommands(self):
+        none = {"deny_tools": []}
+        for cmd in ("npm run install", "npm run ci", "yarn run add", "pnpm run update", "npm --prefix=dir run install-deps"):
+            self.assertIsNone(init.refusal(f"shell({cmd}:*)", none), cmd)
 
     def test_refuses_commands_that_write_or_run(self):
         for t in ("shell(find:*)", "shell(find . -name x:*)", "shell(sed -i:*)", "shell(awk:*)", "shell(xargs rm:*)", "shell(rg:*)",

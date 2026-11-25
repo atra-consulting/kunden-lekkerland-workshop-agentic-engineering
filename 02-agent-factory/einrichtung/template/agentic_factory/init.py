@@ -21,14 +21,13 @@ MODES = ("spec", "build")  # the modes whose tool lists add_tools may extend
 NETWORK = {"curl", "wget", "ssh", "scp", "nc", "ncat", "netcat", "telnet", "sftp", "ftp", "rsync"}
 LAUNCHERS = {"npx", "pnpx", "bunx", "uvx", "pipx"}  # download and run a package
 LAUNCHER_SUBCOMMANDS = {"npm": {"exec", "x"}, "pnpm": {"dlx", "exec"}, "yarn": {"dlx"}}
-INSTALLERS = {("pip", "install"), ("uv", "pip"), ("uv", "add"), ("poetry", "add"), ("poetry", "install"), ("npm", "install"),
-              ("npm", "i"), ("npm", "ci"), ("yarn", "add"), ("yarn", "install"), ("pnpm", "add"), ("pnpm", "install"),
-              ("gem", "install"), ("bundle", "install"), ("cargo", "install"), ("go", "install"), ("go", "get"),
-              ("composer", "install"), ("composer", "require"),
-              ("npm", "add"), ("npm", "in"), ("npm", "isntall"), ("npm", "it"), ("npm", "install-test"), ("npm", "update"),
-              ("npm", "rebuild"), ("pnpm", "i"), ("pnpm", "up"), ("pnpm", "update"), ("yarn", "up"), ("pipenv", "install"),
-              ("pdm", "add"), ("pdm", "install"), ("uv", "sync")}  # package installers run the packages' setup code, aliases too
-INSTALLER_MANAGERS = {m for m, _ in INSTALLERS}  # a bare "shell(npm:*)" allows their install commands too
+SCRIPT_RUNNERS = {"test", "t", "tst", "run"}  # "run" starts a script of the project: its name is the next word
+MANAGER_SUBCOMMANDS = {  # the first subcommand an allow-list entry may have, per package manager; any other (install, add,
+    # update, exec, ...) runs packages' setup code or downloaded code, and the list is closed: a subcommand not here is refused
+    "npm": SCRIPT_RUNNERS, "pnpm": SCRIPT_RUNNERS, "yarn": SCRIPT_RUNNERS, "bun": SCRIPT_RUNNERS,
+    "uv": {"run"}, "poetry": {"run"}, "pipenv": {"run"}, "pdm": {"run"},
+    "cargo": {"test", "build", "check", "clippy", "fmt"}, "go": {"test", "build", "vet"}, "composer": {"test", "run-script"},
+    "bundle": set(), "gem": set(), "pip": set()}  # bundle exec runs any gem's binary
 PIP = re.compile(r"pip\d*(\.\d+)*")  # pip, pip3, pip3.12
 SHAPE = "not a suggestion {value, reason, source}"
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
@@ -63,7 +62,8 @@ CAN_WRITE = {  # left out of read_tools on purpose: they can write files or run 
 
 def refusal(tool, cfg, interpreters=True):
     """Why init may not add this tool to an allow list, or None. Bare shell, tools a deny_tools entry covers, any git
-    tool (.git/config can turn git calls into code execution), network tools, package installers and launchers, commands
+    tool (.git/config can turn git calls into code execution), network tools, package managers other than their test and
+    run subcommands (MANAGER_SUBCOMMANDS), package launchers, commands
     that can write files or run commands (find, sed, ...), wrappers, runners without a concrete command, and
     interpreters are refused: they let the agent run what it likes. interpreters=False skips the wrapper and
     interpreter rules, for a test_command suggestion (check_test_command judges those: python3 -m pytest is fine)."""
@@ -100,19 +100,19 @@ def refusal(tool, cfg, interpreters=True):
     if first in LAUNCHERS or (len(words) > 1 and words[1] in LAUNCHER_SUBCOMMANDS.get(first, ())):
         return f"{first} downloads and runs a package"
     manager = "pip" if PIP.fullmatch(first) else first
-    # any word after the manager that is its installer subcommand (an option may take a value: npm --prefix dir install),
-    # up to "run": npm run ci runs a script, not an install. "run" counts only as the first word after the manager, or
-    # after options that carry their value (--prefix=dir): in "npm --prefix run install", run is the option's value
-    args = words[1:]
-    for i, w in enumerate(args):
-        if w == "run":
-            args = args[:i]
-            break
-        if not (w.startswith("-") and "=" in w):
-            break
-    if (any((manager, w) in INSTALLERS for w in args) or (len(words) == 1 and manager in INSTALLER_MANAGERS | {"pip"})
-            or (manager in INSTALLER_MANAGERS | {"pip"} and len(words) > 1 and all(w.startswith("-") for w in words[1:]))):
-        return "installs packages, which runs their setup code"
+    if manager in MANAGER_SUBCOMMANDS:
+        if len(words) == 1:
+            return "installs packages, which runs their setup code"
+        rest = words[1:]
+        i = 0
+        while i < len(rest) and rest[i].startswith("-") and "=" in rest[i]:  # only --opt=value: a bare option may take a value
+            i += 1
+        if i == len(rest) or rest[i] not in MANAGER_SUBCOMMANDS[manager]:
+            return f"only test/run-style subcommands of {manager} are accepted"
+        if rest[i] == "run" and manager in copilot.RUNNERS:  # uv run X: X is the command the runner rules judge
+            if i + 1 == len(rest):
+                return f"{x!r} ends right after a wrapper or runner; name the script, module, or target to run"
+            return refusal(f"shell({' '.join(rest[i + 1:])})", cfg, interpreters)
     if first in copilot.RUNNERS and len(words) == 1:
         return f"{first} runs any command; use a specific command such as {first} run pytest"
     if interpreters:

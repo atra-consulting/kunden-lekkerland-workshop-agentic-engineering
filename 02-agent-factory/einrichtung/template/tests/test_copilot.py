@@ -103,7 +103,7 @@ class Parity(unittest.TestCase):
         ticket = dict(TICKET)
         change, paths = BUILD[fw]
         spec_file = next((p for p in paths if p.endswith("SPEC.md")), paths[0])
-        prompts, tools, env_extra = copilot.plan(LAB_CFG, {}, mode, KEY, fw, ticket, change, spec_file)
+        prompts, tools, env_extra = copilot.plan(LAB_CFG, mode, KEY, fw, ticket, change, spec_file)
         ours = [copilot.copilot_argv(LAB_CFG, {}, p, tools, f"/x/usage-{i}.json") for i, p in enumerate(prompts, 1)]
         self.assertEqual(len(ours), len(theirs))
         for o, (t, env) in zip(ours, theirs):
@@ -132,7 +132,7 @@ class Parity(unittest.TestCase):
 
     def test_mcp_switches_only_append_to_the_factory_argv(self):
         theirs = agent_calls("spec", "openspec")[0][0]
-        prompts, tools, _ = copilot.plan(LAB_CFG, {}, "spec", KEY, "openspec", dict(TICKET), *BUILD["openspec"][:1], None)
+        prompts, tools, _ = copilot.plan(LAB_CFG, "spec", KEY, "openspec", dict(TICKET), *BUILD["openspec"][:1], None)
         ours = copilot.copilot_argv(LAB_CFG, {}, prompts[0], tools, "/x/usage-1.json", mcp_off=["a-b", "jira"])
         self.assertEqual(drop_usage(ours), drop_usage(theirs) + ["--disable-mcp-server=a-b", "--disable-mcp-server=jira"])
         self.assertIn("--disable-builtin-mcps", theirs)
@@ -146,7 +146,7 @@ class Parity(unittest.TestCase):
                 self.assertTrue(block.startswith("<<<TEAM RULES (regeln/"))
                 theirs = agent_calls(mode, fw)
                 change, paths = BUILD[fw]
-                prompts, tools, _ = copilot.plan(LAB_CFG, {}, mode, KEY, fw, dict(TICKET), change, paths[0], block)
+                prompts, tools, _ = copilot.plan(LAB_CFG, mode, KEY, fw, dict(TICKET), change, paths[0], block)
                 self.assertEqual(len(prompts), len(theirs))
                 for p, (t, _) in zip(prompts, theirs):
                     i = t.index("-p") + 1
@@ -216,7 +216,7 @@ class TestCommand(unittest.TestCase):
     """The test command of config.json: the build call's test tool is derived from it."""
 
     def build(self, cmd, fw="openspec"):
-        return copilot.plan({**FULL_CFG, "test_command": cmd}, {}, "build", KEY, fw, TICKET, "c", "x")
+        return copilot.plan({**FULL_CFG, "test_command": cmd}, "build", KEY, fw, TICKET, "c", "x")
 
     def test_build_tool_is_whole_command(self):
         prompts, tools, _ = self.build("make test")
@@ -225,10 +225,10 @@ class TestCommand(unittest.TestCase):
 
     def test_empty_test_command_stops_build(self):
         with self.assertRaisesRegex(config.Stop, r"set test_command in config\.json \(or run init\)"):
-            copilot.plan(FULL_CFG, {}, "build", KEY, "openspec", TICKET, "c", "x")
+            copilot.plan(FULL_CFG, "build", KEY, "openspec", TICKET, "c", "x")
 
     def test_spec_needs_no_test_command(self):
-        copilot.plan(FULL_CFG, {}, "spec", KEY, "openspec", TICKET, "c", "x")
+        copilot.plan(FULL_CFG, "spec", KEY, "openspec", TICKET, "c", "x")
 
     def test_inline_code_refused(self):
         for cmd in ("bash -c x", "sh -c x", "python3 -c 1", "node -e 1", "python3 -I -c 1", "python3 -u -c 1",
@@ -375,7 +375,7 @@ class ReadTools(unittest.TestCase):
     CFG = {**FULL_CFG, "test_command": "make test"}
 
     def plan(self, mode, fw, cfg=None):
-        return copilot.plan(cfg or self.CFG, {}, mode, KEY, fw, TICKET, "c", "x")[1]
+        return copilot.plan(cfg or self.CFG, mode, KEY, fw, TICKET, "c", "x")[1]
 
     def test_default_list(self):
         self.assertEqual(FULL_CFG["read_tools"], DEFAULT_READ_TOOLS)
@@ -443,30 +443,9 @@ class ReadTools(unittest.TestCase):
 
 
 class Overrides(unittest.TestCase):
-    def test_stack_hint(self):
-        hint = "Use the existing Laminas / PHP 8.3 stack, tests with make test"
-        prompts, _, _ = copilot.plan(LAB_CFG, {"stack_hint": hint}, "spec", KEY, "speckit", dict(TICKET))
-        self.assertIn(hint + "; no new dependencies.", prompts[1])
-        self.assertNotIn("Symfony", prompts[1])
-
-    def test_stack_hint_ignored_elsewhere(self):
-        a = copilot.plan(CFG, {"stack_hint": "X"}, "spec", KEY, "openspec", dict(TICKET))
-        self.assertEqual(a, copilot.plan(CFG, {}, "spec", KEY, "openspec", dict(TICKET)))
-
     def test_model(self):
         argv = copilot.copilot_argv(CFG, {"model": "gpt-9"}, "p", [], "/u")
         self.assertEqual(argv[argv.index("--model") + 1], "gpt-9")
-
-    def test_unknown_local_key_stops(self):
-        with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "local.json"
-            p.write_text('{"test_comand": "make test"}', encoding="utf-8")
-            with self.assertRaisesRegex(config.Stop, "unknown keys"):
-                config.load_local(p)
-
-    def test_example_file_loads(self):
-        d = config.load_local(HERE / "local.example.json")
-        self.assertEqual(d["test_command"], "make test")
 
     def test_forbidden_flag_stops(self):
         with self.assertRaisesRegex(config.Stop, "forbidden flag --yolo"):

@@ -12,7 +12,6 @@ from . import copied, config
 from . import rules as rules_mod  # plan() has a local "rules": the factory rules text
 from . import ticket as ticket_mod
 
-STACK_DEFAULT = "Use the existing Symfony 7 / PHP stack and PHPUnit"  # replaced by local.json stack_hint
 JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on to Copilot
 
 
@@ -165,15 +164,6 @@ def check_read_tools(cfg):
     return list(tools)
 
 
-def stack_override(local, prompts, fw):
-    hint = local.get("stack_hint")
-    if not hint or fw != "speckit":
-        return prompts
-    if not any(STACK_DEFAULT in p for p in prompts):
-        raise config.Stop(f"stack_hint: no Spec Kit prompt in config.json contains {STACK_DEFAULT!r}")
-    return [p.replace(STACK_DEFAULT, hint) for p in prompts]
-
-
 def fill(template, values, where):
     try:
         return template.format(**values)
@@ -181,7 +171,7 @@ def fill(template, values, where):
         raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
 
 
-def plan(cfg, local, mode, key, fw, ticket=None, change=None, spec_file=None, team_rules=""):
+def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, team_rules=""):
     """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
     team_rules: the block of the team's rules for the mode (rules.block), appended after every prompt."""
     F = cfg["frameworks"][fw]
@@ -190,7 +180,6 @@ def plan(cfg, local, mode, key, fw, ticket=None, change=None, spec_file=None, te
         rules = cfg.get("spec_rules", copied.SPEC_RULES).format(folder=F["spec_rule_folder"])
         vals = {"ticket_block": ticket_mod.ticket_block(ticket), "spec_rules": rules, "key": key, "slug": key.lower()}
         prompts = [fill(p, vals, f"{fw} spec_prompts") for p in F["spec_prompts"]]
-        prompts = stack_override(local, prompts, fw)
         tools = [*F["spec_tools"], *check_read_tools(cfg)]
     elif mode == "build":
         cmd = build_test_command(cfg)

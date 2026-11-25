@@ -4,7 +4,8 @@ import re
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent  # the folder with agentic-factory.py, config.json, and agentic_factory/
-LOCAL_KEYS = {"test_command", "stack_hint", "model", "copilot", "jira_mcp_server", "jira_site"}
+LOCAL_KEYS = {"model", "copilot", "jira_mcp_server", "jira_site"}  # machine settings only
+MOVED_KEYS = {"test_command": "config.json (key test_command)", "stack_hint": "AGENTS.md (describe the stack there)"}
 JIRA_MCP_SERVER = re.compile(r"[A-Za-z0-9_.-]{1,64}")  # local.json jira_mcp_server, default "atlassian"
 JIRA_SITE = re.compile(r"https://[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*(?::[0-9]{1,5})?/?")  # no userinfo, path, or query
 QUESTIONS = "FACTORY-QUESTIONS.md"
@@ -33,16 +34,16 @@ def read_json(path):
 
 
 def load_local(path):
-    """local.json: the project overrides. Missing file means no overrides. Unknown keys stop (typos)."""
+    """local.json: this machine's settings. Missing file means none. Moved keys and unknown keys (typos) stop."""
     if path is None or not Path(path).exists():
         return {}
     d = read_json(path)
+    moved = sorted(k for k in d if k in MOVED_KEYS)
+    if moved:
+        raise Stop(f"{path}: {', '.join(f'{k} moved to {MOVED_KEYS[k]}' for k in moved)}; remove it from local.json")
     unknown = sorted(k for k in d if k not in LOCAL_KEYS and not k.startswith("comment"))
     if unknown:
         raise Stop(f"{path}: unknown keys {unknown}; allowed: {sorted(LOCAL_KEYS)}")
-    tc = d.get("test_command")
-    if tc is not None and not (isinstance(tc, str) and tc.strip()):
-        raise Stop(f"{path}: test_command must be a non-empty string such as \"make test\"")
     cp = d.get("copilot")
     if cp is not None and not (isinstance(cp, list) and cp and all(isinstance(x, str) and x for x in cp)):
         raise Stop(f"{path}: copilot must be a list of strings, such as [\"copilot\"]")

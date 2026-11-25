@@ -25,8 +25,8 @@ Exit codes for --step all: 0 done or ready, 4 not ready, 5 questions posted (cla
 cap (clarify), 2 error. The split steps exit 0 unless there is an error.
 
 Same prompts, flags, and order as factory/agent.py. Prompts, tools, deny_tools, and the model come from config.json
-next to agentic-factory.py. local.json there may override test_command, stack_hint, model, copilot (the command
-that starts Copilot CLI), jira_mcp_server, and jira_site. Logs go to ~/.factory-local/<project>/, outside the project.
+next to agentic-factory.py, with the test command in config.json (test_command). local.json there holds this
+machine's settings: model, copilot (the command that starts Copilot CLI), jira_mcp_server, and jira_site. Logs go to ~/.factory-local/<project>/, outside the project.
 
 What agentic-factory.py doesn't do: no separate user, no container, no check step (protected paths, secrets, invisible
 characters) on the work, no approval gate between spec and build, no status transitions. Review `git diff` yourself.

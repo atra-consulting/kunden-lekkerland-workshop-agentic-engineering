@@ -63,7 +63,7 @@ def work_plan(run, req, ticket, comments=()):
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
             config.say(f"building change {change} ({len(paths)} spec files)")
-        prompts, tools, p["env_extra"] = copilot.plan(cfg, local, mode, key, fw, ticket, p["change"], spec_file,
+        prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file,
                                                       rules.block(run.rules, mode))
         if fw == "speckit":
             tools = ticket_mod.speckit_tool_map(repo, tools)

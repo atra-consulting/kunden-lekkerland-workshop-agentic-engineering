@@ -203,7 +203,7 @@ class Builders(unittest.TestCase):
                                  ("build", BUILD_BLOCK, ("openspec", "speckit", "bmad"))):
             for fw in fws:
                 with self.subTest(mode=mode, fw=fw):
-                    args = ({**CFG, "test_command": "make test"}, {}, mode, KEY, fw, dict(TICKET), "c-1", "s.md")
+                    args = ({**CFG, "test_command": "make test"}, mode, KEY, fw, dict(TICKET), "c-1", "s.md")
                     plain, tools, env = copilot.plan(*args)
                     prompts, tools2, env2 = copilot.plan(*args, block)
                     self.assertEqual(prompts, [p + "\n\n" + block for p in plain])

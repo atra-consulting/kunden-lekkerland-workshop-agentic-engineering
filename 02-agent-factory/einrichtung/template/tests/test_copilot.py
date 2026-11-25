@@ -354,7 +354,7 @@ DEFAULT_READ_TOOLS = ["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tai
 
 
 class ReadTools(unittest.TestCase):
-    """Default read-only shell tools for the spec and build calls (read_tools in config.json)."""
+    """Default read-only shell tools for the spec and build calls and their revisions (read_tools in config.json)."""
 
     CFG = {**FULL_CFG, "test_command": "make test"}
 
@@ -371,6 +371,17 @@ class ReadTools(unittest.TestCase):
                 for entry in DEFAULT_READ_TOOLS:
                     with self.subTest(fw=fw, mode=mode, entry=entry):
                         self.assertIn(entry, tools)
+
+    def test_revise_and_amend_get_read_tools_like_spec_and_build(self):
+        """The user's answer to security I1 item 3: the revision calls get read_tools too; amend no test tool."""
+        for fw, F in FULL_CFG["frameworks"].items():
+            with self.subTest(fw=fw):
+                _, tools, _ = copilot.revise_plan(self.CFG, KEY, fw, TICKET, "c", "<<<COMMENTS\nCOMMENTS>>>")
+                self.assertEqual(tools, [*F["spec_tools"], *DEFAULT_READ_TOOLS])
+                _, tools, _ = copilot.amend_plan(self.CFG, KEY, fw, TICKET, "c", "<<<COMMENTS\nCOMMENTS>>>",
+                                                 "t.md", 2)
+                self.assertEqual(tools, [*F["spec_tools"], *DEFAULT_READ_TOOLS])
+                self.assertNotIn("shell(make test:*)", tools)
 
     def test_dangerous_ones_absent(self):
         words = {e[len("shell("):-len(":*)")] for e in FULL_CFG["read_tools"]}

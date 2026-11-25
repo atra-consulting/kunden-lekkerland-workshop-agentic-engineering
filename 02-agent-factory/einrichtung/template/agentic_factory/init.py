@@ -23,6 +23,8 @@ INSTALLER_MANAGERS = {m for m, _ in INSTALLERS}  # a bare "shell(npm:*)" allows 
 PIP = re.compile(r"pip\d*(\.\d+)*")  # pip, pip3, pip3.12
 SHAPE = "not a suggestion {value, reason, source}"
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
+UNSAFE_TEXT = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # terminal escapes, bidi
+MAX_PATTERN = 200  # chars of one protected_paths regex
 
 
 def shell_prefix(tool):
@@ -86,8 +88,11 @@ def refusal(tool, cfg, interpreters=True):
     if first in LAUNCHERS or (len(words) > 1 and words[1] in LAUNCHER_SUBCOMMANDS.get(first, ())):
         return f"{first} downloads and runs a package"
     manager = "pip" if PIP.fullmatch(first) else first
-    sub = next((w for w in words[1:] if not w.startswith("-")), None)  # npm --global install: skip the options
-    if (manager, sub) in INSTALLERS or (len(words) == 1 and manager in INSTALLER_MANAGERS | {"pip"}):
+    # any word after the manager that is its installer subcommand (an option may take a value: npm --prefix dir install),
+    # up to "run": npm run ci runs a script, not an install; or only options after it (npm --silent)
+    args = words[1:words.index("run") if "run" in words[1:] else len(words)]
+    if (any((manager, w) in INSTALLERS for w in args) or (len(words) == 1 and manager in INSTALLER_MANAGERS | {"pip"})
+            or (manager in INSTALLER_MANAGERS | {"pip"} and len(words) > 1 and all(w.startswith("-") for w in words[1:]))):
         return "installs packages, which runs their setup code"
     if first in copilot.RUNNERS and len(words) == 1:
         return f"{first} runs any command; use a specific command such as {first} run pytest"
@@ -221,10 +226,12 @@ def check_suggestions(d, cfg, readiness_text, installed):
         try:
             if not isinstance(value, str) or not value:
                 raise ValueError("expected a non-empty string")
+            if len(value) > MAX_PATTERN:
+                raise ValueError(f"longer than {MAX_PATTERN} characters")
             re.compile(value)
             yes("add_protected_paths", "", sg)
-        except (re.error, ValueError) as e:
-            no("add_protected_paths", "", sg, f"not a regular expression: {e}")
+        except (re.error, ValueError, OverflowError, RecursionError) as e:
+            no("add_protected_paths", "", sg, f"not a usable regular expression: {e}")
 
     sg = single("enabled_frameworks")
     if sg:
@@ -245,6 +252,9 @@ def check_suggestions(d, cfg, readiness_text, installed):
         try:
             if not isinstance(sg["value"], str):
                 raise config.Stop("readiness_md must be the full new text, a string")
+            if UNSAFE_TEXT.search(sg["value"]):
+                raise config.Stop("readiness_md contains control characters or text-direction marks (only newline and tab "
+                                  "are allowed); the diff goes to the terminal")
             new_ids = readiness.parse_criteria(sg["value"], "readiness_md")[1]
             lost = [i for i in readiness.parse_criteria(readiness_text, "readiness.md")[1] if i not in new_ids]
             if lost:

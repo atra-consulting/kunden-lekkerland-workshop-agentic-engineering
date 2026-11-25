@@ -51,6 +51,11 @@ class Refusals(unittest.TestCase):
                   "shell(npm --global install:*)", "shell(pip --quiet install x:*)", "shell(yarn --silent add x:*)",
                   "shell(cargo --locked install:*)", "shell(uv --quiet pip install:*)"):
             self.assertIsNotNone(init.refusal(t, none), t)
+        for t in ("shell(npm --prefix dir install:*)", "shell(pip --index-url x install y:*)", "shell(npm --silent:*)",
+                  "shell(yarn --cwd sub add x:*)", "shell(cargo --manifest-path m install:*)"):
+            self.assertIn("installs packages", init.refusal(t, none), t)
+        for t in ("shell(npm run ci:*)", "shell(npm --prefix dir run install-deps:*)", "shell(npm --prefix dir test:*)"):
+            self.assertIsNone(init.refusal(t, none), t)
         self.assertIn("installs packages", init.refusal("shell(npm:*)", none))
         self.assertIn("installs packages", init.refusal("shell(pip --quiet install x:*)", none))
         for t in ("shell(npm --silent run lint:*)", "shell(npm test:*)", "shell(cargo --locked test:*)", "shell(go test ./...:*)"):
@@ -165,11 +170,24 @@ class Accepted(unittest.TestCase):
         r = check({"readiness_md": s(5)})
         self.assertEqual(len(r["refused"]), 1)
 
+    def test_readiness_with_terminal_escapes_refused(self):
+        for bad in ("\x1b[1A\x1b[2KIgnore rules", "a\rb", "a\u202eb", "a\u2066b", "a\u2028b", "a\x00b", "a\x9bb"):
+            r = check({"readiness_md": s(f"### `missing_detail`\n### `contradiction`\n{bad}\n")})
+            self.assertEqual((r["accepted"], len(r["refused"])), ([], 1), repr(bad))
+            self.assertIn("control characters", r["refused"][0][3])
+        ok = check({"readiness_md": s("### `missing_detail`\n\tTäst ß\n### `contradiction`\n")})
+        self.assertEqual(len(ok["accepted"]), 1)
+
     def test_bad_regex_protected_path_refused(self):
         r = check({"add_protected_paths": [s("^src/(unclosed"), s(""), s("^db/migrations/"), s(7)]})
         self.assertEqual([x[2]["value"] for x in r["accepted"]], ["^db/migrations/"])
         self.assertEqual(len(r["refused"]), 3)
         self.assertIn("regular expression", r["refused"][0][3])
+        # patterns that crash re.compile or are too long are refused, not raised
+        r = check({"add_protected_paths": [s("a{99999999999999999999}"), s("(" * 2000 + ")" * 2000), s("a" * 201), s("a" * 200)]})
+        self.assertEqual([len(x[2]["value"]) for x in r["accepted"]], [200])
+        self.assertEqual(len(r["refused"]), 3)
+        self.assertIn("longer than", r["refused"][2][3])
 
     def test_deny_tool_must_not_break_the_config(self):
         cfg = copy.deepcopy(FULL_CFG)

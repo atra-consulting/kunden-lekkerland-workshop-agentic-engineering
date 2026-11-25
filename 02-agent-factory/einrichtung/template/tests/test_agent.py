@@ -246,17 +246,20 @@ class GitGuard(E2E, unittest.TestCase):
                 with self.subTest(path=path, call=m.group(0)):
                     self.assertTrue(m.group(1).startswith('"--no-ext-diff", "--no-textconv"'), m.group(0))
 
+    def include(self, path, target, cond=None):
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write((f'[includeIf "{cond}"]\n' if cond else "[include]\n") + f'\tpath = "{Path(target).as_posix()}"\n')
+
     def test_every_git_call_checks_the_git_files_first(self):
         """After the run's baseline, a git call stops when .git/config, a hook, or an included file changed."""
-        inc = self.repo / "conf" / "extra.cfg"
-        inc.parent.mkdir()
+        inc, cond = self.d / "extra.cfg", self.d / "if.cfg"
         inc.write_text("[user]\n\tname = x\n", encoding="utf-8")
-        with open(self.repo / ".git/config", "a", encoding="utf-8") as fh:
-            fh.write('[include]\n\tpath = ../conf/extra.cfg\n[includeIf "gitdir:/nowhere/"]\n\tpath = "../conf/if.cfg"\n')
+        self.include(self.repo / ".git/config", inc)
+        self.include(self.repo / ".git/config", cond, "gitdir:/nowhere/")
         cases = {"config": (self.repo / ".git/config", "[core]\n\tfsmonitor = touch fsmonitor-ran\n"),
                  "hook": (self.repo / ".git/hooks/pre-commit", "#!/bin/sh\n"),
                  "include": (inc, "[core]\n\tfsmonitor = touch fsmonitor-ran\n"),
-                 "includeIf, created": (self.repo / "conf" / "if.cfg", "[core]\n\tpager = touch x\n")}
+                 "includeIf, created": (cond, "[core]\n\tpager = touch x\n")}
         with mock.patch.dict(os.environ, {"HOME": str(self.d)}):
             for name, (path, text) in cases.items():
                 with self.subTest(name=name):
@@ -265,9 +268,11 @@ class GitGuard(E2E, unittest.TestCase):
                     ticket_mod.git(self.repo, "status")
                     with open(path, "a", encoding="utf-8") as fh:
                         fh.write(text)
+                    shown = (path.relative_to(self.repo).as_posix() if path.is_relative_to(self.repo)
+                             else path.resolve().as_posix())
                     for call in (lambda: ticket_mod.git(self.repo, "status"), lambda: ticket_mod.head_commit(self.repo)):
-                        with self.assertRaisesRegex(config.Stop, f"{re.escape(path.relative_to(self.repo).as_posix())} "
-                                                                 "changed since the run started; nothing is posted"):
+                        with self.assertRaisesRegex(config.Stop, f"{re.escape(shown)} changed since the run started; "
+                                                                 "nothing is posted"):
                             call()
                     if old is None:
                         path.unlink()
@@ -275,14 +280,39 @@ class GitGuard(E2E, unittest.TestCase):
                         path.write_bytes(old)
         self.assertFalse((self.repo / "fsmonitor-ran").exists())
 
-    def test_included_file_outside_the_repo_is_not_hashed(self):
-        out = self.d / "outside.cfg"
-        out.write_text("[user]\n", encoding="utf-8")
-        with open(self.repo / ".git/config", "a", encoding="utf-8") as fh:
-            fh.write(f"[include]\n\tpath = {out.as_posix()}\n")
+    def test_nested_include_and_cycle(self):
+        a, b = self.d / "a.cfg", self.d / "sub" / "b.cfg"
+        b.parent.mkdir()
+        a.write_text("", encoding="utf-8")
+        b.write_text("", encoding="utf-8")
+        self.include(self.repo / ".git/config", a)
+        self.include(a, "sub/b.cfg")  # relative to the including file
+        self.include(b, a)  # a cycle
         files = ticket_mod.git_dir_files(self.repo)
-        self.assertNotIn(out.resolve().as_posix(), files)
-        self.assertIn((self.repo.resolve() / ".git/config").as_posix(), files)
+        self.assertIn(a.resolve().as_posix(), files)
+        self.assertIn(b.resolve().as_posix(), files)
+        ticket_mod.trust_git_dir(self.repo)
+        with open(b, "a", encoding="utf-8") as fh:
+            fh.write("[core]\n\tfsmonitor = touch fsmonitor-ran\n")
+        with mock.patch.dict(os.environ, {"HOME": str(self.d)}), \
+                self.assertRaisesRegex(config.Stop, "b.cfg changed since the run started"):
+            ticket_mod.git(self.repo, "status")
+
+    def test_include_from_inside_the_project_stops_before_any_call(self):
+        for where in ("conf/extra.cfg", ".git/extra.cfg"):
+            with self.subTest(where=where):
+                cfg = (self.repo / ".git/config").read_bytes()
+                (self.repo / where).parent.mkdir(exist_ok=True)
+                (self.repo / where).write_text("", encoding="utf-8")
+                self.include(self.d / "outer.cfg", self.repo / where)  # nested: outside, then inside
+                self.include(self.repo / ".git/config", self.d / "outer.cfg")
+                with self.assertRaisesRegex(config.Stop, f"git config includes .*{re.escape(where)} from inside the "
+                                                         "project; the agent could change it — move it out of the "
+                                                         "project"):
+                    self.run_main("spec", "--ticket-file", str(self.tf))
+                self.assertFalse((self.d / "calls.jsonl").exists())
+                (self.repo / ".git/config").write_bytes(cfg)
+                (self.d / "outer.cfg").unlink()
 
     def test_interrupted_call_is_checked_too(self):
         def interrupted(argv, repo, env, events_path, timeout):

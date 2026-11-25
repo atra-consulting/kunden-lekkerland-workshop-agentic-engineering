@@ -138,9 +138,11 @@ SECTION = re.compile(r'\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"[^"]*")?\s*\]')
 INCLUDE_PATH = re.compile(r"\s*path\s*=\s*(.*?)\s*$", re.I)
 
 
-def _included(config_file, repo):
-    """The files a git config file includes (include.path, includeIf.*.path) that lie inside the repo: the agent can
-    write them. Missing ones too, so creating one counts as a change."""
+MAX_INCLUDE_DEPTH = 10  # as git's own limit
+
+
+def _include_paths(config_file):
+    """The include.path and includeIf.*.path values of one git config file, resolved against its folder."""
     try:
         lines = config_file.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
@@ -154,22 +156,41 @@ def _included(config_file, repo):
         m = INCLUDE_PATH.match(line)
         if m and section in ("include", "includeif"):
             value = m.group(1).split(" #")[0].split(" ;")[0].strip().strip('"')
-            if not value:
-                continue
-            f = Path(value).expanduser()
-            f = f if f.is_absolute() else config_file.parent / f
-            try:
-                f.resolve().relative_to(Path(repo).resolve())
-            except (ValueError, OSError):
-                continue
-            out.append(f)
+            if value:
+                f = Path(value).expanduser()
+                out.append(f if f.is_absolute() else config_file.parent / f)
+    return out
+
+
+def _included(configs, repo):
+    """Every file the configs include, followed recursively (a visited set, at most MAX_INCLUDE_DEPTH levels). Stops on
+    one inside the project: the agent could write it (ruling R32). The others are hashed with the git files."""
+    root, seen, out = Path(repo).resolve(), set(), []
+    level = list(configs)
+    for _ in range(MAX_INCLUDE_DEPTH):
+        nxt = []
+        for c in level:
+            for f in _include_paths(c):
+                r = f.resolve()
+                if r in seen:
+                    continue
+                seen.add(r)
+                if r == root or root in r.parents:
+                    raise config.Stop(f"git config includes {r} from inside the project; the agent could change it — "
+                                      "move it out of the project")
+                out.append(r)
+                nxt.append(r)
+        if not nxt:
+            break
+        level = nxt
     return out
 
 
 def git_dir_files(repo):
     """{path: sha256, or "missing"} of the git files that can make a git command run code: config, config.worktree,
-    every file under hooks/, and the files their include.path and includeIf entries name inside the repo; of the repo's
-    git folder and, for a worktree, the shared one. Read directly, without git."""
+    every file under hooks/, and the files their include.path and includeIf entries name, recursively (one inside the
+    project stops, see _included); of the repo's git folder and, for a worktree, the shared one. Read directly,
+    without git."""
     repo = Path(repo).resolve()  # the same keys whichever spelling of the folder a caller has
     dirs, dot = [], repo / ".git"
     if dot.is_file():  # a worktree or submodule: "gitdir: <path>"
@@ -189,7 +210,7 @@ def git_dir_files(repo):
         try:
             configs = [g / "config", g / "config.worktree"]
             files = [*configs, *sorted((g / "hooks").rglob("*"))]
-            files += [f for c in configs for f in _included(c, repo)]
+            files += _included(configs, repo)
             for f in files:
                 if f.is_file() or f.is_symlink():
                     data = f.read_bytes() if f.is_file() else b"symlink:" + str(f.readlink()).encode()

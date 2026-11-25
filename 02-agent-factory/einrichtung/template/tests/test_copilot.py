@@ -231,13 +231,19 @@ class TestCommand(unittest.TestCase):
         copilot.plan(FULL_CFG, {}, "spec", KEY, "openspec", TICKET, "c", "x")
 
     def test_inline_code_refused(self):
-        for cmd in ("bash -c x", "sh -c x", "python3 -c 1", "node -e 1"):
+        for cmd in ("bash -c x", "sh -c x", "python3 -c 1", "node -e 1", "python3 -I -c 1", "python3 -u -c 1",
+                    "node --no-warnings -e 1", "bash -x -c x", "bash -lc x", "python3 -Sc 1", "node --eval 1"):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
 
     def test_shell_syntax_refused(self):
         for cmd in ("make test && rm x", "a; b", "a | b", "$(x)", "`x`", 'pytest -k "a b"', "CI=1 npm test"):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_flags_after_the_script_are_the_scripts_own(self):
+        for cmd in ("python3 run.py -c x", "python3 -I run.py -e x", "bash test.sh -c"):
+            with self.subTest(cmd=cmd):
                 self.build(cmd)
 
     def test_equals_sign_allowed_after_the_first_word(self):

@@ -60,8 +60,8 @@ def source_label(cfg, fw, source):
             "default": "Standard"}[source]
 
 
-def test_command(cfg, local):
-    return local.get("test_command") or " ".join(cfg["test_command"])
+def test_command(cfg):
+    return cfg["test_command"]
 
 
 def test_lines(cmd):

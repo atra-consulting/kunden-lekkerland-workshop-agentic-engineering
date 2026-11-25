@@ -21,7 +21,7 @@ from unittest import mock
 
 from agentic_factory import copied, config, copilot, jira_mcp, rules
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, TICKET, drop_usage
+from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, LAB_CFG, TICKET, drop_usage
 
 
 BUILD = {"openspec": ("add-lowercase-tags", ["openspec/changes/add-lowercase-tags/proposal.md",
@@ -103,8 +103,8 @@ class Parity(unittest.TestCase):
         ticket = dict(TICKET)
         change, paths = BUILD[fw]
         spec_file = next((p for p in paths if p.endswith("SPEC.md")), paths[0])
-        prompts, tools, env_extra = copilot.plan(CFG, {}, mode, KEY, fw, ticket, change, spec_file)
-        ours = [copilot.copilot_argv(CFG, {}, p, tools, f"/x/usage-{i}.json") for i, p in enumerate(prompts, 1)]
+        prompts, tools, env_extra = copilot.plan(LAB_CFG, {}, mode, KEY, fw, ticket, change, spec_file)
+        ours = [copilot.copilot_argv(LAB_CFG, {}, p, tools, f"/x/usage-{i}.json") for i, p in enumerate(prompts, 1)]
         self.assertEqual(len(ours), len(theirs))
         for o, (t, env) in zip(ours, theirs):
             self.assertEqual(drop_usage(o), drop_usage(t))
@@ -132,8 +132,8 @@ class Parity(unittest.TestCase):
 
     def test_mcp_switches_only_append_to_the_factory_argv(self):
         theirs = agent_calls("spec", "openspec")[0][0]
-        prompts, tools, _ = copilot.plan(CFG, {}, "spec", KEY, "openspec", dict(TICKET), *BUILD["openspec"][:1], None)
-        ours = copilot.copilot_argv(CFG, {}, prompts[0], tools, "/x/usage-1.json", mcp_off=["a-b", "jira"])
+        prompts, tools, _ = copilot.plan(LAB_CFG, {}, "spec", KEY, "openspec", dict(TICKET), *BUILD["openspec"][:1], None)
+        ours = copilot.copilot_argv(LAB_CFG, {}, prompts[0], tools, "/x/usage-1.json", mcp_off=["a-b", "jira"])
         self.assertEqual(drop_usage(ours), drop_usage(theirs) + ["--disable-mcp-server=a-b", "--disable-mcp-server=jira"])
         self.assertIn("--disable-builtin-mcps", theirs)
 
@@ -146,12 +146,12 @@ class Parity(unittest.TestCase):
                 self.assertTrue(block.startswith("<<<TEAM RULES (regeln/"))
                 theirs = agent_calls(mode, fw)
                 change, paths = BUILD[fw]
-                prompts, tools, _ = copilot.plan(CFG, {}, mode, KEY, fw, dict(TICKET), change, paths[0], block)
+                prompts, tools, _ = copilot.plan(LAB_CFG, {}, mode, KEY, fw, dict(TICKET), change, paths[0], block)
                 self.assertEqual(len(prompts), len(theirs))
                 for p, (t, _) in zip(prompts, theirs):
                     i = t.index("-p") + 1
                     want = t[:i] + [t[i] + "\n\n" + block] + t[i + 1:]
-                    self.assertEqual(drop_usage(copilot.copilot_argv(CFG, {}, p, tools, "/x/u.json")), drop_usage(want))
+                    self.assertEqual(drop_usage(copilot.copilot_argv(LAB_CFG, {}, p, tools, "/x/u.json")), drop_usage(want))
 
 
 class ShellDeny(unittest.TestCase):
@@ -212,23 +212,61 @@ class ShellDeny(unittest.TestCase):
         self.assertEqual(copilot.shell_ran(ev), [])
 
 
-class Overrides(unittest.TestCase):
-    def test_test_command(self):
-        prompts, tools, _ = copilot.plan(CFG, {"test_command": "make test"}, "build", KEY, "openspec",
-                                       change="x", spec_file="openspec/changes/x/proposal.md")
+class TestCommand(unittest.TestCase):
+    """The test command of config.json: the build call's test tool is derived from it."""
+
+    def build(self, cmd, fw="openspec"):
+        return copilot.plan({**FULL_CFG, "test_command": cmd}, {}, "build", KEY, fw, TICKET, "c", "x")
+
+    def test_build_tool_is_whole_command(self):
+        prompts, tools, _ = self.build("make test")
+        self.assertEqual(tools[-1], "shell(make test:*)")
         self.assertIn("Run the tests with exactly: make test.", prompts[0])
-        self.assertNotIn("./bin/phpunit", prompts[0])
-        self.assertIn("shell(make:*)", tools)
-        self.assertNotIn("shell(./bin/phpunit:*)", tools)
 
-    def test_test_command_same_as_config_changes_nothing(self):
-        a = copilot.plan(CFG, {"test_command": "./bin/phpunit"}, "build", KEY, "bmad", change="x", spec_file="s")
-        b = copilot.plan(CFG, {}, "build", KEY, "bmad", change="x", spec_file="s")
-        self.assertEqual(a, b)
+    def test_empty_test_command_stops_build(self):
+        with self.assertRaisesRegex(config.Stop, r"set test_command in config\.json \(or run init\)"):
+            copilot.plan(FULL_CFG, {}, "build", KEY, "openspec", TICKET, "c", "x")
 
+    def test_spec_needs_no_test_command(self):
+        copilot.plan(FULL_CFG, {}, "spec", KEY, "openspec", TICKET, "c", "x")
+
+    def test_inline_code_refused(self):
+        for cmd in ("bash -c x", "sh -c x", "python3 -c 1", "node -e 1"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_shell_syntax_refused(self):
+        for cmd in ("make test && rm x", "a; b", "a | b", "$(x)", "`x`", 'pytest -k "a b"', "CI=1 npm test"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_denied_test_tool_stops(self):
+        with self.assertRaises(config.Stop) as cm:
+            self.build("npx jest")
+        self.assertIn("npx jest", str(cm.exception))
+        self.assertIn("shell(npx:*)", str(cm.exception))
+
+    def test_npm_test_passes_template_deny_list(self):
+        self.build("npm test")
+        self.assertIn("shell(npm install:*)", FULL_CFG["deny_tools"])
+        self.assertNotIn("shell(npm:*)", FULL_CFG["deny_tools"])
+
+    def test_denied_by(self):
+        deny = ["shell(npm install:*)", "shell(npx:*)"]
+        self.assertEqual(copilot.denied_by("npx jest", deny), "shell(npx:*)")
+        self.assertEqual(copilot.denied_by("npm install", deny), "shell(npm install:*)")
+        self.assertIsNone(copilot.denied_by("npm test", deny))
+        self.assertIsNone(copilot.denied_by("npxy", deny))
+
+    def test_lab_build_rules_equal_factory(self):
+        self.assertEqual(copilot.fill(FULL_CFG["build_rules"], {"test_command": "./bin/phpunit"}, "x"),
+                         copied.BUILD_RULES)
+
+
+class Overrides(unittest.TestCase):
     def test_stack_hint(self):
         hint = "Use the existing Laminas / PHP 8.3 stack, tests with make test"
-        prompts, _, _ = copilot.plan(CFG, {"stack_hint": hint}, "spec", KEY, "speckit", dict(TICKET))
+        prompts, _, _ = copilot.plan(LAB_CFG, {"stack_hint": hint}, "spec", KEY, "speckit", dict(TICKET))
         self.assertIn(hint + "; no new dependencies.", prompts[1])
         self.assertNotIn("Symfony", prompts[1])
 

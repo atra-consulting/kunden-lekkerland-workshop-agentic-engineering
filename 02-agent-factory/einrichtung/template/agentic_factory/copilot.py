@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import threading
@@ -19,16 +18,56 @@ JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on 
 
 # --- the calls --------------------------------------------------------------------------------------------------------
 
-def test_override(cfg, local, rules, tools):
-    """local.json test_command replaces the config's test command in the build rules and in the allowed tools."""
-    new = local.get("test_command")
-    old = " ".join(cfg["test_command"])
-    if not new or new == old:
-        return rules, tools
-    if old not in rules:
-        raise config.Stop(f"the build rules don't name the config's test command {old!r}; can't apply test_command")
-    old_tool, new_tool = f"shell({cfg['test_command'][0]}:*)", f"shell({shlex.split(new)[0]}:*)"
-    return rules.replace(old, new), [new_tool if t == old_tool else t for t in tools]
+TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # one word of a test command; no quotes, "$", "=", ";", "&", "|", "<", ">"
+INTERPRETERS = {"bash", "sh", "zsh", "dash", "python", "python3", "node", "ruby", "perl", "pwsh", "powershell"}
+INLINE_CODE_FLAGS = {"-c", "-e", "--eval", "-Command"}
+
+
+def check_test_command(cmd):
+    """Stops unless cmd is plain words: no shell syntax, no environment assignment, and no interpreter running inline
+    code (bash -c, python -c, node -e, ...), because the build call's tool is the whole command as a prefix."""
+    words = cmd.split(" ")
+    if not cmd or "" in words:
+        raise config.Stop(f"test_command {cmd!r}: words must be separated by single spaces, with no leading or trailing space")
+    if "=" in words[0]:
+        raise config.Stop(f"test_command {cmd!r}: an environment assignment in front of the command isn't allowed; "
+                          "put it in a script or a make target")
+    for w in words:
+        if not TEST_CHARS.fullmatch(w):
+            raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % -; "
+                              "shell syntax and quotes aren't allowed, put them in a script or a make target")
+    if os.path.basename(words[0]) in INTERPRETERS and len(words) > 1 and words[1] in INLINE_CODE_FLAGS:
+        raise config.Stop(f"test_command {cmd!r}: {words[0]} {words[1]} runs inline code; "
+                          "use a script file or a make target")
+
+
+def test_tool(cmd):
+    """The one tool a build call gets for the test command: the whole command as a prefix."""
+    return f"shell({cmd}:*)"
+
+
+def denied_by(cmd, deny_tools):
+    """The first deny_tools entry shell(X:*) that covers cmd (cmd == X or cmd starts with X and a space), or None."""
+    for entry in deny_tools:
+        if entry.startswith("shell(") and entry.endswith(":*)"):
+            x = entry[len("shell("):-len(":*)")]
+            if cmd == x or cmd.startswith(x + " "):
+                return entry
+    return None
+
+
+def build_test_command(cfg):
+    """The checked test command of config.json for a build call. A deny entry beats every allow, so a command a deny
+    entry covers stops here, before any call."""
+    cmd = cfg.get("test_command") or ""
+    if not cmd:
+        raise config.Stop("set test_command in config.json (or run init)")
+    check_test_command(cmd)
+    entry = denied_by(cmd, cfg["deny_tools"])
+    if entry:
+        raise config.Stop(f"test_command {cmd!r} is covered by {entry} in deny_tools, which beats every allow; "
+                          "use another test command or change deny_tools")
+    return cmd
 
 
 def stack_override(local, prompts, fw):
@@ -59,7 +98,9 @@ def plan(cfg, local, mode, key, fw, ticket=None, change=None, spec_file=None, te
         prompts = stack_override(local, prompts, fw)
         tools = list(F["spec_tools"])
     elif mode == "build":
-        rules, tools = test_override(cfg, local, cfg.get("build_rules", copied.BUILD_RULES), list(F["build_tools"]))
+        cmd = build_test_command(cfg)
+        rules = fill(cfg.get("build_rules", copied.BUILD_RULES), {"test_command": cmd}, "build_rules")
+        tools = [*F["build_tools"], test_tool(cmd)]
         vals = {"change": change, "build_rules": rules, "key": key, "spec_file": spec_file}
         prompts = [fill(p, vals, f"{fw} build_prompts") for p in F["build_prompts"]]
         if fw == "speckit" and F.get("env_feature_dir"):

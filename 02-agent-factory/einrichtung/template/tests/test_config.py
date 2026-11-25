@@ -1,7 +1,22 @@
 """Tests for agentic_factory/config.py: the Jira route."""
+import json
 import unittest
 
 from agentic_factory import config
+
+from .fakes import FULL_CFG
+
+
+class TemplateConfig(unittest.TestCase):
+    def test_template_config_is_stack_neutral(self):
+        text = json.dumps(FULL_CFG)
+        for word in ("phpunit", "Symfony", "composer", "symfony.lock"):
+            self.assertNotIn(word, text)
+        for key in ("project_key", "bitbucket", "composer_install", "workspace_exclude", "max_patch_bytes"):
+            self.assertNotIn(key, FULL_CFG)
+        self.assertEqual(list(FULL_CFG["jira"]), ["max_comment_chars"])
+        for name, fw in FULL_CFG["frameworks"].items():
+            self.assertNotIn("run2_editable_re", fw, name)
 
 
 class Route(unittest.TestCase):

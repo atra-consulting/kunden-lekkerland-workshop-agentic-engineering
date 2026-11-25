@@ -57,8 +57,8 @@ def checked_build(run, path):
         raise config.Stop(f"{path.name}: change is not a valid change name")
     if not isinstance(d["changed"], list) or not all(isinstance(x, str) and x.strip() for x in d["changed"]):
         raise config.Stop(f"{path.name}: changed must be a list of paths")
-    if d["test_line"] not in fetch.test_lines(fetch.test_command(run.cfg, run.local)):
-        raise config.Stop(f"{path.name}: test_line is not one of {list(fetch.test_lines(fetch.test_command(run.cfg, run.local)))}")
+    if d["test_line"] not in fetch.test_lines(fetch.test_command(run.cfg)):
+        raise config.Stop(f"{path.name}: test_line is not one of {list(fetch.test_lines(fetch.test_command(run.cfg)))}")
     return d
 
 

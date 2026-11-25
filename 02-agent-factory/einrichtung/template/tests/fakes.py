@@ -23,6 +23,59 @@ if FACTORY_BASE:  # agent.py imports common.py, which reads its own config.json 
 
 FULL_CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))  # with the rules block (regeln/)
 CFG = {k: v for k, v in FULL_CFG.items() if k != "rules"}  # the config of today's prompts: the parity tests compare it
+# The factory-base lab's config: the template's plus what the lab has and the template dropped (its PHP test command,
+# Spec Kit stack sentence, PHP protected paths, and composer/npm deny entries). The parity tests compare with the lab's
+# agent.py, which reads those values from the lab's own config.json.
+LAB_PROTECTED_PATHS = [
+    "^bitbucket-pipelines\\.yml$",
+    "^factory/",
+    "^AGENTS\\.md$",
+    "^CLAUDE\\.md$",
+    "^\\.github/",
+    "^\\.agents/",
+    "^\\.specify/",
+    "^_bmad/",
+    "^openspec/config\\.yaml$",
+    "(^|/)Dockerfile[^/]*$",
+    "(^|/)\\.dockerignore$",
+    "^phpunit(\\.dist)?\\.xml(\\.dist)?$",
+    "^phpstan[^/]*\\.neon$",
+    "^\\.php-cs-fixer[^/]*$",
+    "^bin/",
+    "^composer\\.(json|lock)$",
+    "^symfony\\.lock$",
+    "^package(-lock)?\\.json$",
+    "^importmap\\.php$",
+    "(^|/)\\.gitattributes$",
+    "^\\.gitmodules$",
+    "^\\.gitignore$",
+    "^\\.env",
+    "^\\.devcontainer/",
+    "^\\.vscode/",
+    "^tests/bootstrap\\.php$",
+    "^config/packages/",
+    "^config/bundles\\.php$",
+    "^FACTORY-QUESTIONS\\.md$"
+]
+LAB_DENY_TOOLS = [
+    "shell(git push:*)",
+    "shell(git remote:*)",
+    "shell(git config:*)",
+    "shell(curl:*)",
+    "shell(wget:*)",
+    "shell(ssh:*)",
+    "shell(scp:*)",
+    "shell(env:*)",
+    "shell(printenv:*)",
+    "shell(composer:*)",
+    "shell(npm:*)",
+    "shell(npx:*)"
+]
+LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
+           "frameworks": {**CFG["frameworks"], "speckit": {**CFG["frameworks"]["speckit"], "spec_prompts": [
+               *CFG["frameworks"]["speckit"]["spec_prompts"][:1],
+               "/speckit-plan Use the existing Symfony 7 / PHP stack and PHPUnit; no new dependencies.\n\n{spec_rules}",
+               *CFG["frameworks"]["speckit"]["spec_prompts"][2:]]}}}
 KEY = "FLAB-7"
 TICKET = {"key": KEY, "summary": "Tags klein schreiben",
           "description": "Beim Speichern sollen Tags klein geschrieben werden.\nÄnderung: nur im Formular.",
@@ -270,7 +323,7 @@ class E2E:
                                                      encoding="utf-8")
         self.rd = self.d / "readiness.md"
         self.rd.write_text(READINESS, encoding="utf-8")
-        self.acfg = {**CFG, "assess": {"enabled": True, "tools": [], "max_ai_credits": 40, "prompt":
+        self.acfg = {**CFG, "test_command": "./bin/phpunit", "assess": {"enabled": True, "tools": [], "max_ai_credits": 40, "prompt":
                      "Check {ticket_block}; ids {ids}; write {output_file}.\n{protected_paths}\n{criteria}"}}
 
     def run_main(self, *args, mode="spec", cfg=None, verdict="ready", env=None, entry=False):
@@ -278,8 +331,9 @@ class E2E:
         variables never leak in. entry: run through entry() as the command line does; returns its exit code."""
         (self.repo / "fake-mode").write_text(mode, encoding="utf-8")
         (self.repo / "fake-verdict").write_text(verdict, encoding="utf-8")
-        if cfg is None:  # the lab config, without a readiness check, so these tests don't depend on it
+        if cfg is None:  # the template config with a test command, without a readiness check
             cfg = {k: v for k, v in CFG.items() if k != "assess"}
+            cfg["test_command"] = "./bin/phpunit"
         cfgp = self.d / "config.json"
         cfgp.write_text(json.dumps(cfg), encoding="utf-8")
         out = io.StringIO()

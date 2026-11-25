@@ -207,7 +207,7 @@ def run_agent(run, req, p):
     elif mode == "build":
         events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls if tag != "assess"]
         fetch.write_json(out / "build.json", {"change": p["change"], "changed": sorted(set(paths)),
-                                        "test_line": fetch.test_line(events, fetch.test_command(cfg, local))})
+                                        "test_line": fetch.test_line(events, fetch.test_command(cfg))})
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
     return 0
 

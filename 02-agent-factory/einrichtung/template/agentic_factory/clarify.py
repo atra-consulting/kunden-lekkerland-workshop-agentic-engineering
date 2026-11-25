@@ -360,5 +360,5 @@ RENDER_SAMPLES = [
     render_spec("LL-1", "openspec", "Label sdd-openspec", "add-tags", READINESS_PASSED,
                 "=== openspec/changes/add-tags/proposal.md ===\nText"),
     render_spec_questions("LL-1", "1. Welches Formular?"),
-    render_build("LL-1", "add-tags", ["src/Tags.php", "tests/TagsTest.php"], "Testbefehl ./bin/phpunit: bestanden."),
+    render_build("LL-1", "add-tags", ["src/Tags.php", "tests/TagsTest.php"], "Testbefehl make test: bestanden."),
 ]

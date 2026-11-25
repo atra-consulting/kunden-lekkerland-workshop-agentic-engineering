@@ -203,7 +203,7 @@ class Builders(unittest.TestCase):
                                  ("build", BUILD_BLOCK, ("openspec", "speckit", "bmad"))):
             for fw in fws:
                 with self.subTest(mode=mode, fw=fw):
-                    args = (CFG, {"stack_hint": "Use Laravel"}, mode, KEY, fw, dict(TICKET), "c-1", "s.md")
+                    args = ({**CFG, "test_command": "make test"}, {}, mode, KEY, fw, dict(TICKET), "c-1", "s.md")
                     plain, tools, env = copilot.plan(*args)
                     prompts, tools2, env2 = copilot.plan(*args, block)
                     self.assertEqual(prompts, [p + "\n\n" + block for p in plain])
@@ -274,7 +274,8 @@ class RulesE2E(JiraE2E, unittest.TestCase):
         rc, out = self.offline("build", "--framework", "openspec", cfg=self.rcfg, mode="build")
         self.assertEqual(rc, 0, out)
         (build,) = self.prompts()
-        self.assertEqual(build, "/openspec-apply-change lower-tags\n\n" + CFG["build_rules"] + "\n\n" + BUILD_BLOCK)
+        self.assertEqual(build, "/openspec-apply-change lower-tags\n\n" + CFG["build_rules"].format(test_command="./bin/phpunit") + "\n\n" +
+                         BUILD_BLOCK)
 
     def test_print_only_lines_and_every_framework_prompt(self):
         (self.repo / ".specify/scripts/bash").mkdir(parents=True)

@@ -1,6 +1,9 @@
 """The ticket: reading it, choosing its framework, and which change a build run builds."""
+import hashlib
 import re
 import subprocess
+import urllib.parse
+from pathlib import Path
 
 from . import copied, config
 
@@ -39,6 +42,44 @@ def load_ticket_file(path, key):
     t = {"key": key or t.get("key", ""), "summary": str(t.get("summary") or "").strip(),
          "description": str(t.get("description") or "").strip(), "labels": list(t.get("labels") or [])}
     return t
+
+
+NOT_A_TICKET = "expected a ticket key such as OFT-1 or a Jira ticket URL"
+BROWSE = re.compile(r"(?:.*/)?browse/([^/]+)/?")
+
+
+def _host_port(netloc_url):
+    """(host in lower case, port) of a URL; the scheme's default port when it names none."""
+    u = urllib.parse.urlsplit(netloc_url)
+    try:
+        port = u.port
+    except ValueError:
+        port = -1
+    return (u.hostname or "").lower(), port or {"https": 443, "http": 80}.get(u.scheme)
+
+
+def key_from_arg(value, cfg, local, env):
+    """The ticket key of the positional argument (ruling R33): a key that matches key_pattern, or a Jira URL,
+    https://<host>/browse/<KEY> (also with a query or fragment) or one with ?selectedIssue=<KEY>. The URL's host and
+    port must be the configured site's (local.json jira_site, else JIRA_BASE_URL); without one the key counts and
+    the host is named as ignored. Anything else stops."""
+    value = (value or "").strip()
+    if re.fullmatch(cfg["key_pattern"], value):
+        return value
+    u = urllib.parse.urlsplit(value)
+    if u.scheme not in ("https", "http") or not u.hostname:
+        raise config.Stop(f"{value[:120]!r}: {NOT_A_TICKET}")
+    m = BROWSE.fullmatch(u.path)
+    key = urllib.parse.unquote(m.group(1)) if m else (urllib.parse.parse_qs(u.query).get("selectedIssue") or [""])[0]
+    if not re.fullmatch(cfg["key_pattern"], key):
+        raise config.Stop(f"{value[:120]!r}: {NOT_A_TICKET}")
+    site = local.get("jira_site") or env.get("JIRA_BASE_URL") or ""
+    host = u.hostname.lower() + (f":{u.port}" if u.port else "")
+    if not site:
+        config.say(f"note: no Jira site configured; took {key} from the URL and ignored the host {host}")
+    elif _host_port(value) != _host_port(site):
+        raise config.Stop(f"the ticket URL is on {host}, but the configured Jira site is {site.rstrip('/')}")
+    return key
 
 
 def check_key(cfg, key):
@@ -110,8 +151,150 @@ def speckit_tool_map(repo, tools):
 
 # --- build runs: which change -----------------------------------------------------------------------------------------
 
+def no_hooks_dir():
+    """~/.factory-local/no-hooks/, an empty folder: every git call of the script points core.hooksPath there."""
+    d = Path.home() / ".factory-local" / "no-hooks"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        stray = next(d.iterdir(), None)
+    except OSError as e:
+        raise config.Stop(f"can't make the empty hooks folder {d}: {e.strerror or e}")
+    if stray is not None:
+        raise config.Stop(f"{d} must stay empty (every git call of agentic-factory.py runs its hooks from there); "
+                          f"remove {stray.name}")
+    return d
+
+
+def git_argv(*args):
+    """A git command line that runs no code from the repo's .git/config: no fsmonitor, hooks from an empty folder, no
+    external diff, no pager (rulings R29, R31). A work call can write .git/config; git status would then run what it
+    put there. The script's git diff calls add --no-ext-diff --no-textconv."""
+    return ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks_dir().as_posix()}",
+            "-c", "diff.external=", "-c", "core.pager=cat", *args]
+
+
+SECTION = re.compile(r'\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"[^"]*")?\s*\]')
+INCLUDE_PATH = re.compile(r"\s*path\s*=\s*(.*?)\s*$", re.I)
+
+
+MAX_INCLUDE_DEPTH = 10  # as git's own limit
+
+
+def _include_paths(config_file):
+    """The include.path and includeIf.*.path values of one git config file, resolved against its folder."""
+    try:
+        lines = config_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    out, section = [], ""
+    for line in lines:
+        m = SECTION.match(line)
+        if m:
+            section = m.group(1).lower()
+            continue
+        m = INCLUDE_PATH.match(line)
+        if m and section in ("include", "includeif"):
+            value = m.group(1).split(" #")[0].split(" ;")[0].strip().strip('"')
+            if value:
+                f = Path(value).expanduser()
+                out.append(f if f.is_absolute() else config_file.parent / f)
+    return out
+
+
+def _included(configs, repo):
+    """Every file the configs include, followed recursively (a visited set, at most MAX_INCLUDE_DEPTH levels). Stops on
+    one inside the project: the agent could write it (ruling R32). The others are hashed with the git files."""
+    root, seen, out = Path(repo).resolve(), set(), []
+    level = list(configs)
+    for _ in range(MAX_INCLUDE_DEPTH):
+        nxt = []
+        for c in level:
+            for f in _include_paths(c):
+                r = f.resolve()
+                if r in seen:
+                    continue
+                seen.add(r)
+                if r == root or root in r.parents:
+                    raise config.Stop(f"git config includes {r} from inside the project; the agent could change it — "
+                                      "move it out of the project")
+                out.append(r)
+                nxt.append(r)
+        if not nxt:
+            break
+        level = nxt
+    return out
+
+
+def git_dir_files(repo):
+    """{path: sha256, or "missing"} of the git files that can make a git command run code: config, config.worktree,
+    every file under hooks/, and the files their include.path and includeIf entries name, recursively (one inside the
+    project stops, see _included); of the repo's git folder and, for a worktree, the shared one. Read directly,
+    without git."""
+    repo = Path(repo).resolve()  # the same keys whichever spelling of the folder a caller has
+    dirs, dot = [], repo / ".git"
+    if dot.is_file():  # a worktree or submodule: "gitdir: <path>"
+        line = dot.read_text(encoding="utf-8", errors="replace").strip()
+        if line.startswith("gitdir:"):
+            g = Path(line[len("gitdir:"):].strip())
+            dirs.append(g if g.is_absolute() else repo / g)
+    elif dot.is_dir():
+        dirs.append(dot)
+    for g in list(dirs):
+        common = g / "commondir"
+        if common.is_file():
+            c = Path(common.read_text(encoding="utf-8", errors="replace").strip())
+            dirs.append(c if c.is_absolute() else g / c)
+    out = {}
+    for g in dirs:
+        try:
+            configs = [g / "config", g / "config.worktree"]
+            files = [*configs, *sorted((g / "hooks").rglob("*"))]
+            files += _included(configs, repo)
+            for f in files:
+                if f.is_file() or f.is_symlink():
+                    data = f.read_bytes() if f.is_file() else b"symlink:" + str(f.readlink()).encode()
+                    out[f.as_posix()] = hashlib.sha256(data).hexdigest()
+                elif f.parent != g:  # an included file that isn't there (yet)
+                    out[f.as_posix()] = "missing"
+        except OSError as e:
+            raise config.Stop(f"can't read {g}: {e.strerror or e}")
+    return out
+
+
+def check_git_dir(repo, before, who="the work call changed {}"):
+    """Stops when the repo's git config, hooks, or included config files differ from before: the next git command
+    could run code."""
+    after = git_dir_files(repo)
+    changed = sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
+    if changed:
+        rel = []
+        for p in changed:
+            try:
+                rel.append(Path(p).relative_to(Path(repo).resolve()).as_posix())
+            except ValueError:
+                rel.append(p)
+        raise config.Stop(who.format(", ".join(rel[:10])) + "; nothing is posted. Git could run code from there: "
+                          "inspect these files with cat and ls before you run any git command")
+
+
+_BASELINE = {}  # the resolved project folder -> git_dir_files at the start of the run (fetch.Run)
+
+
+def trust_git_dir(repo):
+    """The state of the git files at the start of a run: every later git call of the script checks against it."""
+    _BASELINE[str(Path(repo).resolve())] = git_dir_files(repo)
+
+
+def run_git(repo, args, **kw):
+    """subprocess.run of git_argv(args) in repo, after checking the git files against the run's baseline."""
+    base = _BASELINE.get(str(Path(repo).resolve()))
+    if base is not None:
+        check_git_dir(repo, base, "{} changed since the run started")
+    return subprocess.run(git_argv(*args), cwd=repo, **kw)
+
+
 def git(repo, *args):
-    r = subprocess.run(["git", *args], cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r = run_git(repo, args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if r.returncode != 0:
         raise config.Stop(f"git {' '.join(args[:2])} failed: {r.stderr.decode(errors='replace').strip()[:300]}")
     return r.stdout.decode("utf-8", errors="replace")
@@ -130,8 +313,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # git's empty tree: the
 
 
 def head_commit(repo):
-    r = subprocess.run(["git", "rev-parse", "-q", "--verify", "HEAD"], cwd=repo, stdout=subprocess.PIPE,
-                       stderr=subprocess.DEVNULL)
+    r = run_git(repo, ("rev-parse", "-q", "--verify", "HEAD"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     return r.stdout.decode().strip() or None
 
 

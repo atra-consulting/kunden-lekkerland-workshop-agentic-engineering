@@ -4,6 +4,7 @@ import json
 import unittest
 
 from agentic_factory import config, jira_rest, clarify, fetch
+from agentic_factory import ticket as ticket_mod
 from .fakes import JiraE2E, KEY, NOT_READY_FAKE
 
 
@@ -35,8 +36,11 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
     def test_spec_done(self):
         rc, out = self.api("spec", "--readiness", str(self.rd), cfg=self.acfg)
         self.assertEqual(rc, 0, out)
-        text = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", "lower-tags", clarify.READINESS_PASSED, SPEC_TEXT)
+        checksum = json.loads((self.io / "out/spec.json").read_text(encoding="utf-8"))["checksum"]
+        text = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", "lower-tags", clarify.READINESS_PASSED, SPEC_TEXT,
+                                   checksum=checksum)
         self.assertEqual(self.comment(), text)
+        self.assertTrue(text.endswith(f"\n\nSpec-Prüfsumme: {checksum}"))
         self.assertIn("Change: lower-tags", text)
         self.assertIn("=== openspec/changes/lower-tags/proposal.md ===\np\n", text)
         self.assertEqual(self.posts(), [jira_rest.text_to_wiki(text)])
@@ -44,8 +48,10 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
     def test_spec_readiness_lines_and_source(self):
         self.api("spec", "--framework", "openspec")
         spec = json.loads((self.io / "out/spec.json").read_text(encoding="utf-8"))
+        self.assertRegex(spec.pop("checksum"), "^[0-9a-f]{64}$")
         self.assertEqual(spec, {"fw": "openspec", "source": "--framework", "change": "lower-tags",
-                                "readiness_line": clarify.READINESS_OFF, "spec_text": SPEC_TEXT})
+                                "readiness_line": clarify.READINESS_OFF, "spec_text": SPEC_TEXT, "revision": 1,
+                                "handled": [], "hand_edited": False, "diff": ""})
         acfg = {**self.acfg}
         self.assertEqual(fetch.readiness_line(acfg, True), clarify.READINESS_SKIPPED)
         self.assertEqual(fetch.readiness_line(acfg, False), clarify.READINESS_PASSED)
@@ -56,7 +62,11 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
         self.run_main("spec", "--ticket-file", str(self.tf))
         rc, out = self.api("build", mode="build")
         self.assertEqual(rc, 0, out)
-        text = clarify.render_build(KEY, "lower-tags", ["src/New.php"], "Testbefehl ./bin/phpunit: bestanden.")
+        build = json.loads((self.io / "out/build.json").read_text(encoding="utf-8"))
+        self.assertEqual((build["revision"], build["handled"], build["spec_diff"], build["start_commit"]),
+                         (1, [], "", ticket_mod.head_commit(self.repo)))
+        text = clarify.render_build(KEY, "lower-tags", ["src/New.php"], "Testbefehl ./bin/phpunit: bestanden.",
+                                    start_commit=build["start_commit"], checksum=build["checksum"])
         self.assertEqual(self.comment(), text)
         self.assertEqual(self.posts(), [jira_rest.text_to_wiki(text)])
 
@@ -94,12 +104,12 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
 
     def test_comment_over_the_limit_posts_nothing(self):
         empty = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", "lower-tags", clarify.READINESS_OFF,
-                               SPEC_TEXT.replace("\np\n", "\n\n"))
+                               SPEC_TEXT.replace("\np\n", "\n\n"), checksum="0" * 64)
         size = 30001 - len(empty)
         (self.repo / "fake-size").write_text(str(size), encoding="utf-8")
         with self.assertRaisesRegex(config.Stop, "longer than 30000 characters"):
             self.api("spec", mode="big")
         spec = json.loads((self.io / "out/spec.json").read_text(encoding="utf-8"))
-        self.assertEqual(len(clarify.render_spec(KEY, **spec)), 30001)
+        self.assertEqual(len(clarify.render_spec(KEY, **spec)), 30001)  # a first spec stops as before: no shortening
         self.assertEqual(self.writes(), [])
         self.assertFalse((self.io / "out/comment-1.txt").exists())

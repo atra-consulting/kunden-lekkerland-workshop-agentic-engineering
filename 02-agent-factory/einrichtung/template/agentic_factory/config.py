@@ -4,7 +4,8 @@ import re
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent  # the folder with agentic-factory.py, config.json, and agentic_factory/
-LOCAL_KEYS = {"test_command", "stack_hint", "model", "copilot", "jira_mcp_server", "jira_site"}
+LOCAL_KEYS = {"model", "copilot", "jira_mcp_server", "jira_site"}  # machine settings only
+MOVED_KEYS = {"test_command": "config.json (key test_command)", "stack_hint": "AGENTS.md (describe the stack there)"}
 JIRA_MCP_SERVER = re.compile(r"[A-Za-z0-9_.-]{1,64}")  # local.json jira_mcp_server, default "atlassian"
 JIRA_SITE = re.compile(r"https://[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*(?::[0-9]{1,5})?/?")  # no userinfo, path, or query
 QUESTIONS = "FACTORY-QUESTIONS.md"
@@ -22,6 +23,38 @@ def say(msg):
 
 # --- configuration --------------------------------------------------------------------------------------------------
 
+def check_config(cfg):
+    """Stops on a config.json with a rules block: team rules were removed, AGENTS.md carries the team's guidance."""
+    if "rules" in cfg:
+        raise Stop("config.json has a rules block: team rules were removed; move them to AGENTS.md")
+
+
+REQUIRED_KEYS = ("key_pattern", "model", "agent_timeout_s", "frameworks", "default_framework", "enabled_frameworks",
+                 "label_frameworks", "framework_label_prefix", "protected_paths", "deny_tools", "forbidden_flags",
+                 "forbidden_env")  # read without a default; assess, clarify, and init have their own checks
+
+
+def check_required(cfg, path):
+    """Stops on a config.json without one of REQUIRED_KEYS, naming the key, instead of a KeyError later."""
+    if not isinstance(cfg, dict):
+        raise Stop(f"{path} must be a JSON object")
+    for k in REQUIRED_KEYS:
+        if k not in cfg:
+            raise Stop(f"{path} has no key {k}; copy it from the template's config.json")
+
+
+def test_command(cfg):
+    """config.json's test_command: a string, "" when unset. The one accessor (copilot, fetch, init). Not in check_config:
+    assess, clarify and spec run with an old config whose test_command is a list."""
+    cmd = cfg.get("test_command")
+    if cmd is None:
+        return ""
+    if not isinstance(cmd, str):
+        raise Stop('config.json: test_command must be a string such as "make test"; an old config has a list — write '
+                   "it as one string")
+    return cmd
+
+
 def read_json(path):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -33,16 +66,16 @@ def read_json(path):
 
 
 def load_local(path):
-    """local.json: the project overrides. Missing file means no overrides. Unknown keys stop (typos)."""
+    """local.json: this machine's settings. Missing file means none. Moved keys and unknown keys (typos) stop."""
     if path is None or not Path(path).exists():
         return {}
     d = read_json(path)
+    moved = sorted(k for k in d if k in MOVED_KEYS)
+    if moved:
+        raise Stop(f"{path}: {', '.join(f'{k} moved to {MOVED_KEYS[k]}' for k in moved)}; remove it from local.json")
     unknown = sorted(k for k in d if k not in LOCAL_KEYS and not k.startswith("comment"))
     if unknown:
         raise Stop(f"{path}: unknown keys {unknown}; allowed: {sorted(LOCAL_KEYS)}")
-    tc = d.get("test_command")
-    if tc is not None and not (isinstance(tc, str) and tc.strip()):
-        raise Stop(f"{path}: test_command must be a non-empty string such as \"make test\"")
     cp = d.get("copilot")
     if cp is not None and not (isinstance(cp, list) and cp and all(isinstance(x, str) and x for x in cp)):
         raise Stop(f"{path}: copilot must be a list of strings, such as [\"copilot\"]")

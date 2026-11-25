@@ -19,9 +19,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from agentic_factory import copied, config, copilot, jira_mcp, rules
+from agentic_factory import copied, config, copilot, jira_mcp
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, TICKET, drop_usage
+from .fakes import AGENTS_LINE, CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, LAB_CFG, TICKET, drop_usage
 
 
 BUILD = {"openspec": ("add-lowercase-tags", ["openspec/changes/add-lowercase-tags/proposal.md",
@@ -103,8 +103,8 @@ class Parity(unittest.TestCase):
         ticket = dict(TICKET)
         change, paths = BUILD[fw]
         spec_file = next((p for p in paths if p.endswith("SPEC.md")), paths[0])
-        prompts, tools, env_extra = copilot.plan(CFG, {}, mode, KEY, fw, ticket, change, spec_file)
-        ours = [copilot.copilot_argv(CFG, {}, p, tools, f"/x/usage-{i}.json") for i, p in enumerate(prompts, 1)]
+        prompts, tools, env_extra = copilot.plan(LAB_CFG, mode, KEY, fw, ticket, change, spec_file)
+        ours = [copilot.copilot_argv(LAB_CFG, {}, p, tools, f"/x/usage-{i}.json") for i, p in enumerate(prompts, 1)]
         self.assertEqual(len(ours), len(theirs))
         for o, (t, env) in zip(ours, theirs):
             self.assertEqual(drop_usage(o), drop_usage(t))
@@ -132,26 +132,10 @@ class Parity(unittest.TestCase):
 
     def test_mcp_switches_only_append_to_the_factory_argv(self):
         theirs = agent_calls("spec", "openspec")[0][0]
-        prompts, tools, _ = copilot.plan(CFG, {}, "spec", KEY, "openspec", dict(TICKET), *BUILD["openspec"][:1], None)
-        ours = copilot.copilot_argv(CFG, {}, prompts[0], tools, "/x/usage-1.json", mcp_off=["a-b", "jira"])
+        prompts, tools, _ = copilot.plan(LAB_CFG, "spec", KEY, "openspec", dict(TICKET), *BUILD["openspec"][:1], None)
+        ours = copilot.copilot_argv(LAB_CFG, {}, prompts[0], tools, "/x/usage-1.json", mcp_off=["a-b", "jira"])
         self.assertEqual(drop_usage(ours), drop_usage(theirs) + ["--disable-mcp-server=a-b", "--disable-mcp-server=jira"])
         self.assertIn("--disable-builtin-mcps", theirs)
-
-    def test_team_rules_only_append_to_the_prompts(self):
-        """What the rules block adds: each prompt is the factory's prompt, a blank line, and the block."""
-        loaded = rules.load(FULL_CFG, HERE)
-        for mode, fw in (("spec", "speckit"), ("build", "openspec")):
-            with self.subTest(mode=mode, fw=fw):
-                block = rules.block(loaded, mode)
-                self.assertTrue(block.startswith("<<<TEAM RULES (regeln/"))
-                theirs = agent_calls(mode, fw)
-                change, paths = BUILD[fw]
-                prompts, tools, _ = copilot.plan(CFG, {}, mode, KEY, fw, dict(TICKET), change, paths[0], block)
-                self.assertEqual(len(prompts), len(theirs))
-                for p, (t, _) in zip(prompts, theirs):
-                    i = t.index("-p") + 1
-                    want = t[:i] + [t[i] + "\n\n" + block] + t[i + 1:]
-                    self.assertEqual(drop_usage(copilot.copilot_argv(CFG, {}, p, tools, "/x/u.json")), drop_usage(want))
 
 
 class ShellDeny(unittest.TestCase):
@@ -212,44 +196,253 @@ class ShellDeny(unittest.TestCase):
         self.assertEqual(copilot.shell_ran(ev), [])
 
 
-class Overrides(unittest.TestCase):
-    def test_test_command(self):
-        prompts, tools, _ = copilot.plan(CFG, {"test_command": "make test"}, "build", KEY, "openspec",
-                                       change="x", spec_file="openspec/changes/x/proposal.md")
+class TestCommand(unittest.TestCase):
+    """The test command of config.json: the build call's test tool is derived from it."""
+
+    def build(self, cmd, fw="openspec"):
+        return copilot.plan({**FULL_CFG, "test_command": cmd}, "build", KEY, fw, TICKET, "c", "x")
+
+    def test_build_tool_is_whole_command(self):
+        prompts, tools, _ = self.build("make test")
+        self.assertEqual(tools[-1], "shell(make test:*)")
         self.assertIn("Run the tests with exactly: make test.", prompts[0])
-        self.assertNotIn("./bin/phpunit", prompts[0])
-        self.assertIn("shell(make:*)", tools)
-        self.assertNotIn("shell(./bin/phpunit:*)", tools)
 
-    def test_test_command_same_as_config_changes_nothing(self):
-        a = copilot.plan(CFG, {"test_command": "./bin/phpunit"}, "build", KEY, "bmad", change="x", spec_file="s")
-        b = copilot.plan(CFG, {}, "build", KEY, "bmad", change="x", spec_file="s")
-        self.assertEqual(a, b)
+    def test_empty_test_command_stops_build(self):
+        with self.assertRaisesRegex(config.Stop, r"set test_command in config\.json \(or run init\)"):
+            copilot.plan(FULL_CFG, "build", KEY, "openspec", TICKET, "c", "x")
 
-    def test_stack_hint(self):
-        hint = "Use the existing Laminas / PHP 8.3 stack, tests with make test"
-        prompts, _, _ = copilot.plan(CFG, {"stack_hint": hint}, "spec", KEY, "speckit", dict(TICKET))
-        self.assertIn(hint + "; no new dependencies.", prompts[1])
-        self.assertNotIn("Symfony", prompts[1])
+    def test_spec_needs_no_test_command(self):
+        copilot.plan(FULL_CFG, "spec", KEY, "openspec", TICKET, "c", "x")
 
-    def test_stack_hint_ignored_elsewhere(self):
-        a = copilot.plan(CFG, {"stack_hint": "X"}, "spec", KEY, "openspec", dict(TICKET))
-        self.assertEqual(a, copilot.plan(CFG, {}, "spec", KEY, "openspec", dict(TICKET)))
+    def test_inline_code_refused(self):
+        for cmd in ("bash -c x", "sh -c x", "python3 -c 1", "node -e 1", "python3 -I -c 1", "python3 -u -c 1",
+                    "node --no-warnings -e 1", "bash -x -c x", "bash -lc x", "python3 -Sc 1", "node --eval 1",
+                    "python3 -W error -c 1", "bash -o pipefail -c x", "python3 -X importtime -c 1",
+                    "node --require x -e 1", "node -p 1", "node --print 1", "perl -E 1", "pwsh -e x", "pwsh -enc x",
+                    "powershell -ep x", "pwsh -Com x", "pwsh -COMMAND x", "python3 run.py -c x", "python3 -I run.py -e x",
+                    "bash test.sh -c", "bash -xe scripts/test.sh",
+                    "pwsh -C x", "powershell -co x", "uv run python -c 1", "env python3 -c 1", "timeout 60 python3 -c 1",
+                    "poetry run python -c 1", "python3.12 -c 1", "PYTHON3 -c 1", "pypy3 -c 1", "php -r x", "deno eval x",
+                    "bun eval x", "uv run python", "python3 -m", "env node", "FISH -c x"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
 
+    def test_option_ending_after_a_script_or_module_allowed(self):
+        for cmd in ("python3 -m pytest -v", "python3 test.py --verbose", "node test.js --silent", "bash test.sh -x",
+                    "uv run pytest -q", "python3 -m unittest discover -v"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
+    def test_open_endings_refused(self):
+        for cmd in ("python3 -m", "env node", "uv run python", "python3 -I", "python3 -I -B", "bash -x", "node --no-warnings",
+                    "timeout 60 bash", "env python3 -u"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, "fixed script, module, or target"):
+                self.build(cmd)
+
+    def test_interpreter_name_variants_refused(self):
+        for cmd in ("python3.13t -c 1", "python3.12.1 -c 1", "pypy3 -c 1", "php8.2 -r x", "python3-dbg -c 1",
+                    "/usr/bin/python3.13t -c 1", "C:/Python/PYTHON.EXE -c 1", "python3.13t", "cmd /c x", "cmd /K x",
+                    "julia -e 1", "julia -E 1", "tsx -e 1", "ts-node -e 1", "ts-node -p 1", "nodejs -e 1", "tclsh",
+                    "node18 -e 1", "ruby3.2 -e 1", "python3.12-dbg -c 1", "bash5 -c x"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_interpreter_name_variants_with_a_script_allowed(self):
+        for cmd in ("python3.13t test.py", "python3.12.1 -m pytest", "pypy3 -m pytest -v", "php8.2 vendor/bin/phpunit",
+                    "tsx test.ts", "nodejs test.js", "julia test.jl"):
+            with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_not_interpreters(self):
+        self.assertIsNone(copilot.interpreter_name("pythonista"))
+        self.assertIsNone(copilot.interpreter_name("nodes"))
+        self.assertIsNone(copilot.interpreter_name("shell"))
+        self.assertEqual(copilot.interpreter_name("python3.13t"), "python3.13t")
+
+    def test_powershell_slash_switches_refused(self):
+        for cmd in ("pwsh /c x", "powershell /enc x", "pwsh /Command x", "pwsh /EncodedCommand x", "powershell /co x"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_powershell_script_allowed(self):
+        for cmd in ("pwsh test.ps1", "powershell ./test.ps1 -Verb", "pwsh /tmp/test.ps1", "pwsh test.ps1 /x"):
+            with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_bare_wrapper_endings_refused(self):
+        for cmd in ("env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox", "uv run",
+                    "poetry run", "pipenv run", "pdm run", "hatch run", "rye run", "UV run", "timeout 60", "timeout 60s",
+                    "env timeout 60", "timeout 60 env FOO=1", "timeout --signal=KILL 60", "uv run --python=3.12", "env FOO=1"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, "fixed script, module, or target"):
+                self.build(cmd)
+
+    def test_wrapper_with_a_target_allowed(self):
+        for cmd in ("uv run pytest", "poetry run pytest -q", "timeout 60 make test", "timeout --signal=KILL 60 make test",
+                    "uv run --python=3.12 pytest", "uv run -- pytest", "make run", "npm run test", "cargo run",
+                    "make timeout 60"):
+            with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_arguments_are_never_wrappers_or_interpreters(self):
+        for cmd in ("./bin/phpunit tests/Command", "./bin/phpunit --filter Command", "pytest tests/env", "pytest tests/python",
+                    "pytest tests/bash tests/node", "make timeout 60", "./bin/phpunit --filter env", "npm test timeout",
+                    "make test python3", "make test -c"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
+    def test_wrapper_chain_reaches_the_interpreter(self):
+        for cmd in ("env timeout 60 python3 -c 1", "sudo -n env FOO=1 bash -c x", "nice -n 10 uv run python -c 1",
+                    "uv run env node", "timeout 60 nice python3 -m", "poetry run nohup bash"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_wrapper_options_must_carry_their_value(self):
+        for cmd in ("sudo -u bob python -c 1", "timeout -s KILL 60 python -c 1", "env -u FOO python -c 1",
+                    "sudo -u bob make test", "nice -n 10 make test", "timeout --foreground 60 make test",
+                    "uv run --frozen pytest", "uv run --with x pytest", "sudo -n", "uv run --frozen", "nice -n 10"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, r"--opt=value"):
+                copilot.check_test_command(cmd)
+
+    def test_wrapper_with_assignment_passes_the_check(self):
+        copilot.check_test_command("env FOO=1 make test")  # the template deny list (shell(env:*)) may still stop it
+
+    def test_shell_syntax_refused(self):
+        for cmd in ("make test && rm x", "a; b", "a | b", "$(x)", "`x`", 'pytest -k "a b"', "CI=1 npm test"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_interpreter_commands_without_inline_flags_pass(self):
+        for cmd in ("python3 -m pytest", "python3 run.py", "uv run pytest", "bash test.sh", "make test", "npm test",
+                    "python3 -I -B -m unittest discover -s tests -t ."):
+            with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_refusal_says_to_wrap_in_a_script(self):
+        with self.assertRaisesRegex(config.Stop, "script file or a Make target"):
+            self.build("python3 run.py -c x")
+
+    def test_equals_sign_allowed_after_the_first_word(self):
+        for cmd in ("pytest --maxfail=1", "pytest -k a=b", "a a=b"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
+    def test_denied_test_tool_stops(self):
+        with self.assertRaises(config.Stop) as cm:
+            self.build("npx jest")
+        self.assertIn("npx jest", str(cm.exception))
+        self.assertIn("shell(npx:*)", str(cm.exception))
+
+    def test_npm_test_passes_template_deny_list(self):
+        self.build("npm test")
+        self.assertIn("shell(npm install:*)", FULL_CFG["deny_tools"])
+        self.assertNotIn("shell(npm:*)", FULL_CFG["deny_tools"])
+
+    def test_denied_by(self):
+        deny = ["shell(npm install:*)", "shell(npx:*)"]
+        self.assertEqual(copilot.denied_by("npx jest", deny), "shell(npx:*)")
+        self.assertEqual(copilot.denied_by("npm install", deny), "shell(npm install:*)")
+        self.assertIsNone(copilot.denied_by("npm test", deny))
+        self.assertIsNone(copilot.denied_by("npxy", deny))
+
+    def test_lab_build_rules_equal_factory(self):
+        self.assertEqual(copilot.fill(LAB_CFG["build_rules"], {"test_command": "./bin/phpunit"}, "x"),
+                         copied.BUILD_RULES)
+        self.assertEqual(FULL_CFG["build_rules"], LAB_CFG["build_rules"] + AGENTS_LINE)  # the template adds AGENTS.md
+        self.assertEqual(FULL_CFG["spec_rules"], copied.SPEC_RULES + AGENTS_LINE)
+
+
+DEFAULT_READ_TOOLS = ["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tail:*)", "shell(wc:*)", "shell(grep:*)",
+                      "shell(pwd:*)", "shell(diff:*)", "shell(stat:*)", "shell(cd:*)"]
+
+
+class ReadTools(unittest.TestCase):
+    """Default read-only shell tools for the spec and build calls and their revisions (read_tools in config.json)."""
+
+    CFG = {**FULL_CFG, "test_command": "make test"}
+
+    def plan(self, mode, fw, cfg=None):
+        return copilot.plan(cfg or self.CFG, mode, KEY, fw, TICKET, "c", "x")[1]
+
+    def test_default_list(self):
+        self.assertEqual(FULL_CFG["read_tools"], DEFAULT_READ_TOOLS)
+
+    def test_spec_and_build_get_read_tools(self):
+        for fw in FULL_CFG["frameworks"]:
+            for mode in ("spec", "build"):
+                tools = self.plan(mode, fw)
+                for entry in DEFAULT_READ_TOOLS:
+                    with self.subTest(fw=fw, mode=mode, entry=entry):
+                        self.assertIn(entry, tools)
+
+    def test_revise_and_amend_get_read_tools_like_spec_and_build(self):
+        """The user's answer to security I1 item 3: the revision calls get read_tools too; amend no test tool."""
+        for fw, F in FULL_CFG["frameworks"].items():
+            with self.subTest(fw=fw):
+                _, tools, _ = copilot.revise_plan(self.CFG, KEY, fw, TICKET, "c", "<<<COMMENTS\nCOMMENTS>>>")
+                self.assertEqual(tools, [*F["spec_tools"], *DEFAULT_READ_TOOLS])
+                _, tools, _ = copilot.amend_plan(self.CFG, KEY, fw, TICKET, "c", "<<<COMMENTS\nCOMMENTS>>>",
+                                                 "t.md", 2)
+                self.assertEqual(tools, [*F["spec_tools"], *DEFAULT_READ_TOOLS])
+                self.assertNotIn("shell(make test:*)", tools)
+
+    def test_dangerous_ones_absent(self):
+        words = {e[len("shell("):-len(":*)")] for e in FULL_CFG["read_tools"]}
+        for bad in ("find", "sed", "awk", "xargs", "rg", "git grep", "tree", "sort"):
+            self.assertNotIn(bad, words)
+        for entry in FULL_CFG["read_tools"]:  # git in any form: --output= writes files, .git/config can run code
+            self.assertNotIn("git", entry)
+
+    def test_order_test_tool_last(self):
+        for fw, F in FULL_CFG["frameworks"].items():
+            self.assertEqual(self.plan("spec", fw), [*F["spec_tools"], *DEFAULT_READ_TOOLS])
+            self.assertEqual(self.plan("build", fw), [*F["build_tools"], *DEFAULT_READ_TOOLS, "shell(make test:*)"])
+
+    def test_empty_read_tools_add_nothing(self):
+        cfg = {**self.CFG, "read_tools": []}
+        self.assertEqual(self.plan("spec", "openspec", cfg), FULL_CFG["frameworks"]["openspec"]["spec_tools"])
+        self.assertEqual(self.plan("build", "openspec", cfg),
+                         [*FULL_CFG["frameworks"]["openspec"]["build_tools"], "shell(make test:*)"])
+
+    def test_non_shell_entry_stops(self):
+        for entry in ("write", "shell", "read", "ls", "url(example.com)", "powershell(ls:*)", "shell(ls:*", 7):
+            cfg = {**self.CFG, "read_tools": ["shell(ls:*)", entry]}
+            with self.subTest(entry=entry), self.assertRaisesRegex(config.Stop, "read_tools"):
+                self.plan("spec", "openspec", cfg)
+
+    def test_denied_entry_stops(self):
+        cfg = {**self.CFG, "read_tools": ["shell(ls:*)", "shell(git push:*)"]}
+        for mode in ("spec", "build"):
+            with self.subTest(mode=mode), self.assertRaises(config.Stop) as cm:
+                self.plan(mode, "openspec", cfg)
+            self.assertIn("shell(git push:*)", str(cm.exception))
+            self.assertIn("deny_tools", str(cm.exception))
+
+    def test_entry_below_a_denied_prefix_stops(self):
+        cfg = {**self.CFG, "read_tools": ["shell(git status:*)"], "deny_tools": ["shell(git:*)"]}
+        with self.assertRaisesRegex(config.Stop, r"shell\(git status:\*\)"):
+            self.plan("spec", "openspec", cfg)
+
+    def test_check_read_tools_returns_the_list(self):
+        self.assertEqual(copilot.check_read_tools(FULL_CFG), DEFAULT_READ_TOOLS)
+        self.assertEqual(copilot.check_read_tools({**FULL_CFG, "read_tools": []}), [])
+
+    def test_template_deny_list_covers_no_default(self):
+        self.assertEqual(copilot.check_read_tools(FULL_CFG), DEFAULT_READ_TOOLS)
+        for entry in DEFAULT_READ_TOOLS:
+            self.assertIsNone(copilot.denied_by(entry[len("shell("):-len(":*)")], FULL_CFG["deny_tools"]))
+
+    def test_assess_and_clarify_unchanged(self):
+        self.assertEqual(FULL_CFG["assess"]["tools"], [])
+        self.assertEqual(FULL_CFG["clarify"]["tools"], [])
+
+    def test_lab_fixture_has_none(self):
+        self.assertEqual(LAB_CFG["read_tools"], [])
+
+
+class Overrides(unittest.TestCase):
     def test_model(self):
         argv = copilot.copilot_argv(CFG, {"model": "gpt-9"}, "p", [], "/u")
         self.assertEqual(argv[argv.index("--model") + 1], "gpt-9")
-
-    def test_unknown_local_key_stops(self):
-        with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "local.json"
-            p.write_text('{"test_comand": "make test"}', encoding="utf-8")
-            with self.assertRaisesRegex(config.Stop, "unknown keys"):
-                config.load_local(p)
-
-    def test_example_file_loads(self):
-        d = config.load_local(HERE / "local.example.json")
-        self.assertEqual(d["test_command"], "make test")
 
     def test_forbidden_flag_stops(self):
         with self.assertRaisesRegex(config.Stop, "forbidden flag --yolo"):
@@ -297,3 +490,42 @@ class Windows(unittest.TestCase):
 
     def test_copilot_override(self):
         self.assertEqual(copilot.resolve_copilot({"copilot": ["node", "c.js"]}), ["node", "c.js"])
+
+
+class EventCanary(unittest.TestCase):
+    """A WARNING when Copilot's events may have changed shape: the blocked log, the shell backstop and the test line
+    read them (arbiter ruling 2)."""
+
+    def events(self, *lines):
+        d = Path(tempfile.mkdtemp(prefix="canary-"))
+        self.addCleanup(shutil.rmtree, d, True)
+        p = d / "events.jsonl"
+        p.write_text("\n".join(x if isinstance(x, str) else json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+        return p
+
+    START = {"type": "session.start", "data": {"copilotVersion": "1.0.115"}}
+    TOOL = {"type": "tool.execution_start", "data": {"toolCallId": "1", "toolName": "write", "arguments": {}}}
+    MSG = {"type": "assistant.message", "data": {"content": "fertig"}}
+
+    def test_known_events_no_warning(self):
+        self.assertEqual(copilot.event_warnings(self.events(self.START, self.TOOL, self.MSG), 0), [])
+
+    def test_no_session_start(self):
+        (w,) = copilot.event_warnings(self.events(self.TOOL, self.MSG), 0)
+        self.assertIn("Copilot events not recognized (no session.start)", w)
+        self.assertIn("blocked.jsonl, the shell check and the test line may miss", w)
+
+    def test_exit_0_without_tool_or_message_events(self):
+        (w,) = copilot.event_warnings(self.events(self.START, {"type": "tool.run", "data": {}}), 0)
+        self.assertIn("Copilot 1.0.115 events not recognized (no tool or message events)", w)
+        self.assertEqual(copilot.event_warnings(self.events(self.START), 1), [])  # a failed call says so itself
+
+    def test_other_version(self):
+        start = {"type": "session.start", "data": {"copilotVersion": "1.0.200"}}
+        (w,) = copilot.event_warnings(self.events(start, self.TOOL, self.MSG), 0)
+        self.assertIn("Copilot 1.0.200 is not the tested 1.0.115", w)
+
+    def test_non_json_tail(self):
+        p = self.events(self.START, "Error: one", self.TOOL, "Error: two", "Error: three")
+        self.assertEqual(copilot.non_json_tail(p, 2), ["Error: two", "Error: three"])
+        self.assertEqual(copilot.non_json_tail(self.events(self.START), 5), [])

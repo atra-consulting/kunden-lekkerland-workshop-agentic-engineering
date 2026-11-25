@@ -10,9 +10,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from agentic_factory import copilot, readiness, rules
+from agentic_factory import copilot, readiness
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, READINESS, TICKET, drop_usage
+from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, LAB_CFG, READINESS, TICKET, drop_usage
 
 
 def agent_assess_call():
@@ -49,28 +49,13 @@ class AssessParity(unittest.TestCase):
         if not hasattr(agent, "run_assessment") or not CFG.get("assess"):
             self.skipTest("this agent.py has no readiness check (session A's branch lab/t2-30-readiness adds it)")
         theirs = agent_assess_call()
-        crit = readiness.criteria(HERE / CFG["assess"].get("criteria_file", "readiness.md"))
-        prompt, tools, cap = readiness.assess_call(CFG, dict(TICKET), crit)
-        ours = copilot.copilot_argv(CFG, {}, prompt, tools, "/x/usage-assess.json", cap=cap)
+        # the lab's readiness.md, as its agent.py reads it: the template's text is stack-neutral, the IDs are the same
+        crit = readiness.criteria(Path(FACTORY_BASE) / CFG["assess"].get("criteria_file", "readiness.md"))
+        self.assertEqual(crit[1], readiness.criteria(HERE / "readiness.md")[1])
+        prompt, tools, cap = readiness.assess_call(LAB_CFG, dict(TICKET), crit)
+        ours = copilot.copilot_argv(LAB_CFG, {}, prompt, tools, "/x/usage-assess.json", cap=cap)
         self.assertEqual(len(theirs), 1)
         self.assertEqual(drop_usage(ours), drop_usage(theirs[0]) + ["--deny-tool=shell"])  # only appends (I1)
-
-    def test_team_rules_add_the_id_and_the_block(self):
-        """What the rules block adds to the factory's readiness prompt: the id team_rules and the block at the end."""
-        import agent
-        if not hasattr(agent, "run_assessment") or not CFG.get("assess"):
-            self.skipTest("this agent.py has no readiness check (session A's branch lab/t2-30-readiness adds it)")
-        (theirs,) = agent_assess_call()
-        loaded = rules.load(FULL_CFG, HERE)
-        text, ids = readiness.criteria(HERE / CFG["assess"].get("criteria_file", "readiness.md"))
-        block = rules.block(loaded, "assess")
-        prompt, tools, cap = readiness.assess_call(CFG, dict(TICKET), (text, rules.with_ids(loaded, "assess", ids)), block)
-        i = theirs.index("-p") + 1
-        old = f"id is one of: {', '.join(ids)}."
-        self.assertEqual(theirs[i].count(old), 1)
-        want = theirs[i].replace(old, f"id is one of: {', '.join(ids)}, team_rules.") + "\n\n" + block
-        ours = copilot.copilot_argv(CFG, {}, prompt, tools, "/x/usage-assess.json", cap=cap)
-        self.assertEqual(drop_usage(ours), drop_usage(theirs[:i] + [want] + theirs[i + 1:]) + ["--deny-tool=shell"])
 
     def test_criteria_ids_match_the_factory(self):
         try:

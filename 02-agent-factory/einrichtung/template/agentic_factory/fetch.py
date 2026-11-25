@@ -6,7 +6,7 @@ import re
 import time
 from pathlib import Path
 
-from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify, rules
+from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify, feedback, snapshot
 from . import ticket as ticket_mod
 
 
@@ -16,22 +16,34 @@ from . import ticket as ticket_mod
 # again, renders the comment, and posts it. Locally (--step all) the three run in one process. In a pipeline they run
 # as separate steps, each with only the secrets it needs (decision 6), so post trusts nothing in out/.
 
-MODES = ("assess", "spec", "build", "clarify")
+MODES = ("assess", "spec", "build", "clarify", "init")
 STEPS = ("fetch", "agent", "post", "all")
 ROUTES = ("offline", "mcp", "api")
-REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post")
+REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post", "fresh", "me")
+FEEDBACK_MODES = ("spec", "build")  # the modes whose reruns read [KI] results and [Mensch] comments
 TICKET_KEYS = ("key", "summary", "description", "labels")
 COMMENT_KEYS = ["author", "body", "created", "id", "updated"]  # jira_rest.make_comment, sorted
-OUT_FILES = ("assessment.json", "clarify.json", "description.md", "spec.json", "spec-questions.md", "build.json")
-SPEC_OUT_KEYS = ("fw", "source", "change", "readiness_line", "spec_text")
-BUILD_OUT_KEYS = ("change", "changed", "test_line")
+NOTHING_NEW = "nothing-new.json"  # spec and build reruns without new comments or hand edits: {"mode", "reason"}
+OUT_FILES = ("assessment.json", "clarify.json", "description.md", "spec.json", "spec-questions.md", "build.json",
+             NOTHING_NEW)
+SPEC_OUT_KEYS = ("fw", "source", "change", "readiness_line", "spec_text", "revision", "handled", "hand_edited", "diff",
+                 "checksum")
+BUILD_OUT_KEYS = ("change", "changed", "test_line", "revision", "handled", "spec_diff", "start_commit", "checksum",
+                  "amended")
 IO_DEFAULT = "agentic-io"  # split steps: inside the pipeline's clone
 NO_TEST_RUN = "Der Agent hat den Testbefehl nicht ausgeführt."
 
 
 def step_checks(step, mode, env):
     """Stops before anything runs: --step all in a pipeline, build in a pipeline (decision 3), and a pipeline step
-    that sees a secret it must not have (decision 6). Outside a pipeline, the split steps may see both."""
+    that sees a secret it must not have (decision 6). Outside a pipeline, the split steps may see both. init is local
+    only: no pipeline, and no split steps (it has no Jira to separate from the Copilot call)."""
+    if mode == "init":
+        if config.in_pipeline(env):
+            raise config.Stop("init is refused in a pipeline: it suggests changes to config.json for a person to review; "
+                              "run it locally")
+        if step != "all":
+            raise config.Stop(f"init runs as --step all only, not --step {step}")
     if config.in_pipeline(env) and step == "all":
         raise config.Stop("in a pipeline, run --step fetch, --step agent, and --step post as separate pipeline steps")
     if config.in_pipeline(env) and mode == "build":
@@ -60,8 +72,8 @@ def source_label(cfg, fw, source):
             "default": "Standard"}[source]
 
 
-def test_command(cfg, local):
-    return local.get("test_command") or " ".join(cfg["test_command"])
+def test_command(cfg):
+    return config.test_command(cfg)
 
 
 def test_lines(cmd):
@@ -108,13 +120,13 @@ def spec_result(repo, F, paths):
     """(change, spec text) of a spec run: the changed files under the framework's spec folders, in the format of
     factory/common.py spec_text. Exactly one change."""
     rx = re.compile(F["spec_change_re"])
-    files = sorted({p for p in paths if rx.match(p) and (repo / p).is_file()})
+    files = sorted({p for p in paths if rx.match(p) and snapshot._plain_file(repo, p)})  # never a symlink's target
     names = sorted({m.group(1) for p in files for m in [rx.match(p)] if m.group(1)})
     if len(names) != 1:
         raise config.Stop(f"the spec calls must write exactly one change; found {names or 'none'}, so nothing is posted")
     parts = []
     for p in files:
-        body = (repo / p).read_bytes().decode("utf-8", errors="replace")
+        body = snapshot._inside(repo, p).read_bytes().decode("utf-8", errors="replace")
         parts.append(f"=== {p} ===\n{body.rstrip(chr(10))}\n")
     return names[0], "\n".join(parts)
 
@@ -154,10 +166,13 @@ class Run:
     def __init__(self, a):
         self.a = a
         self.cfg = config.read_json(a.config)
+        config.check_required(self.cfg, a.config)
         self.local = config.load_local(a.local)
         self.repo = Path(ticket_mod.git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
+        snapshot.repo_part(self.repo.name)  # the logs and spec copies need it: stop before any Copilot call
+        ticket_mod.trust_git_dir(self.repo)  # every later git call checks .git/config, hooks, and includes against it
         self.A = self.cfg.get("assess") or {}
-        self.rules = rules.load(self.cfg, Path(a.config).resolve().parent)  # every step, before any Copilot call
+        config.check_config(self.cfg)  # every step, before any Copilot call
         self.io = None
         self.logdir = None
         self.layers = {}
@@ -183,11 +198,9 @@ class Run:
             raise config.Stop("--io-dir must be a folder of its own, not the project")
 
     def criteria(self, call="assess"):
-        """(text, ids) of readiness.md as the call's block (assess or clarify) names it. The ids gain team_rules when
-        the team's rules apply to the call, for its prompt and for every check of its result."""
+        """(text, ids) of readiness.md as the call's block (assess or clarify) names it."""
         name = (self.A if call == "assess" else self.cfg["clarify"]).get("criteria_file", "readiness.md")
-        text, ids = readiness.criteria(self.a.readiness or Path(self.a.config).resolve().parent / name)
-        return text, rules.with_ids(self.rules, call, ids)
+        return readiness.criteria(self.a.readiness or Path(self.a.config).resolve().parent / name)
 
     def jira(self, route, key):
         """The Jira layer of the route, made once per process. None when offline."""
@@ -290,6 +303,18 @@ def proposal_description(state, summary, route, me=None):
     return c["id"], clarify.neutral(text)
 
 
+def account_of(run, mode, route, key, comments):
+    """The account running this script, as in/request.json records it (me): over the route's Jira layer (api: GET
+    /myself; mcp: atlassianUserInfo, one short Copilot call, cached), for spec and build only, and only when the
+    comments hold a result or answers (feedback.needs_account). None offline, with --print-only, and otherwise. The
+    fetch step records it, so the split agent step, which has no Jira, judges the comments as the post step does;
+    the post step asks again and stops when in/ says otherwise."""
+    if (route == "offline" or mode not in FEEDBACK_MODES or run.a.print_only
+            or not feedback.needs_account(comments, key)):
+        return None
+    return run.jira(route, key).myself()
+
+
 # --- step fetch -----------------------------------------------------------------------------------------------------
 
 def fetch(run):
@@ -310,7 +335,8 @@ def fetch(run):
     else:
         ticket, comments = run.jira(route, key).read(key)
     request = {"mode": a.mode, "key": key, "route": route, "framework": a.framework, "change": a.change,
-               "no_assess": a.no_assess, "no_post": a.no_post}
+               "no_assess": a.no_assess, "no_post": a.no_post, "fresh": a.fresh,
+               "me": account_of(run, a.mode, route, key, comments)}
     return request, ticket, comments
 
 
@@ -341,9 +367,13 @@ def read_in(run):
     for k in ("framework", "change"):
         if req[k] is not None and not isinstance(req[k], str):
             raise config.Stop(f"{d / 'request.json'}: {k} must be a string or null")
-    for k in ("no_assess", "no_post"):
+    for k in ("no_assess", "no_post", "fresh"):
         if not isinstance(req[k], bool):
             raise config.Stop(f"{d / 'request.json'}: {k} must be true or false")
+    if req["me"] is not None and not (isinstance(req["me"], str) and req["me"].strip() and len(req["me"]) <= 200):
+        raise config.Stop(f"{d / 'request.json'}: me must be an account id or null")
+    if req["route"] == "offline" and req["me"] is not None:
+        raise config.Stop(f"{d / 'request.json'}: me must be null on the offline route")
     t = config.read_json(d / "ticket.json")
     if (not isinstance(t, dict) or sorted(t) != sorted(TICKET_KEYS) or t["key"] != req["key"]
             or not all(isinstance(t[k], str) for k in ("summary", "description"))

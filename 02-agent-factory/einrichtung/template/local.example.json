@@ -1,9 +1,5 @@
 {
-  "comment": "Copy to local.json next to agentic-factory.py and adjust. Every key is optional; leave one out to keep config.json's value (or the default named below).",
-  "comment_test_command": "Replaces ./bin/phpunit in the build rules, and shell(./bin/phpunit:*) with shell(<first word>:*) in the allowed tools. shell(make:*) allows every Makefile target.",
-  "test_command": "make test",
-  "comment_stack_hint": "Replaces 'Use the existing Symfony 7 / PHP stack and PHPUnit' in the Spec Kit plan prompt. Other frameworks have no stack hint.",
-  "stack_hint": "Use the existing PHP stack and PHPUnit; tests run in Docker with make test",
+  "comment": "Copy to local.json next to agentic-factory.py and adjust. Machine settings only; the test command and the stack description live in config.json and AGENTS.md. Every key is optional; leave one out to keep config.json's value (or the default named below).",
   "comment_model": "Copilot model. Leave it out to use config.json's model.",
   "model": "claude-sonnet-5.5",
   "comment_copilot": "The command that starts Copilot CLI, as a list. Leave it out to use copilot from PATH. On Windows it must not be a .cmd or .bat file.",

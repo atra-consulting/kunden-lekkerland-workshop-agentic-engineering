@@ -21,8 +21,66 @@ FACTORY_BASE = os.environ.get("FACTORY_BASE")
 if FACTORY_BASE:  # agent.py imports common.py, which reads its own config.json next to itself
     sys.path.insert(0, FACTORY_BASE)
 
-FULL_CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))  # with the rules block (regeln/)
-CFG = {k: v for k, v in FULL_CFG.items() if k != "rules"}  # the config of today's prompts: the parity tests compare it
+FULL_CFG = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
+CFG = FULL_CFG  # the config of today's prompts: the parity tests compare it
+# The factory-base lab's config: the template's plus what the lab has and the template dropped (its PHP test command,
+# Spec Kit stack sentence, PHP protected paths, and composer/npm deny entries). The parity tests compare with the lab's
+# agent.py, which reads those values from the lab's own config.json.
+LAB_PROTECTED_PATHS = [
+    "^bitbucket-pipelines\\.yml$",
+    "^factory/",
+    "^AGENTS\\.md$",
+    "^CLAUDE\\.md$",
+    "^\\.github/",
+    "^\\.agents/",
+    "^\\.specify/",
+    "^_bmad/",
+    "^openspec/config\\.yaml$",
+    "(^|/)Dockerfile[^/]*$",
+    "(^|/)\\.dockerignore$",
+    "^phpunit(\\.dist)?\\.xml(\\.dist)?$",
+    "^phpstan[^/]*\\.neon$",
+    "^\\.php-cs-fixer[^/]*$",
+    "^bin/",
+    "^composer\\.(json|lock)$",
+    "^symfony\\.lock$",
+    "^package(-lock)?\\.json$",
+    "^importmap\\.php$",
+    "(^|/)\\.gitattributes$",
+    "^\\.gitmodules$",
+    "^\\.gitignore$",
+    "^\\.env",
+    "^\\.devcontainer/",
+    "^\\.vscode/",
+    "^tests/bootstrap\\.php$",
+    "^config/packages/",
+    "^config/bundles\\.php$",
+    "^FACTORY-QUESTIONS\\.md$"
+]
+LAB_DENY_TOOLS = [
+    "shell(git push:*)",
+    "shell(git remote:*)",
+    "shell(git config:*)",
+    "shell(curl:*)",
+    "shell(wget:*)",
+    "shell(ssh:*)",
+    "shell(scp:*)",
+    "shell(env:*)",
+    "shell(printenv:*)",
+    "shell(composer:*)",
+    "shell(npm:*)",
+    "shell(npx:*)"
+]
+AGENTS_LINE = " Read and follow AGENTS.md in the repository root if it exists."  # the template's, not the lab's
+LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "read_tools": [],
+           "spec_rules": CFG["spec_rules"].replace(AGENTS_LINE, ""), "build_rules": CFG["build_rules"].replace(AGENTS_LINE, ""),
+           "assess": {**CFG["assess"], "prompt": CFG["assess"]["prompt"].replace(  # the lab's Symfony words
+               "the modules, entry points, user interface, data model, and tests it concerns",
+               "the pages, routes, controllers, templates, entities, translations, and tests")}, "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
+           "frameworks": {**CFG["frameworks"], "speckit": {**CFG["frameworks"]["speckit"], "spec_prompts": [
+               *CFG["frameworks"]["speckit"]["spec_prompts"][:1],
+               "/speckit-plan Use the existing Symfony 7 / PHP stack and PHPUnit; no new dependencies.\n\n{spec_rules}",
+               *CFG["frameworks"]["speckit"]["spec_prompts"][2:]]}}}
 KEY = "FLAB-7"
 TICKET = {"key": KEY, "summary": "Tags klein schreiben",
           "description": "Beim Speichern sollen Tags klein geschrieben werden.\nÄnderung: nur im Formular.",
@@ -121,13 +179,26 @@ with open(here / "calls.jsonl", "a") as fh: fh.write(json.dumps(argv) + "\n")
 prompt = argv[argv.index("-p") + 1]
 usage = next(a.split("=", 1)[1] for a in argv if a.startswith("--usage-output-file="))
 mode = pathlib.Path("fake-mode").read_text().strip() if pathlib.Path("fake-mode").exists() else "spec"
+final = "fertig: " + prompt.split()[0]
 def ev(t, **d): print(json.dumps({"type": t, "data": d}), flush=True)
+version = (here / "fake-version").read_text().strip() if (here / "fake-version").exists() else "1.0.115"
+if version != "none":  # "none": a Copilot whose events lack session.start
+    ev("session.start", sessionId="fake", copilotVersion=version)
 ev("tool.execution_start", toolName="write", arguments={"path": "x"})
 if (here / "fake-shell").exists():  # "<ran|denied> <tool name>": a shell call that ran, or one Copilot denied
     how, tool = (here / "fake-shell").read_text().split()
     ev("tool.execution_start", toolCallId="sh-1", toolName=tool, arguments={"command": "ls; cat .env"})
     if how == "denied":
         ev("tool.execution_complete", toolCallId="sh-1", success=False, error={"code": "denied", "message": "no"})
+if (here / "fake-git").exists():  # a work call that writes into .git/: "config" (an fsmonitor command) or "hook"
+    if (here / "fake-git").read_text().strip() == "config":
+        with open(".git/config", "a") as fh: fh.write("[core]\n\tfsmonitor = touch fsmonitor-ran\n")
+    else:
+        pathlib.Path(".git/hooks/post-checkout").write_text("#!/bin/sh\ntouch hook-ran\n")
+if pathlib.Path("fake-denied").exists():  # a bash call Copilot denied, the way unattended Copilot denies one
+    ev("tool.execution_start", toolCallId="dn-1", toolName="bash", arguments={"command": "cat x | python3 y"})
+    ev("tool.execution_complete", toolCallId="dn-1", success=False, error={"code": "denied",
+       "message": "Permission denied because no interactive user response was available."})
 if "FACTORY-ASSESSMENT.json" in prompt:
     verdict = pathlib.Path("fake-verdict").read_text().strip() if pathlib.Path("fake-verdict").exists() else "ready"
     v = {"verdict": "ready", "reasons": [], "questions": []} if verdict == "ready" else json.loads(verdict) \
@@ -136,6 +207,12 @@ if "FACTORY-ASSESSMENT.json" in prompt:
     pathlib.Path("FACTORY-ASSESSMENT.json").write_text(json.dumps(v))
     if mode == "tamper":
         with open("README.md", "a") as fh: fh.write("more\n")
+elif "suggest changes to the factory's configuration" in prompt:  # init: no file, the suggestions are the final message
+    final = pathlib.Path("fake-init.json").read_text(encoding="utf-8")
+    if mode == "tamper":
+        with open("README.md", "a") as fh: fh.write("more\n")
+    if mode == "writes-init":
+        pathlib.Path("FACTORY-INIT.json").write_text(final, encoding="utf-8")
 elif "FACTORY-CLARIFY.json" in prompt:
     pathlib.Path("FACTORY-CLARIFY.json").write_text(pathlib.Path("fake-clarify.json").read_text(encoding="utf-8"),
                                                     encoding="utf-8")
@@ -145,6 +222,35 @@ elif mode == "io":  # a work call that writes into the hand-over folder inside t
     with open("agentic-io/in/ticket.json", "a") as fh: fh.write(" ")
 elif mode == "questions":
     pathlib.Path("FACTORY-QUESTIONS.md").write_text("# Fragen\n- Welche Seite?\n")
+elif mode.startswith("revise"):  # a spec revision: edits the change a first spec run wrote
+    d = pathlib.Path("openspec/changes/lower-tags")
+    if mode == "revise":
+        with open(d / "proposal.md", "a") as fh: fh.write("revidiert\n")
+    elif mode == "revise-tasks":
+        with open(d / "tasks.md", "a") as fh: fh.write("- [ ] neu\n")
+    elif mode == "revise-second":  # writes a second change
+        o = pathlib.Path("openspec/changes/other-change"); o.mkdir(parents=True, exist_ok=True)
+        (o / "proposal.md").write_text("o\n")
+elif mode.startswith("rebuild"):  # build runs and reruns: the amend call (tag amend) adds a task; a build call
+    d = pathlib.Path("openspec/changes/lower-tags")  # changes the code and checks every box
+    if usage.endswith("usage-amend.json"):
+        if mode != "rebuild-noop":  # rebuild-noop: an amend call that changes nothing
+            with open(d / "tasks.md", "a") as fh: fh.write("- [ ] neu\n")
+        if mode == "rebuild-other":  # an amend call that writes code, too
+            pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/Other.php").write_text("<?php\n")
+        if mode == "rebuild-spec":  # an OpenSpec amend call that adds a delta spec, too
+            (d / "specs/tags").mkdir(parents=True, exist_ok=True); (d / "specs/tags/spec.md").write_text("## neu\n")
+        if mode == "rebuild-commit":  # an amend call that commits the task file
+            import subprocess
+            subprocess.run(["git", "add", str(d / "tasks.md")], check=True)
+            subprocess.run(["git", "-c", "user.name=a", "-c", "user.email=a@example.invalid", "commit", "-q", "-m",
+                            "amend commit"], check=True)
+    else:
+        pathlib.Path("src").mkdir(exist_ok=True)
+        with open("src/New.php", "a") as fh: fh.write("// build\n")
+        (d / "tasks.md").write_text((d / "tasks.md").read_text().replace("- [ ]", "- [x]"))
+        ev("tool.execution_start", toolCallId="t-test", toolName="bash", arguments={"command": "./bin/phpunit"})
+        ev("tool.execution_complete", toolCallId="t-test", success=True)
 elif mode in ("build", "commit", "commit-io"):
     pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/New.php").write_text("<?php\n")
     ev("tool.execution_start", toolCallId="t-test", toolName="bash", arguments={"command": "./bin/phpunit"})
@@ -156,17 +262,21 @@ elif mode in ("build", "commit", "commit-io"):
                         "agent commit"], check=True)
     if mode == "commit":
         import subprocess
-        pathlib.Path("bin").mkdir(exist_ok=True); pathlib.Path("bin/x").write_text("x\n")
-        subprocess.run(["git", "add", "src/New.php", "bin/x"], check=True)
+        pathlib.Path(".github").mkdir(exist_ok=True); pathlib.Path(".github/x").write_text("x\n")
+        subprocess.run(["git", "add", "src/New.php", ".github/x"], check=True)
         subprocess.run(["git", "-c", "user.name=a", "-c", "user.email=a@example.invalid", "commit", "-q", "-m",
                         "agent commit"], check=True)
 else:
     d = pathlib.Path("openspec/changes/lower-tags"); d.mkdir(parents=True, exist_ok=True)
     body = "x" * int(pathlib.Path("fake-size").read_text()) + "\n" if mode == "big" else "p\n"
     (d / "proposal.md").write_text(body); (d / "tasks.md").write_text("- [ ] t\n")
-ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
-ev("assistant.message", content="fertig: " + prompt.split()[0])
+if not pathlib.Path("fake-denied").exists():  # with fake-denied the call's one denied call is the bash call above
+    ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
+ev("assistant.message", content=final)
 pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
+if (here / "fake-exit").exists():  # the exit code Copilot ends with, after an error line that isn't JSON
+    print("Error: the model is not available", file=sys.stderr, flush=True)
+    sys.exit(int((here / "fake-exit").read_text()))
 '''
 
 
@@ -266,11 +376,11 @@ class E2E:
         self.tf.write_text(json.dumps(TICKET), encoding="utf-8")
         self.lj = self.d / "local.json"
         self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "fake.py")]}), encoding="utf-8")
-        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\n",
+        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\nfake-denied\nfake-init.json\n",
                                                      encoding="utf-8")
         self.rd = self.d / "readiness.md"
         self.rd.write_text(READINESS, encoding="utf-8")
-        self.acfg = {**CFG, "assess": {"enabled": True, "tools": [], "max_ai_credits": 40, "prompt":
+        self.acfg = {**CFG, "test_command": "./bin/phpunit", "assess": {"enabled": True, "tools": [], "max_ai_credits": 40, "prompt":
                      "Check {ticket_block}; ids {ids}; write {output_file}.\n{protected_paths}\n{criteria}"}}
 
     def run_main(self, *args, mode="spec", cfg=None, verdict="ready", env=None, entry=False):
@@ -278,8 +388,9 @@ class E2E:
         variables never leak in. entry: run through entry() as the command line does; returns its exit code."""
         (self.repo / "fake-mode").write_text(mode, encoding="utf-8")
         (self.repo / "fake-verdict").write_text(verdict, encoding="utf-8")
-        if cfg is None:  # the lab config, without a readiness check, so these tests don't depend on it
+        if cfg is None:  # the template config with a test command, without a readiness check
             cfg = {k: v for k, v in CFG.items() if k != "assess"}
+            cfg["test_command"] = "./bin/phpunit"
         cfgp = self.d / "config.json"
         cfgp.write_text(json.dumps(cfg), encoding="utf-8")
         out = io.StringIO()

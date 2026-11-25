@@ -246,7 +246,8 @@ class Clarify(JiraE2E, unittest.TestCase):
     def test_offline_writes_files_only(self):
         cf = self.d / "comments.json"
         cf.write_text(json.dumps([{"body": self.round1(), "created": "2026-11-24T10:00:00.000+0100"},
-                                  {"body": "[Mensch] A1 ok", "created": "2026-11-24T11:00:00.000+0100"}]),
+                                  {"body": "[Mensch] A1 ok", "created": "2026-11-24T11:00:00.000+0100",
+                                   "author": "acc-anna", "id": "77"}]),
                       encoding="utf-8")
         self.model(clarify_file("ready", description=NEW_DESC))
         rc, out = self.run_main("clarify", "--ticket-file", str(self.tf), "--comments-file", str(cf), "--readiness",
@@ -256,6 +257,7 @@ class Clarify(JiraE2E, unittest.TestCase):
         self.assertEqual(self.comment(), clarify.render_proposal(KEY, NEW_DESC))  # never claims the description was set
         self.assertEqual((self.io / "out/description.md").read_text(encoding="utf-8"), NEW_DESC)
         self.assertIn("description not set (offline or --no-post)", out)
+        self.assertIn("[Mensch] comments this run reads: 77 (by acc-anna)", out)
 
     def test_no_post_writes_files_only(self):
         self.given(self.round1(), "[Mensch] A1 ok")
@@ -1175,7 +1177,9 @@ class Render(unittest.TestCase):
             "Framework: openspec (Label sdd-openspec). Change: add-tags. Bereitschaftsprüfung: bestanden.",
             "Diese Spec wurde lokal mit agentic-factory.py geschrieben. Sie ist nicht freigegeben: Ein Kommentar von "
             "agentic-factory.py ist nie eine Freigabe.",
-            "```\n=== openspec/changes/add-tags/proposal.md ===\nText FACTORY_X\n```"]))
+            "```\n=== openspec/changes/add-tags/proposal.md ===\nText FACTORY_X\n```",
+            "Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von spec "
+            "arbeitet ihn ein."]))
 
     def test_readiness_lines(self):
         self.assertEqual(clarify.READINESS_PASSED, "Bereitschaftsprüfung: bestanden.")
@@ -1189,7 +1193,9 @@ class Render(unittest.TestCase):
             "Change: add-tags. Lokal umgesetzt mit agentic-factory.py, nicht geprüft und nicht gepusht.",
             "Geänderte Dateien:",
             "```\nsrc/A.php\ntests/AT.php\n```",
-            "Testbefehl ./bin/phpunit: bestanden."]))
+            "Testbefehl ./bin/phpunit: bestanden.",
+            "Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von build "
+            "arbeitet ihn ein."]))
 
     def test_fence_grows_past_backtick_runs(self):
         self.assertEqual(clarify.fence("a"), "```\na\n```")

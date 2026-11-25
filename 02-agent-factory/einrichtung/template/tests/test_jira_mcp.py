@@ -551,19 +551,6 @@ class JiraMcp(unittest.TestCase):
         self.assertEqual(Path(call["cwd"]).resolve(), (self.logdir / "jira-1-getJiraIssue").resolve())
         self.assertIn("ran no plugin hook", self.out.getvalue())
 
-    def test_jira_calls_get_no_team_rules(self):
-        j = jira_mcp.JiraMcp(FULL_CFG, self.local, copilot.resolve_copilot(self.local), dict(os.environ), self.logdir,
-                             HERE / "agentic-factory-plugin")
-        self.run_quiet(j.read, MKEY)
-        self.run_quiet(j.add_comment, MKEY, "[KI] agentic-factory klärung runde=2 key=LL-123\n\nFrage 1: Welche Seite?\n")
-        self.run_quiet(j.set_description, MKEY, "Neu\n")
-        prompts = [c["argv"][c["argv"].index("-p") + 1] for c in self.calls()]
-        self.assertGreaterEqual(len(prompts), 3)
-        for p in prompts:
-            self.assertNotIn("TEAM RULES", p)
-            self.assertNotIn("team_rules", p)
-            self.assertNotIn("regeln/", p)
-
     def test_read_long_ticket_with_truncated_detailed_content(self):
         st = self.state()
         st["issues"][MKEY]["comments"] = [

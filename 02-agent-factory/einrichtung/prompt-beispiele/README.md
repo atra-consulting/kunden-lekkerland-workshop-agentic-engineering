@@ -1,11 +1,18 @@
 # Prompt-Beispiele: die Copilot-Aufrufe der Factory
 
-Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus dem Lab, [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md): Bereitschaft prüfen, Spec schreiben, bauen, mit OpenSpec, Spec Kit und BMad. Sie sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines.
+Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus dem Lab, [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md): Bereitschaft prüfen, Spec schreiben, bauen, mit OpenSpec, Spec Kit und BMad. Sie zeigen, was die [Vorlage](../template/README.md) `agentic-factory.py` an Copilot schickt. Die Pipeline von `factory-base` baut dieselben Aufrufe, mit den Unterschieden unten.
 
-- **Quelle:** die Ausgabe von `local.py --print-only` (heute `agentic-factory.py`). Dieselben Prompts, Flags und dieselbe Reihenfolge nutzt `factory/agent.py` in der Pipeline. Ein Test im Lab-Repo prüft, dass beide dieselben Befehle bauen.
-- **Stand:** 24. November 2026, Lab-Repo Branch `factory-base`, Commit `a414237`, Modell `claude-sonnet-5.5`.
+- **Quelle:** die Ausgabe von `agentic-factory.py --print-only` aus der Vorlage in diesem Repo, mit `"test_command": "./bin/phpunit"` in `config.json`, dem Testbefehl des Labs.
+- **Stand:** 25. November 2026, Modell `claude-sonnet-5.5`.
 - **Kosten:** `--print-only` startet nichts und kostet nichts.
-- **Regeln des Teams:** `agentic-factory.py` hängt die Dateien aus `factory/regeln/` an die Prompts an, die der Block `rules` in `config.json` nennt. Die Beispiele hier zeigen die Prompts ohne diesen Block.
+- **Unterschiede zur Pipeline (`factory/agent.py` in `factory-base`):**
+  - Jeder Aufruf von `spec` und `build` bekommt dazu die lesenden Befehle aus `read_tools`, etwa `shell(ls:*)` und `shell(grep:*)`.
+  - Die Bereitschaftsprüfung bekommt `--deny-tool=shell`: Sie hat kein Shell-Werkzeug.
+  - Der Plan-Prompt von Spec Kit sagt „Use the existing stack and test setup“ statt „Use the existing Symfony 7 / PHP stack and PHPUnit“.
+  - Die verbotenen Befehle nennen `composer` nicht mehr. Von `npm` verbieten sie nur `npm install`, `npm i`, `npm ci` und `npm exec`, nicht ganz `npm`: Sonst liefe `npm test` nicht.
+  - Die geschützten Pfade nennen keine Dateien von Symfony und PHP mehr, auch nicht `bin/`.
+  - Die Regeln für Spec und Bauen (`spec_rules`, `build_rules`) enden mit „Read and follow AGENTS.md in the repository root if it exists.“
+  - Der Prompt der Bereitschaftsprüfung und `readiness.md` nennen Teile des Codes ohne Begriffe aus Symfony, etwa „modules, entry points, user interface, data model“ statt „pages, routes, controllers, templates, entities, translations“.
 
 ## Das Ticket
 
@@ -50,15 +57,15 @@ FLAB-41 hat das Label `sdd-openspec`. Für Spec Kit und BMad haben wir das Frame
 | Spec schreiben | [`spec-openspec.md`](spec-openspec.md): 2 Aufrufe, Bereitschaft und `/openspec-propose` | [`spec-speckit.md`](spec-speckit.md): 4 Aufrufe, Bereitschaft, `/speckit-specify`, `/speckit-plan`, `/speckit-tasks` | [`spec-bmad.md`](spec-bmad.md): 3 Aufrufe, Bereitschaft, `/bmad-prd`, `/bmad-spec` |
 | Bauen | [`build-openspec.md`](build-openspec.md): `/openspec-apply-change` | [`build-speckit.md`](build-speckit.md): `/speckit-implement` | [`build-bmad.md`](build-bmad.md): `/bmad-build-auto` |
 
-Die rohe Ausgabe jedes Laufs liegt in [`roh/`](roh/), genau so, wie `local.py` sie druckt. Nur lokale Pfade sind ersetzt (siehe unten).
+Die rohe Ausgabe jedes Laufs liegt in [`roh/`](roh/), genau so, wie `agentic-factory.py` sie druckt. Nur lokale Pfade sind ersetzt (siehe unten).
 
 ## So sind die Prompts gebaut
 
-- **Bereitschaftsprüfung:** Der Prompt enthält das Ticket und die Kriterien aus [`factory/readiness.md`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/readiness.md), zwischen `<<<CRITERIA` und `CRITERIA>>>`. Der Agent darf nur lesen und eine Datei schreiben, `FACTORY-ASSESSMENT.json`. Bei `spec` ist sie immer Aufruf 1. Lautet das Urteil „nicht bereit“, startet kein weiterer Aufruf.
+- **Bereitschaftsprüfung:** Der Prompt enthält das Ticket und die Kriterien aus [`readiness.md`](../template/readiness.md), zwischen `<<<CRITERIA` und `CRITERIA>>>`. Der Agent darf nur lesen und eine Datei schreiben, `FACTORY-ASSESSMENT.json`. Bei `spec` ist sie immer Aufruf 1. Lautet das Urteil „nicht bereit“, startet kein weiterer Aufruf.
 - **Spec:** Der erste Aufruf des Frameworks startet dessen Skill als Slash-Befehl und bekommt das Ticket zwischen `<<<TICKET` und `TICKET>>>`, ausdrücklich als Daten, nicht als Anweisung. Die folgenden Aufrufe, etwa `/speckit-plan` oder `/bmad-spec`, bekommen das Ticket nicht noch einmal. Sie arbeiten mit den Dateien, die der Aufruf davor geschrieben hat.
-- **Factory rules:** Jeder Prompt endet mit Regeln aus `config.json` (`spec_rules`, `build_rules`): in welchen Ordner der Agent schreiben darf, keine Shell-Skripte zum Bearbeiten, bei Unklarheit `FACTORY-QUESTIONS.md` statt einer Spec. Beim Bauen: genau die freigegebene Spec umsetzen, Tests mit genau `./bin/phpunit`.
+- **Factory rules:** Jeder Prompt endet mit Regeln aus `config.json` (`spec_rules`, `build_rules`): in welchen Ordner der Agent schreiben darf, keine Shell-Skripte zum Bearbeiten, bei Unklarheit `FACTORY-QUESTIONS.md` statt einer Spec. Beim Bauen: genau die freigegebene Spec umsetzen, Tests mit genau dem Befehl aus `test_command`, hier `./bin/phpunit`.
 - **Bauen:** Der Prompt enthält keinen Ticket-Text und keinen Spec-Text. Er nennt nur den Spec-Ordner oder die Spec-Datei, BMad dazu den Schlüssel des Tickets. Den Inhalt liest der Agent selbst im Repo.
-- **Spec Kit:** Der Plan-Prompt enthält den Satz „Use the existing Symfony 7 / PHP stack and PHPUnit“. In eurem Projekt ersetzt ihr ihn über `stack_hint` in `local.json`.
+- **Spec Kit:** Der Plan-Prompt sagt nur „Use the existing stack and test setup; no new dependencies.“ Euren Stack beschreibt ihr in `AGENTS.md`. Copilot liest die Datei selbst.
 
 ## Die Dateien der Spec und `tasks.md`
 
@@ -72,7 +79,7 @@ OpenSpec und Spec Kit schreiben eine `tasks.md`, BMad nicht. Welche Dateien eine
 
 Beispiele aus dem Lab: `openspec/changes/post-reading-time/tasks.md` auf dem Branch `factory/FLAB-41`, `specs/001-blog-reading-time/tasks.md` auf dem Branch `factory/FLAB-18`.
 
-**Beim Bauen ist `tasks.md` die einzige Datei der Spec, die der Agent ändern darf** (Feld `run2_editable_re`). So hakt er die erledigten Aufgaben ab. Alles andere an der freigegebenen Spec bleibt, wie es ist. Bei BMad darf der Agent stattdessen in `_bmad-output/implementation-artifacts/` schreiben und die `.memlog.md`-Dateien ändern.
+**In der Pipeline ist beim Bauen `tasks.md` die einzige Datei der Spec, die der Agent ändern darf** (Feld `run2_editable_re` in der `config.json` von `factory-base`). So hakt er die erledigten Aufgaben ab. Alles andere an der freigegebenen Spec bleibt, wie es ist. Bei BMad darf der Agent stattdessen in `_bmad-output/implementation-artifacts/` schreiben und die `.memlog.md`-Dateien ändern. Die Vorlage kennt das Feld nicht: Lokal prüft das niemand, ihr lest den Diff selbst.
 
 ## Die Parameter für Copilot
 
@@ -107,17 +114,20 @@ Alle Aufrufe dürfen `read` und `write`. Dazu:
 | Schritt | OpenSpec | Spec Kit | BMad |
 |---|---|---|---|
 | Bereitschaft | nichts | nichts | nichts |
-| Spec | `shell(openspec:*)`, `shell(mkdir:*)` | `shell(mkdir:*)` und die Skripte `create-new-feature.sh`, `setup-plan.sh`, `setup-tasks.sh`, `check-prerequisites.sh`, `resolve-template.sh` unter `.specify/scripts/bash/` | `shell(uv:*)`, `shell(mkdir:*)` |
-| Bauen | `shell(openspec:*)`, `shell(mkdir:*)`, `shell(./bin/phpunit:*)` | `shell(mkdir:*)`, `check-prerequisites.sh`, `resolve-template.sh`, `shell(./bin/phpunit:*)` | `shell(uv:*)`, `shell(mkdir:*)`, `shell(git add:*)`, `shell(git commit:*)`, `shell(git status:*)`, `shell(git diff:*)`, `shell(./bin/phpunit:*)` |
+| Spec | `shell(openspec:*)`, `shell(mkdir:*)`, die `read_tools` | `shell(mkdir:*)` und die Skripte `create-new-feature.sh`, `setup-plan.sh`, `setup-tasks.sh`, `check-prerequisites.sh`, `resolve-template.sh` unter `.specify/scripts/bash/`, die `read_tools` | `shell(uv:*)`, `shell(mkdir:*)`, die `read_tools` |
+| Bauen | `shell(openspec:*)`, `shell(mkdir:*)`, die `read_tools`, `shell(./bin/phpunit:*)` | `shell(mkdir:*)`, `check-prerequisites.sh`, `resolve-template.sh`, die `read_tools`, `shell(./bin/phpunit:*)` | `shell(uv:*)`, `shell(mkdir:*)`, `shell(git add:*)`, `shell(git commit:*)`, `shell(git status:*)`, `shell(git diff:*)`, die `read_tools`, `shell(./bin/phpunit:*)` |
 
-- `shell(./bin/phpunit:*)` ist der Testbefehl aus `config.json`. Lokal ersetzt `test_command` aus `local.json` ihn, etwa durch `shell(make:*)`.
+- Die `read_tools` aus `config.json`: `shell(ls:*)`, `shell(cat:*)`, `shell(head:*)`, `shell(tail:*)`, `shell(wc:*)`, `shell(grep:*)`, `shell(pwd:*)`, `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`. Warum genau diese, steht in der [Vorlage](../template/README.md#sicherheit-was-ihr-wissen-müsst).
+- `shell(./bin/phpunit:*)` ist der Testbefehl aus `test_command` in `config.json`, als ganzer Befehl. Aus `make test` würde `shell(make test:*)`. In der Vorlage ist `test_command` leer: Dann stoppt `build`.
 - `shell(uv:*)` erlaubt BMad, beliebigen Python-Code zu starten. BMad darf beim Bauen auch selbst committen.
 
 ### Verbotene Befehle
 
 In allen 13 Aufrufen gleich:
 
-`shell(git push:*)`, `shell(git remote:*)`, `shell(git config:*)`, `shell(curl:*)`, `shell(wget:*)`, `shell(ssh:*)`, `shell(scp:*)`, `shell(env:*)`, `shell(printenv:*)`, `shell(composer:*)`, `shell(npm:*)`, `shell(npx:*)`
+`shell(git push:*)`, `shell(git remote:*)`, `shell(git config:*)`, `shell(curl:*)`, `shell(wget:*)`, `shell(ssh:*)`, `shell(scp:*)`, `shell(env:*)`, `shell(printenv:*)`, `shell(npm install:*)`, `shell(npm i:*)`, `shell(npm ci:*)`, `shell(npm exec:*)`, `shell(npx:*)`
+
+Die vier Bereitschaftsprüfungen bekommen dazu `--deny-tool=shell`. Die Pipeline von `factory-base` verbietet stattdessen `shell(composer:*)` und ganz `shell(npm:*)`.
 
 ### Umgebungsvariablen
 
@@ -148,7 +158,16 @@ Copilot legt in Bitbucket keinen Branch an. Das macht erst der letzte Schritt de
 
 ## So sind die Beispiele entstanden
 
-Aufgenommen in einem frischen Klon des Lab-Repos, Branch `factory-base`, mit Python 3.13 und Copilot CLI 1.0.114. Dort hieß das Skript `factory/local.py`. In eurem Projekt, in dem die [Vorlage](../template/README.md) in `factory/` liegt, erzeugt ihr die Prompts auf dieselbe Weise. Die Ausgabe ist nicht Byte für Byte die der Aufnahmen: Das heutige Skript schreibt `[agentic-factory]` statt `[local]` und hängt in Aufrufen ohne Shell-Werkzeuge `--deny-tool=shell` an. Mit einem Block `rules` in `config.json` enden die Prompts außerdem mit den Regeln des Teams. Die Ticket-Datei liegt in diesem Ordner: [`ticket-FLAB-41.json`](ticket-FLAB-41.json).
+Erzeugt mit der Vorlage aus diesem Repo, Stand 25. November 2026, mit Python 3 und ohne Copilot-Aufruf: `--print-only` startet Copilot nicht. Wir haben ein Wegwerf-Repo angelegt:
+
+- mit Git und den leeren Ordnern `openspec/`, `.specify/` und `_bmad/`, denn ohne sie stoppt das Skript mit „framework … is not installed in this project“,
+- mit der Vorlage in `factory/`, ohne `local.json`, und in `factory/config.json` mit `"test_command": "./bin/phpunit"`,
+- mit Platzhaltern für die Spec-Ordner, die `build` braucht. Der Prompt nennt nur deren Namen:
+  - OpenSpec: `openspec/changes/post-reading-time/` mit `proposal.md`, `design.md`, `tasks.md` und `specs/blog-post/spec.md`. Den Namen hat der Factory-Lauf zu FLAB-41 vergeben.
+  - Spec Kit: `specs/001-blog-reading-time/` mit `spec.md`, `plan.md` und `tasks.md`, benannt nach einer Spec aus dem Lab zu FLAB-18.
+  - BMad: `_bmad-output/specs/lesezeit-artikelseite/SPEC.md`. Das Lab hat keine BMad-Spec zur Lesezeit.
+
+Dann im Wurzelordner des Wegwerf-Repos:
 
 ```bash
 T=~/workshop-agentic-engineering/02-agent-factory/einrichtung/prompt-beispiele/ticket-FLAB-41.json   # Pfad zu eurem Klon dieses Repos
@@ -159,11 +178,8 @@ python3 -I factory/agentic-factory.py build  --ticket-file "$T" --framework spec
 python3 -I factory/agentic-factory.py build  --ticket-file "$T" --framework bmad --print-only
 ```
 
-- **Keine `local.json`.** Prompts und Flags sind also genau die der Pipeline: Testbefehl `./bin/phpunit`, Stack-Satz für Symfony. Mit einer `local.json` ändern sich nur `test_command`, `stack_hint`, `model` und der Befehl, der Copilot startet.
-- **Spec-Ordner für das Bauen.** `build` braucht einen Spec-Ordner. Der Prompt nennt aber nur dessen Namen. Wir haben genommen:
-  - OpenSpec: die echte Spec aus dem Factory-Lauf zu FLAB-41, `openspec/changes/post-reading-time/` vom Branch `factory/FLAB-41`.
-  - Spec Kit: eine echte Spec aus dem Lab, ebenfalls zur Lesezeit, `specs/001-blog-reading-time/` vom Branch `factory/FLAB-18`.
-  - BMad: einen Platzhalter, `_bmad-output/specs/lesezeit-artikelseite/SPEC.md`. Das Lab hat keine BMad-Spec zur Lesezeit.
+- **Keine `local.json`.** Mit einer `local.json` ändern sich nur `model` und der Befehl, der Copilot startet.
+- **Rohe Ausgabe und Seiten.** Die Dateien in [`roh/`](roh/) sind die Ausgabe der Befehle. Die Seiten haben wir daraus gebaut: Kopfzeilen, Werkzeuge, Credit-Grenze und Prompt je Aufruf.
 - **Ersetzte Pfade.** In den Dateien steht `<projekt>` für den Projektordner und `~/.factory-local/<projekt>/<zeit>-…` für die Protokoll-Dateien.
 
-Neu erzeugen: dieselben Befehle mit eurer `config.json` und `readiness.md`. Ändert ihr Kriterien oder Regeln, ändern sich die Prompts mit.
+Neu erzeugen: dieselben Befehle mit eurer `config.json` und `readiness.md`. Ändert ihr Kriterien, Werkzeuge oder den Testbefehl, ändern sich die Prompts mit.

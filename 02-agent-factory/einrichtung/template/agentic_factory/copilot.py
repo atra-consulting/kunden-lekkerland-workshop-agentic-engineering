@@ -4,40 +4,163 @@ import hashlib
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import threading
 
 from . import copied, config
-from . import rules as rules_mod  # plan() has a local "rules": the factory rules text
 from . import ticket as ticket_mod
 
-STACK_DEFAULT = "Use the existing Symfony 7 / PHP stack and PHPUnit"  # replaced by local.json stack_hint
 JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on to Copilot
 
 
 # --- the calls --------------------------------------------------------------------------------------------------------
 
-def test_override(cfg, local, rules, tools):
-    """local.json test_command replaces the config's test command in the build rules and in the allowed tools."""
-    new = local.get("test_command")
-    old = " ".join(cfg["test_command"])
-    if not new or new == old:
-        return rules, tools
-    if old not in rules:
-        raise config.Stop(f"the build rules don't name the config's test command {old!r}; can't apply test_command")
-    old_tool, new_tool = f"shell({cfg['test_command'][0]}:*)", f"shell({shlex.split(new)[0]}:*)"
-    return rules.replace(old, new), [new_tool if t == old_tool else t for t in tools]
+TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # the first word; no quotes, "$", "=", ";", "&", "|", "<", ">"
+ARG_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%=-]+")  # the other words: the same, plus "=" (--maxfail=1)
+INTERPRETERS = ("bash", "sh", "zsh", "dash", "fish", "ksh", "csh", "tcsh", "node", "nodejs", "bun", "deno", "tsx", "ts-node",
+                "ruby", "perl", "php", "lua", "julia", "rscript", "osascript", "tclsh", "cmd", "pwsh", "powershell",
+                "python", "pypy")
+# a known name, then a version (3, 3.12.1) with an optional letter (3.13t), then an optional -dbg
+INTERPRETER_NAME = re.compile(r"(%s)(\d+(\.\d+)*[a-z]?)?(-dbg)?" % "|".join(INTERPRETERS))
+INLINE_CODE_FLAGS = {"-c", "-e", "-E", "-p", "--print", "--eval", "-Command"}
+SHORT_FLAGS_FOR_CODE = re.compile(r"-[A-Za-z]*[ceEp]")  # a cluster such as -lc, -Sc, -pe, -ep
+POWERSHELL_CODE_FLAGS = ("command", "encodedcommand")  # PowerShell accepts any prefix of these, such as -C or /enc
+WRAPPERS = {"env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox"}
+RUNNERS = {"uv", "poetry", "pipenv", "pdm", "hatch", "rye"}  # "<runner> run" is a wrapper too
+NUMBER = re.compile(r"\d+(\.\d+)?[smhd]?")  # timeout 60, timeout 1.5s
 
 
-def stack_override(local, prompts, fw):
-    hint = local.get("stack_hint")
-    if not hint or fw != "speckit":
-        return prompts
-    if not any(STACK_DEFAULT in p for p in prompts):
-        raise config.Stop(f"stack_hint: no Spec Kit prompt in config.json contains {STACK_DEFAULT!r}")
-    return [p.replace(STACK_DEFAULT, hint) for p in prompts]
+def base_name(word):
+    """The lower-case basename of a word, without .exe."""
+    name = os.path.basename(word).lower()
+    return name[:-4] if name.endswith(".exe") else name
+
+
+def interpreter_name(word):
+    """The lower-case interpreter a word names (basename, no .exe), or None. Any word of a test command counts, so
+    wrappers (uv run python, env node, timeout 60 bash) don't hide it."""
+    name = base_name(word)
+    return name if INTERPRETER_NAME.fullmatch(name) else None
+
+
+def runs_inline_code(interpreter, word):
+    """Whether an argument of an interpreter looks like a flag or word that runs code from the command line."""
+    if word in INLINE_CODE_FLAGS or SHORT_FLAGS_FOR_CODE.fullmatch(word):
+        return True
+    if interpreter.startswith(("pwsh", "powershell")):
+        return len(word) >= 2 and word[0] in "-/" and any(f.startswith(word[1:].lower()) for f in POWERSHELL_CODE_FLAGS)
+    if interpreter.startswith("cmd"):
+        return word.lower() in ("/c", "/k")
+    if interpreter.startswith("php"):
+        return word == "-r"
+    return interpreter.startswith(("deno", "bun")) and word == "eval"
+
+
+def command_start(cmd, words):
+    """The index of the command a test command runs: wrappers (env, timeout 60, uv run) are skipped with their own
+    numbers and KEY=VALUE words. Fail closed on options: one is accepted only as --opt=value or a bare --, because
+    without a table of each wrapper's options a value word (-u bob) would be taken for the command. len(words) when
+    only wrappers are left."""
+    i = 0
+    while i < len(words):
+        name = base_name(words[i])
+        if name in WRAPPERS:
+            i += 1
+        elif name in RUNNERS and i + 1 < len(words) and words[i + 1].lower() == "run":
+            i += 2
+        else:
+            break
+        while i < len(words) and (words[i].startswith("-") or NUMBER.fullmatch(words[i]) or "=" in words[i]):
+            w = words[i]
+            if w.startswith("-") and w != "--" and "=" not in w:
+                raise config.Stop(f"test_command {cmd!r}: the option {w!r} after {words[i - 1]!r} may take a value that "
+                                  "this check can't tell from the command; write wrapper options as --opt=value, "
+                                  "or wrap the command in a script file or a Make target and use that")
+            i += 1
+    return i
+
+
+def ends_open(rest):
+    """Whether the words after an interpreter leave the code or module to the agent: no non-option word (the word
+    after -m counts)."""
+    return not any(not w.startswith("-") or (i and rest[i - 1] == "-m") for i, w in enumerate(rest))
+
+
+def check_test_command(cmd):
+    """Stops unless cmd is plain words: no shell syntax, no environment assignment, and no interpreter running inline
+    code (bash -c, python -c, node -e, ...), because the build call's tool is the whole command as a prefix. A
+    misconfiguration check, not a security boundary: the prefix lets the agent append arguments anyway."""
+    words = cmd.split(" ")
+    if not cmd or "" in words:
+        raise config.Stop(f"test_command {cmd!r}: words must be separated by single spaces, with no leading or trailing space")
+    if "=" in words[0]:
+        raise config.Stop(f"test_command {cmd!r}: an environment assignment in front of the command isn't allowed; "
+                          "put it in a script or a make target")
+    for i, w in enumerate(words):
+        if not (TEST_CHARS if i == 0 else ARG_CHARS).fullmatch(w):
+            raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % - "
+                              "(and = after the first word); shell syntax and quotes aren't allowed, "
+                              "put them in a script or a make target")
+    start = command_start(cmd, words)
+    if start == len(words):
+        raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or target; "
+                          f"{words[-1]!r} with nothing after it lets the agent supply the command")
+    interpreter = interpreter_name(words[start])  # only the command itself: its arguments are never wrappers or interpreters
+    if interpreter:
+        rest = words[start + 1:]
+        for w in rest:
+            if runs_inline_code(interpreter, w):
+                raise config.Stop(f"test_command {cmd!r}: {interpreter} with {w} may run inline code, or this check can't "
+                                  "tell; wrap the command in a script file or a Make target and use that")
+        if ends_open(rest):
+            raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or target; "
+                              f"{words[start]!r} with nothing after it lets the agent supply the code or module")
+
+
+def test_tool(cmd):
+    """The one tool a build call gets for the test command: the whole command as a prefix."""
+    return f"shell({cmd}:*)"
+
+
+def denied_by(cmd, deny_tools):
+    """The first deny_tools entry shell(X:*) that covers cmd (cmd == X or cmd starts with X and a space), or None."""
+    for entry in deny_tools:
+        if entry.startswith("shell(") and entry.endswith(":*)"):
+            x = entry[len("shell("):-len(":*)")]
+            if cmd == x or cmd.startswith(x + " "):
+                return entry
+    return None
+
+
+def build_test_command(cfg):
+    """The checked test command of config.json for a build call. A deny entry beats every allow, so a command a deny
+    entry covers stops here, before any call."""
+    cmd = config.test_command(cfg)
+    if not cmd:
+        raise config.Stop("set test_command in config.json (or run init)")
+    check_test_command(cmd)
+    entry = denied_by(cmd, cfg["deny_tools"])
+    if entry:
+        raise config.Stop(f"test_command {cmd!r} is covered by {entry} in deny_tools, which beats every allow; "
+                          "use another test command or change deny_tools")
+    return cmd
+
+
+def check_read_tools(cfg):
+    """The read_tools of config.json. Stops on an entry that isn't shell(...) or that a deny_tools entry covers, because
+    a deny entry beats every allow and a non-shell tool would widen the calls."""
+    tools = cfg.get("read_tools") or []
+    for entry in tools:
+        if not (isinstance(entry, str) and entry.startswith("shell(") and entry.endswith(")") and len(entry) > 7):
+            raise config.Stop(f"read_tools entry {entry!r}: only shell(...) entries are allowed")
+        x = entry[len("shell("):-1]
+        x = x[:-2] if x.endswith(":*") else x
+        denied = denied_by(x, cfg["deny_tools"])
+        if denied:
+            raise config.Stop(f"read_tools entry {entry!r} is covered by {denied} in deny_tools, which beats every "
+                              "allow; remove it from read_tools or change deny_tools")
+    return list(tools)
 
 
 def fill(template, values, where):
@@ -47,26 +170,58 @@ def fill(template, values, where):
         raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
 
 
-def plan(cfg, local, mode, key, fw, ticket=None, change=None, spec_file=None, team_rules=""):
+def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers="", spec_changes=""):
     """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
-    team_rules: the block of the team's rules for the mode (rules.block), appended after every prompt."""
+    answers: spec after a `spec fragen` comment: the questions and their answers as a fenced block after the ticket.
+    spec_changes: a build revision after hand edits of the spec: the text appended to every build prompt (the
+    instruction and the fenced spec diff). The one place a build prompt is made."""
     F = cfg["frameworks"][fw]
     env_extra = {}
     if mode == "spec":
         rules = cfg.get("spec_rules", copied.SPEC_RULES).format(folder=F["spec_rule_folder"])
-        vals = {"ticket_block": ticket_mod.ticket_block(ticket), "spec_rules": rules, "key": key, "slug": key.lower()}
+        vals = {"ticket_block": ticket_mod.ticket_block(ticket) + answers, "spec_rules": rules, "key": key,
+                "slug": key.lower()}
         prompts = [fill(p, vals, f"{fw} spec_prompts") for p in F["spec_prompts"]]
-        prompts = stack_override(local, prompts, fw)
-        tools = list(F["spec_tools"])
+        tools = [*F["spec_tools"], *check_read_tools(cfg)]
     elif mode == "build":
-        rules, tools = test_override(cfg, local, cfg.get("build_rules", copied.BUILD_RULES), list(F["build_tools"]))
+        cmd = build_test_command(cfg)
+        rules = fill(cfg.get("build_rules", copied.BUILD_RULES), {"test_command": cmd}, "build_rules")
+        tools = [*F["build_tools"], *check_read_tools(cfg), test_tool(cmd)]
         vals = {"change": change, "build_rules": rules, "key": key, "spec_file": spec_file}
-        prompts = [fill(p, vals, f"{fw} build_prompts") for p in F["build_prompts"]]
+        prompts = [fill(p, vals, f"{fw} build_prompts") + spec_changes for p in F["build_prompts"]]
         if fw == "speckit" and F.get("env_feature_dir"):
             env_extra[F["env_feature_dir"]] = f"specs/{change}"
     else:
         raise config.Stop(f"unknown mode {mode}")
-    return [rules_mod.append(p, team_rules) for p in prompts], tools, env_extra
+    return prompts, tools, env_extra
+
+
+def revise_plan(cfg, key, fw, ticket, change, comments_block):
+    """The spec revision call: the framework's revise_prompt, its spec tools and read_tools (as a spec run has them),
+    and its extra environment. The spec rules name the change's own folder."""
+    F = cfg["frameworks"][fw]
+    if not isinstance(F.get("revise_prompt"), str) or not F["revise_prompt"]:
+        raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the template's config.json")
+    root = F["spec_root"].format(change=change)
+    vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
+            "spec_root": root, "spec_rules": cfg.get("spec_rules", copied.SPEC_RULES).format(folder=root), "key": key}
+    prompt = fill(F["revise_prompt"], vals, f"{fw} revise_prompt")
+    env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
+    return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra
+
+
+def amend_plan(cfg, key, fw, ticket, change, comments_block, task_file, revision):
+    """A build revision's amend call: the framework's amend_prompt, its spec tools and read_tools (no test tool), and
+    its extra environment. The call turns the new [Mensch] comments into new, unchecked tasks in task_file (OpenSpec:
+    and into the change's spec documents, see feedback.amend_paths)."""
+    F = cfg["frameworks"][fw]
+    if not isinstance(F.get("amend_prompt"), str) or not F["amend_prompt"]:
+        raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the template's config.json")
+    vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
+            "task_file": task_file, "revision": revision, "key": key, "spec_root": F["spec_root"].format(change=change)}
+    prompt = fill(F["amend_prompt"], vals, f"{fw} amend_prompt")
+    env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
+    return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra
 
 
 def has_shell_tool(tools):
@@ -236,6 +391,59 @@ def mcp_events(events_path):
             else:
                 c["raw"] = res.get("detailedContent") if isinstance(res.get("detailedContent"), str) else None
     return {"version": version, "calls": calls}
+
+
+TESTED_VERSION = "1.0.115"  # the Copilot CLI whose events the script reads
+BLIND = ("; blocked.jsonl, the shell check and the test line may miss what this call did. Check the events in {} and "
+         "the agentic-factory.py version")
+
+
+def _event_lines(events_path):
+    try:
+        with open(events_path, "rb") as fh:
+            return fh.read().splitlines()
+    except OSError:
+        return []
+
+
+def event_warnings(events_path, rc):
+    """Warnings when a call's events don't look like the tested Copilot's: no session.start, a call that exited 0
+    without any tool or message event, or another copilotVersion (arbiter ruling 2). The blocked log, the shell
+    backstop and the test line read these events; a changed format would make them report nothing."""
+    version, seen, known = None, False, False
+    for raw in _event_lines(events_path):
+        try:
+            e = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(e, dict):
+            continue
+        t, d = e.get("type"), e.get("data") if isinstance(e.get("data"), dict) else {}
+        if t == "session.start":
+            seen, version = True, version or d.get("copilotVersion")
+        elif t in ("tool.execution_start", "tool.execution_complete", "assistant.message"):
+            known = True
+    blind = BLIND.format(events_path)
+    if not seen:
+        return ["Copilot events not recognized (no session.start)" + blind]
+    if rc == 0 and not known:
+        return [f"Copilot {version} events not recognized (no tool or message events)" + blind]
+    if version != TESTED_VERSION:
+        return [f"Copilot {version} is not the tested {TESTED_VERSION}; its events may differ" + blind]
+    return []
+
+
+def non_json_tail(events_path, n=5):
+    """The last n lines of a call's output that aren't JSON events: Copilot's own messages, such as an error."""
+    out = []
+    for raw in _event_lines(events_path):
+        try:
+            json.loads(raw)
+        except ValueError:
+            line = raw.decode("utf-8", errors="replace").strip()
+            if line:
+                out.append(line[:300])
+    return out[-n:]
 
 
 SHELL_TOOLS = ("bash", "shell", "powershell")

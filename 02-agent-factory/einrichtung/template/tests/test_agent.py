@@ -1,12 +1,19 @@
 """Tests for agentic_factory/agent.py: spec and build runs end to end, and the shell backstop."""
+import contextlib
+import io
 import json
 import os
 import subprocess
+import re
+import shutil
+import sys
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from agentic_factory import config
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, E2E
+from .fakes import CFG, E2E, KEY
 
 
 class EndToEnd(E2E, unittest.TestCase):
@@ -24,6 +31,71 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertIn("building change lower-tags", out)
         self.assertIn("src/New.php", out)
 
+    def test_old_list_test_command_stops_build_before_any_call(self):
+        self.run_main("spec", "--ticket-file", str(self.tf))
+        (self.d / "calls.jsonl").unlink()
+        cfg = {k: v for k, v in CFG.items() if k != "assess"}
+        cfg["test_command"] = ["./bin/phpunit"]
+        with self.assertRaisesRegex(config.Stop, 'test_command must be a string such as "make test"; an old config '
+                                                 'has a list'):
+            self.run_main("build", "--ticket-file", str(self.tf), "--framework", "openspec", mode="build", cfg=cfg)
+        self.assertFalse((self.d / "calls.jsonl").exists())
+
+    def test_missing_config_key_stops_with_its_name(self):
+        cfg = {k: v for k, v in CFG.items() if k not in ("assess", "deny_tools")}
+        with self.assertRaisesRegex(config.Stop, "has no key deny_tools"):
+            self.run_main("spec", "--ticket-file", str(self.tf), cfg=cfg)
+        self.assertFalse((self.d / "calls.jsonl").exists())
+
+    def test_unknown_event_format_warns(self):
+        for version, part in (("none", "Copilot events not recognized (no session.start)"),
+                              ("2.0.0", "Copilot 2.0.0 is not the tested 1.0.115")):
+            with self.subTest(version=version):
+                (self.d / "fake-version").write_text(version, encoding="utf-8")
+                shutil.rmtree(self.repo / "openspec/changes/lower-tags", ignore_errors=True)
+                rc, out = self.run_main("spec", "--ticket-file", str(self.tf))
+                self.assertEqual(rc, 0, out)
+                self.assertIn("WARNING: " + part, out)
+
+    def test_report_never_claims_no_blocked_calls_on_unknown_events(self):
+        from types import SimpleNamespace
+        from agentic_factory import agent
+        for unrecognized, blocked_n, part in ((True, 0, "WARNING: Copilot events not recognized: blocked calls may be "
+                                                         "missing"), (False, 0, "no blocked calls"),
+                                              (True, 2, "2 blocked call(s)")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                agent.Work.report(SimpleNamespace(unrecognized=unrecognized, blocked=blocked_n, repo=self.repo))
+            self.assertIn(part, out.getvalue())
+
+    def test_failed_call_shows_copilots_last_lines(self):
+        (self.d / "fake-exit").write_text("3", encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "copilot exited with 3"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertIn("Copilot's last lines:\n    Error: the model is not available", self.last_out)
+
+    def test_ticket_as_positional_argument(self):
+        rc, out = self.run_main("spec", KEY, "--ticket-file", str(self.tf), "--print-only")
+        self.assertEqual(rc, 0, out)
+        rc, out = self.run_main("spec", f"https://example.atlassian.net/browse/{KEY}?x=1#c", "--key", KEY,
+                                "--ticket-file", str(self.tf), "--print-only")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("ignored the host example.atlassian.net", out)
+
+    def test_ticket_argument_stops(self):
+        cases = ((("spec", "FLAB-8", "--key", KEY), "FLAB-8 differs from --key FLAB-7"),
+                 (("spec", "kaputt"), "expected a ticket key such as OFT-1 or a Jira ticket URL"),
+                 (("init", KEY), "init takes no ticket"))
+        for args, msg in cases:
+            with self.subTest(args=args), self.assertRaisesRegex(config.Stop, msg):
+                self.run_main(*args, "--ticket-file", str(self.tf))
+        self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "fake.py")],
+                                       "jira_site": "https://example.atlassian.net"}), encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "the ticket URL is on other.example, but the configured Jira site is "
+                                                 "https://example.atlassian.net"):
+            self.run_main("spec", f"https://other.example/browse/{KEY}", "--jira", "mcp")
+        self.assertFalse((self.d / "calls.jsonl").exists())
+
     def test_agent_commits_are_shown_and_checked(self):
         self.run_main("spec", "--ticket-file", str(self.tf))
         rc, out = self.run_main("build", "--ticket-file", str(self.tf), "--framework", "openspec", mode="commit")
@@ -31,7 +103,7 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertIn("the agent made 1 commit(s) on your branch, with 2 file(s)", out)
         self.assertIn("agent commit", out)
         self.assertIn("protected paths changed", out)
-        self.assertIn("bin/x", out)
+        self.assertIn(".github/x", out)
 
     def test_own_mcp_servers_switched_off(self):
         rc, out = self.run_main("spec", "--ticket-file", str(self.tf))
@@ -182,3 +254,125 @@ class ShellBackstop(E2E, unittest.TestCase):
                                 cfg=self.acfg)
         self.assertEqual(rc, 0, out)
         self.assertIn("'--deny-tool=shell(npx:*)' --deny-tool=shell\n", out)
+
+
+class GitGuard(E2E, unittest.TestCase):
+    """A work call that changes .git/config or a hook stops the run before the script runs any git command, and every
+    git command of the script runs without fsmonitor and hooks."""
+
+    def stops_before_any_git(self, what, name):
+        (self.d / "fake-git").write_text(what, encoding="utf-8")
+        with mock.patch("subprocess.run", wraps=subprocess.run) as runs, \
+                self.assertRaisesRegex(config.Stop, f"changed {re.escape(name)}; nothing is posted.*inspect .* with cat "
+                                                    "and ls before you run any git command"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        calls = [c.args[0] for c in runs.call_args_list if c.args and c.args[0][:1] == ["git"]]
+        self.assertTrue(calls, "git ran before the call")
+        self.assertEqual(calls[-1][-4:], ["rev-parse", "-q", "--verify", "HEAD"])  # the last one came before the call
+        self.assertFalse((self.repo / "fsmonitor-ran").exists())
+
+    def test_changed_git_config_stops_before_any_git(self):
+        self.stops_before_any_git("config", ".git/config")
+
+    def test_changed_hook_stops_before_any_git(self):
+        self.stops_before_any_git("hook", ".git/hooks/post-checkout")
+
+    def test_git_runs_without_fsmonitor_and_hooks(self):
+        marker = self.repo / "fsmonitor-ran"
+        subprocess.run(["git", "config", "core.fsmonitor", f"touch {marker}"], cwd=self.repo, check=True)
+        with mock.patch.dict(os.environ, {"HOME": str(self.d)}):
+            ticket_mod.git(self.repo, "status", "--porcelain")
+            ticket_mod.head_commit(self.repo)
+            with mock.patch("subprocess.run", wraps=subprocess.run) as runs:
+                ticket_mod.git(self.repo, "status")
+                ticket_mod.head_commit(self.repo)
+        self.assertFalse(marker.exists())
+        no_hooks = (self.d / ".factory-local" / "no-hooks").as_posix()
+        for c in runs.call_args_list:
+            self.assertEqual(c.args[0][:9], ["git", "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={no_hooks}",
+                                             "-c", "diff.external=", "-c", "core.pager=cat"])
+
+    def test_diff_calls_run_no_external_diff_or_textconv(self):
+        for path in ("agentic_factory/agent.py", "agentic_factory/feedback.py"):
+            text = (Path(__file__).resolve().parent.parent / path).read_text(encoding="utf-8")
+            for m in re.finditer(r'git\(repo, "diff", ([^)]*)\)', text):
+                with self.subTest(path=path, call=m.group(0)):
+                    self.assertTrue(m.group(1).startswith('"--no-ext-diff", "--no-textconv"'), m.group(0))
+
+    def include(self, path, target, cond=None):
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write((f'[includeIf "{cond}"]\n' if cond else "[include]\n") + f'\tpath = "{Path(target).as_posix()}"\n')
+
+    def test_every_git_call_checks_the_git_files_first(self):
+        """After the run's baseline, a git call stops when .git/config, a hook, or an included file changed."""
+        inc, cond = self.d / "extra.cfg", self.d / "if.cfg"
+        inc.write_text("[user]\n\tname = x\n", encoding="utf-8")
+        self.include(self.repo / ".git/config", inc)
+        self.include(self.repo / ".git/config", cond, "gitdir:/nowhere/")
+        cases = {"config": (self.repo / ".git/config", "[core]\n\tfsmonitor = touch fsmonitor-ran\n"),
+                 "hook": (self.repo / ".git/hooks/pre-commit", "#!/bin/sh\n"),
+                 "include": (inc, "[core]\n\tfsmonitor = touch fsmonitor-ran\n"),
+                 "includeIf, created": (cond, "[core]\n\tpager = touch x\n")}
+        with mock.patch.dict(os.environ, {"HOME": str(self.d)}):
+            for name, (path, text) in cases.items():
+                with self.subTest(name=name):
+                    old = path.read_bytes() if path.exists() else None
+                    ticket_mod.trust_git_dir(self.repo)
+                    ticket_mod.git(self.repo, "status")
+                    with open(path, "a", encoding="utf-8") as fh:
+                        fh.write(text)
+                    shown = (path.relative_to(self.repo).as_posix() if path.is_relative_to(self.repo)
+                             else path.resolve().as_posix())
+                    for call in (lambda: ticket_mod.git(self.repo, "status"), lambda: ticket_mod.head_commit(self.repo)):
+                        with self.assertRaisesRegex(config.Stop, f"{re.escape(shown)} changed since the run started; "
+                                                                 "nothing is posted"):
+                            call()
+                    if old is None:
+                        path.unlink()
+                    else:
+                        path.write_bytes(old)
+        self.assertFalse((self.repo / "fsmonitor-ran").exists())
+
+    def test_nested_include_and_cycle(self):
+        a, b = self.d / "a.cfg", self.d / "sub" / "b.cfg"
+        b.parent.mkdir()
+        a.write_text("", encoding="utf-8")
+        b.write_text("", encoding="utf-8")
+        self.include(self.repo / ".git/config", a)
+        self.include(a, "sub/b.cfg")  # relative to the including file
+        self.include(b, a)  # a cycle
+        files = ticket_mod.git_dir_files(self.repo)
+        self.assertIn(a.resolve().as_posix(), files)
+        self.assertIn(b.resolve().as_posix(), files)
+        ticket_mod.trust_git_dir(self.repo)
+        with open(b, "a", encoding="utf-8") as fh:
+            fh.write("[core]\n\tfsmonitor = touch fsmonitor-ran\n")
+        with mock.patch.dict(os.environ, {"HOME": str(self.d)}), \
+                self.assertRaisesRegex(config.Stop, "b.cfg changed since the run started"):
+            ticket_mod.git(self.repo, "status")
+
+    def test_include_from_inside_the_project_stops_before_any_call(self):
+        for where in ("conf/extra.cfg", ".git/extra.cfg"):
+            with self.subTest(where=where):
+                cfg = (self.repo / ".git/config").read_bytes()
+                (self.repo / where).parent.mkdir(exist_ok=True)
+                (self.repo / where).write_text("", encoding="utf-8")
+                self.include(self.d / "outer.cfg", self.repo / where)  # nested: outside, then inside
+                self.include(self.repo / ".git/config", self.d / "outer.cfg")
+                with self.assertRaisesRegex(config.Stop, f"git config includes .*{re.escape(where)} from inside the "
+                                                         "project; the agent could change it — move it out of the "
+                                                         "project"):
+                    self.run_main("spec", "--ticket-file", str(self.tf))
+                self.assertFalse((self.d / "calls.jsonl").exists())
+                (self.repo / ".git/config").write_bytes(cfg)
+                (self.d / "outer.cfg").unlink()
+
+    def test_interrupted_call_is_checked_too(self):
+        def interrupted(argv, repo, env, events_path, timeout):
+            with open(repo / ".git/config", "a", encoding="utf-8") as fh:
+                fh.write("[core]\n\tfsmonitor = touch fsmonitor-ran\n")
+            raise KeyboardInterrupt
+        with mock.patch("agentic_factory.copilot.run_call", interrupted), \
+                self.assertRaisesRegex(config.Stop, r"the work call changed \.git/config; nothing is posted"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertFalse((self.repo / "fsmonitor-ran").exists())

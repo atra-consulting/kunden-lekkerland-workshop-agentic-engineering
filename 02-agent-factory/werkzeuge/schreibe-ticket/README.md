@@ -58,12 +58,12 @@ python3 -I factory/agentic-factory.py assess --ticket-file ticket-entwurf-1.json
 - Exit-Code 0 heißt „ready“, 4 heißt „not_ready“ mit Gründen und Fragen. Jeder andere Exit-Code ist ein Fehler, kein Urteil. Dann gilt der eigene Check des Skills.
 - Ein Ticket mit „not_ready“ legt der Skill nur an, wenn du ausdrücklich „trotzdem anlegen“ sagst. Dann bekommt es den Abschnitt „Offene Punkte“.
 
-**Die Regeln des Teams (Schritt 6).** Hat `factory/config.json` einen Block `rules`, liest der Skill die Dateien unter `rules.calls.clarify`, etwa `factory/regeln/stil.md` und `factory/regeln/ticket.md`. Er befolgt sie beim Schreiben der Tickets. Fehlt eine Datei, überspringt er sie. `agentic-factory.py` hängt dieselben Dateien an den Prompt von `clarify`. Die Bereitschaftsprüfung (`assess`) bekommt die Dateien unter `rules.calls.assess`, in der Vorlage nur `regeln/ticket.md`.
+**Die Teamregeln (Schritt 6).** Sie stehen in `AGENTS.md` im Wurzelordner des Projekts. Copilot lädt die Datei selbst, im Skill wie in jedem Arbeitsaufruf von `agentic-factory.py`. Der Skill befolgt sie beim Schreiben der Tickets.
 
 Im Test am 24. November lief diese Kette wie beschrieben: `pruefdatei`, dann `assess`, Urteil „ready“ für 7 Credits. Vor der Frage „Soll ich … anlegen?“ stand der ganze Ticket-Text.
 
 ## Wo es von der Pipeline abweichen kann
 
 - **Das Urteil ist nicht garantiert.** Die Prüfung ist ein Aufruf eines Sprachmodells. Prüft die Pipeline das Ticket auf „Bereit“ noch einmal, kann sie bei demselben Text anders urteilen.
-- **Dieselben Dateien.** `agentic-factory.py` nimmt `config.json`, `readiness.md` und `regeln/` aus deinem Ordner `factory/`. Gleich wie in der Pipeline sind sie nur, wenn du die Fassungen der Pipeline kopiert hast.
+- **Dieselben Dateien.** `agentic-factory.py` nimmt `config.json` und `readiness.md` aus deinem Ordner `factory/`. Gleich wie in der Pipeline sind sie nur, wenn du die Fassungen der Pipeline kopiert hast.
 - **Jira-MCP.** Legt der Skill das Ticket über `createJiraIssue` an, schickt er Markdown, und Jira wandelt es selbst um. `pruefdatei` bildet die Umwandlung von `jira_ticket.py` nach. Ob der Text, den die Factory danach aus Jira liest, Wort für Wort gleich ist, ist über den MCP-Weg nicht getestet.

@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from . import copied, config, copilot, readiness, checks, clarify, fetch, rules
+from . import blocked, copied, config, copilot, readiness, checks, clarify, feedback, fetch, revise
 from . import ticket as ticket_mod
 
 
@@ -13,12 +13,17 @@ def work_plan(run, req, ticket, comments=()):
     readiness check on the proposed description follows only when the result calls for it (clarify_agent)."""
     cfg, local, repo = run.cfg, run.local, run.repo
     mode, key = req["mode"], req["key"]
-    p = {"calls": [], "env_extra": {}, "fw": None, "source": None, "F": None, "change": None, "crit": None,
-         "with_assess": fetch.assesses(cfg, mode, req["no_assess"])}
+    # spec and build: what the comments say; a refused or untrusted rerun stops here
+    fb = revise.decide(run, req, comments) if mode in fetch.FEEDBACK_MODES else None
+    if fb and fb["kind"] == "first" and clarify.human_authors(fb.get("answers", ())):
+        config.say(revise.answers_line(clarify.human_authors(fb["answers"])))
+    p = {"calls": [], "env_extra": {}, "fw": None, "source": None, "F": None, "change": None, "crit": None, "fb": fb,
+         # a revision has no readiness check: the ticket passed it the first time
+         "with_assess": fetch.assesses(cfg, mode, req["no_assess"]) and (fb is None or fb["kind"] == "first")}
     calls = p["calls"]  # (tag, prompt, tools, credit cap)
     if p["with_assess"]:
         p["crit"] = run.criteria()
-        prompt, tools, cap = readiness.assess_call(cfg, ticket, p["crit"], rules.block(run.rules, "assess"))
+        prompt, tools, cap = readiness.assess_call(cfg, ticket, p["crit"])
         calls.append(("assess", prompt, tools, cap))
         if mode == "assess" and not run.A.get("enabled"):
             config.say("note: assess.enabled is false in config.json, so the factory skips this check; running it anyway")
@@ -36,13 +41,13 @@ def work_plan(run, req, ticket, comments=()):
             me = (run.layers[req["route"]].myself()
                   if req["route"] in run.layers and not run.a.print_only else None)
             p["proposal"] = fetch.proposal_description(state, ticket["summary"], req["route"], me)
-            prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": p["proposal"][1]}, run.criteria(),
-                                                       rules.block(run.rules, "assess"))
+            prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": p["proposal"][1]}, run.criteria())
             calls.append(("assess", prompt, tools, cap))
             config.say(f"{key}: clarify --apply, the proposal in comment {p['proposal'][0]}, project {repo}")
         else:
-            prompt, tools, cap = checks.clarify_call(cfg, ticket, clarify.comments_block(key, state["tagged"]), p["crit"],
-                                                     rules.block(run.rules, "clarify"))
+            if clarify.human_authors(state["tagged"]):
+                config.say(f"[Mensch] comments this run reads: {clarify.human_authors(state['tagged'])}")
+            prompt, tools, cap = checks.clarify_call(cfg, ticket, clarify.comments_block(key, state["tagged"]), p["crit"])
             calls.append(("clarify", prompt, tools, cap))
             config.say(f"{key}: clarify, project {repo}")
     elif mode != "assess":
@@ -56,18 +61,46 @@ def work_plan(run, req, ticket, comments=()):
             raise config.Stop(f"{config.QUESTIONS} exists from an earlier run: answer the questions in the ticket, delete it, "
                        "run again")
         if mode == "build":
-            change, files = ticket_mod.find_change(repo, F, req["change"])
+            if fb["kind"] == "revision":  # the change the previous build built, still there, and what is new since
+                p["fb"] = fb = revise.plan_build(run, req, F, fb)
+                change, files = fb["change"], ticket_mod.repo_files(repo)
+                config.say(revise.describe(fb))
+            else:
+                change, files = ticket_mod.find_change(repo, F, req["change"])
             paths = ticket_mod.spec_paths_for(F, change, files)
             specs = [x for x in paths if x.endswith("SPEC.md")]
             specs = [x for x in specs if f"/{change}/" in x] or specs
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
             config.say(f"building change {change} ({len(paths)} spec files)")
-        prompts, tools, p["env_extra"] = copilot.plan(cfg, local, mode, key, fw, ticket, p["change"], spec_file,
-                                                      rules.block(run.rules, mode))
-        if fw == "speckit":
+        if mode == "spec" and fb["kind"] == "revision":  # the spec rerun: a revise call (new comments), or none
+            p["fb"] = fb = revise.plan(run, req, F, fb)
+            p["change"] = fb["change"]
+            config.say(revise.describe(fb))
+            prompts, tools = [], []
+            if fb["kind"] == "revise":
+                prompt, tools, p["env_extra"] = copilot.revise_plan(cfg, key, fw, ticket, fb["change"],
+                                                                    clarify.comments_block(key, fb["new"]))
+                prompts = [("revise", prompt)]
+        elif mode == "build" and fb["kind"] == "nothing":
+            prompts, tools = [], []
+        else:
+            if mode == "build" and fb["new"]:  # the amend call first: the new comments become new, unchecked tasks
+                fb["task_file"] = feedback.task_file(fw, F, p["change"], spec_file)
+                fb["amend_paths"] = feedback.amend_paths(fw, F, p["change"], spec_file)
+                prompt, amend_tools, _ = copilot.amend_plan(cfg, key, fw, ticket, p["change"],
+                                                            clarify.comments_block(key, fb["new"]), fb["task_file"],
+                                                            fb["revision"])
+                if fw == "speckit":
+                    amend_tools = ticket_mod.speckit_tool_map(repo, amend_tools)
+                calls.append(("amend", prompt, amend_tools, None))
+            prompts, tools, p["env_extra"] = copilot.plan(cfg, mode, key, fw, ticket, p["change"], spec_file,
+                                                          revise.answers_block(key, fb) if mode == "spec" else "",
+                                                          revise.spec_changes(fb) if mode == "build" else "")
+            prompts = [(str(i), x) for i, x in enumerate(prompts, 1)]
+        if fw == "speckit" and prompts:
             tools = ticket_mod.speckit_tool_map(repo, tools)
-        calls += [(str(i), x, tools, None) for i, x in enumerate(prompts, 1)]
+        calls += [(tag, x, tools, None) for tag, x in prompts]
     else:
         config.say(f"{key}: readiness check, project {repo}")
     if local:
@@ -81,9 +114,11 @@ def print_calls(run, req, p):
     print("# environment: " + " ".join(f"{k}={v}" for k, v in {**copied.SAFE_ENV, **p['env_extra']}.items()))
     for n, (tag, prompt, tools, cap) in enumerate(calls, 1):
         argv = copilot.copilot_argv(run.cfg, run.local, prompt, tools, (logdir / f"usage-{tag}.json").as_posix(), cap=cap)
-        rl = rules.line(run.rules, tag if tag in ("assess", "clarify") else req["mode"])
-        print(("\n# " + rl if rl else "") + f"\n# call {n}/{len(calls)}{' (readiness check)' if tag == 'assess' else ''}"
+        print(f"\n# call {n}/{len(calls)}{' (readiness check)' if tag == 'assess' else ''}"
               f"\n{shlex.join(argv)}")
+    if p.get("fb"):
+        for line in revise.print_lines(p["fb"]):
+            print(line)
     if req["mode"] == "clarify" and p["proposal"]:
         print(f"\n# no clarify call: this run sets the text of the proposal in comment {p['proposal'][0]} when the "
               "readiness check says ready")
@@ -99,7 +134,7 @@ class Work:
     environment without the Jira secrets, snapshots of the project that leave out the io folder when it lies inside
     (it isn't the agent's), and the credit total."""
 
-    def __init__(self, run, key, env_extra):
+    def __init__(self, run, key, env_extra, ctx):
         self.cfg, self.local, self.repo, self.io = run.cfg, run.local, run.repo, run.io
         try:
             self.prefix = self.io.relative_to(self.repo.resolve()).as_posix() + "/"
@@ -113,32 +148,58 @@ class Work:
             else "no MCP servers to switch off")
         self.logdir.mkdir(parents=True, exist_ok=True)
         self.total = 0.0
+        self.ctx, self.blocked = ctx, 0  # ctx: mode, framework, key, run; blocked: the calls logged to blocked.jsonl
+        self.unrecognized = False  # a call's events didn't look like the tested Copilot's (copilot.event_warnings)
+
+    def report(self):
+        """The run's last line about blocked calls."""
+        if self.unrecognized and not self.blocked:  # "no blocked calls" would claim more than the events show
+            config.say("WARNING: Copilot events not recognized: blocked calls may be missing from "
+                       f"{blocked.log_path(self.repo)}")
+        else:
+            config.say(blocked.summary(self.blocked, blocked.log_path(self.repo)))
 
     def snap(self):
         return {k: v for k, v in copilot.snapshot(self.repo).items() if not (self.prefix and k.startswith(self.prefix))}
 
-    def call(self, tag, label, prompt, tools, cap):
-        """One work call. Stops when Copilot fails or when the call changed the io folder."""
+    def call(self, tag, label, prompt, tools, cap, file_tools=("read", "write")):
+        """One work call; returns its final message. file_tools: the file tools the call gets (init: read only). Stops
+        when Copilot fails or when the call changed the io folder."""
         io_before = fetch.folder_digest(self.io)
         usage = self.logdir / f"usage-{tag}.json"
-        argv = copilot.copilot_argv(self.cfg, self.local, prompt, tools, str(usage), self.exe, cap=cap, mcp_off=self.mcp_off)
-        config.say(f"copilot {label}: tools {['read', 'write', *tools]}")
+        argv = copilot.copilot_argv(self.cfg, self.local, prompt, tools, str(usage), self.exe, cap=cap, mcp_off=self.mcp_off,
+                                  file_tools=file_tools)
+        allowed = [*file_tools, *tools]
+        config.say(f"copilot {label}: tools {allowed}")
         t0 = time.time()
-        rc, final, denied = copilot.run_call(argv, self.repo, self.env, self.logdir / f"events-{tag}.jsonl",
-                                     self.cfg["agent_timeout_s"])
+        git_before = ticket_mod.git_dir_files(self.repo)
+        try:
+            rc, final, denied = copilot.run_call(argv, self.repo, self.env, self.logdir / f"events-{tag}.jsonl",
+                                                 self.cfg["agent_timeout_s"])
+        finally:  # an interrupted call too: before any git command, git could run code from there
+            ticket_mod.check_git_dir(self.repo, git_before)
         cr = copilot.credits_of(usage)
         self.total += cr or 0
         config.say(f"copilot {label}: exit={rc} credits={cr} denied={denied} seconds={int(time.time() - t0)}")
         print("  final message: " + final[:1500].replace("\n", "\n    "))
+        self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl", allowed)
+        events = self.logdir / f"events-{tag}.jsonl"
+        for w in copilot.event_warnings(events, rc):
+            config.say("WARNING: " + w)
+            self.unrecognized = True
         if rc != 0:
+            tail = copilot.non_json_tail(events)
+            if tail:
+                print("  Copilot's last lines:\n" + "\n".join("    " + x for x in tail), flush=True)
             raise config.Stop(f"copilot exited with {rc}; events: {self.logdir}")
         if fetch.folder_digest(self.io) != io_before:
             raise config.Stop(f"a work call changed the io folder {self.io}; nothing is posted")
-        if not copilot.has_shell_tool(["read", "write", *tools]):
+        if not copilot.has_shell_tool(allowed):
             ran = copilot.shell_ran(self.logdir / f"events-{tag}.jsonl")
             if ran:
                 raise config.Stop(f"the {label} ran the shell tool {ran[0]} although it may not run shell commands; "
                            f"nothing was posted. Events: {self.logdir / f'events-{tag}.jsonl'}")
+        return final
 
 
 def run_agent(run, req, p):
@@ -148,7 +209,46 @@ def run_agent(run, req, p):
     out = io / "out"
     fetch.clear_out(out)
     out.mkdir(parents=True, exist_ok=True)
-    work = Work(run, key, p["env_extra"])
+    fb = p.get("fb")
+    if fb and fb["kind"] == "nothing":  # before any Copilot process: no credits
+        reason = revise.nothing_reason(fb)
+        revise.write_nothing_new(out, mode, reason)
+        config.say(f"{key}: {reason}")
+        return 0
+    if fb and fb["kind"] == "hand":
+        return revise.hand_out(run, req, p)
+    work = Work(run, key, p["env_extra"], {"mode": mode, "framework": p["fw"], "key": key, "run": run.log(key).name})
+    try:  # the blocked-calls line ends every run, a stopped one too
+        return _run_calls(run, req, p, work)
+    finally:
+        work.report()
+
+
+def _amend_done(repo, fb, at, now, head):
+    """After the amend call: it may change only what feedback.amend_paths allows, and make no commit, else Stop. Sets
+    fb["amended"]. Returns True when the build calls should not run: nothing amended and no hand edits."""
+    allowed = fb["amend_paths"]
+    if ticket_mod.head_commit(repo) != head:
+        raise config.Stop(f"the amend call may change only {', '.join(allowed)}, but it made a commit; nothing is "
+                          "posted")
+    changed = copilot.changed_paths(at, now)
+    other = feedback.outside_amend([x[3:] for x in changed], allowed)
+    if other:
+        raise config.Stop(f"the amend call changed more than {', '.join(allowed)}: {other[:10]}; nothing is posted")
+    fb["amended"] = bool(changed)
+    if changed:
+        return False
+    config.say(f"note: the amend call changed nothing in {', '.join(allowed)}: no new tasks from the comments")
+    if fb["diff"]:
+        return False
+    config.say("no hand edits of the spec either: no build call")
+    return True
+
+
+def _run_calls(run, req, p, work):
+    cfg, repo, io = run.cfg, run.repo, run.io
+    mode, key, calls = req["mode"], req["key"], p["calls"]
+    out = io / "out"
     if p["with_assess"] and (repo / config.ASSESSMENT).exists():
         (repo / config.ASSESSMENT).unlink()
         config.say(f"removed the old {config.ASSESSMENT}")
@@ -157,8 +257,13 @@ def run_agent(run, req, p):
     if before:
         config.say(f"note: the working tree already has {len(before)} uncommitted change(s)")
     t_all = time.time()
+    ran = 0
     for n, (tag, prompt, tools, cap) in enumerate(calls, 1):
+        at = work.snap() if tag == "amend" else None
         work.call(tag, "readiness check" if tag == "assess" else f"call {n}/{len(calls)}", prompt, tools, cap)
+        ran = n
+        if tag == "amend" and _amend_done(repo, p["fb"], at, work.snap(), head):
+            break  # nothing amended and no hand edits: nothing to build, no build call
         if tag == "assess":
             other = [x for x in copilot.changed_paths(before, work.snap()) if x[3:] != config.ASSESSMENT]
             if other or ticket_mod.head_commit(repo) != head:
@@ -184,7 +289,7 @@ def run_agent(run, req, p):
             return config.EXIT_QUESTIONS
 
     changed = copilot.changed_paths(before, work.snap())
-    config.say(f"done: {len(calls)} call(s), credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
+    config.say(f"done: {ran} call(s), credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
     config.say(f"uncommitted changes ({len(changed)}):")
     for l in changed[:80]:
         print("    " + l)
@@ -192,22 +297,20 @@ def run_agent(run, req, p):
     now = ticket_mod.head_commit(repo)
     if now and now != head:
         commits = ticket_mod.git(repo, "log", "--oneline", f"{head}..HEAD" if head else "HEAD").splitlines()
-        files = ticket_mod.git(repo, "diff", "--name-status", "--no-renames", head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
+        files = ticket_mod.git(repo, "diff", "--no-ext-diff", "--no-textconv", "--name-status", "--no-renames", head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
         config.say(f"the agent made {len(commits)} commit(s) on your branch, with {len(files)} file(s):")
         for l in commits[:20] + files[:80]:
             print("    " + l)
         paths += [x for x in (l.split("\t", 1)[-1] for l in files) if not (work.prefix and x.startswith(work.prefix))]
     for w in copilot.warnings_for(cfg, mode, p["fw"], paths):
         config.say("WARNING: " + w)
-    if mode == "spec":
-        change, text = fetch.spec_result(repo, p["F"], paths)
-        fetch.write_json(out / "spec.json", {"fw": p["fw"], "source": fetch.source_label(cfg, p["fw"], p["source"]),
-                                       "change": change, "readiness_line": fetch.readiness_line(cfg, req["no_assess"]),
-                                       "spec_text": text})
+    if mode == "spec" and p["fb"]["kind"] == "revise":
+        revise.revise_out(run, req, p, paths)
+    elif mode == "spec":
+        revise.first_out(run, req, p, paths)
     elif mode == "build":
-        events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls if tag != "assess"]
-        fetch.write_json(out / "build.json", {"change": p["change"], "changed": sorted(set(paths)),
-                                        "test_line": fetch.test_line(events, fetch.test_command(cfg, local))})
+        events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls[:ran] if tag not in ("assess", "amend")]
+        revise.build_out(run, req, p, paths, fetch.test_line(events, fetch.test_command(cfg)), head)
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
     return 0
 
@@ -228,8 +331,19 @@ def clarify_agent(run, req, ticket, p):
     if p["pause"]:
         config.say(p["pause"][1])
         return p["pause"][0]
+    work = Work(run, key, {}, {"mode": "clarify", "framework": None, "key": key, "run": run.log(key).name})
+    try:  # the blocked-calls line ends every run, a stopped one too
+        return _clarify_calls(run, req, ticket, p, work)
+    finally:
+        work.report()
+
+
+def _clarify_calls(run, req, ticket, p, work):
+    cfg, repo, key = run.cfg, run.repo, req["key"]
+    _, max_rounds = checks.clarify_config(cfg)
+    out = run.io / "out"
+    state = p["state"]
     assess_crit = run.criteria()
-    work = Work(run, key, {})
     for name in (checks.CLARIFY, config.ASSESSMENT):
         if (repo / name).exists():
             (repo / name).unlink()
@@ -275,8 +389,7 @@ def clarify_agent(run, req, ticket, p):
     if d["kind"] == "needs_assess":
         (out / "description.md").write_bytes(result["description"].encode("utf-8"))
         config.say(f"ready, every assumption confirmed: the readiness check runs on {out / 'description.md'}")
-        prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": result["description"]}, assess_crit,
-                                                   rules.block(run.rules, "assess"))
+        prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": result["description"]}, assess_crit)
         v, saved["assessment"] = check_readiness(prompt, tools, cap)
         d = clarify.decide(result, state, v, max_rounds, fetch.apply_wanted(run) and fetch.can_post(run, req))
     fetch.write_json(out / "clarify.json", saved)

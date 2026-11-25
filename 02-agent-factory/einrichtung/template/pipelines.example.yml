@@ -1,5 +1,5 @@
 # Example pipelines for factory/agentic-factory.py (Bitbucket). Copy to the repo root as bitbucket-pipelines.yml, or merge it in.
-# - The script, agentic_factory/ next to it, and its config.json, readiness.md, regeln/ and local.json live in factory/ (the
+# - The script, agentic_factory/ next to it, and its config.json, readiness.md and local.json live in factory/ (the
 #   template README says how to copy them).
 # - Two custom pipelines, no default or branch pipeline: agentic-clarify (variables JIRA_KEY, APPLY) and agentic-assess (JIRA_KEY).
 #   Start them on the branch you run the factory from, with Jira Automation or the API; how Jira Automation starts
@@ -9,7 +9,7 @@
 #   JIRA_EMAIL for Jira Cloud), agent gets COPILOT_GITHUB_TOKEN only (deployment agentic-agent). The script stops by itself if a
 #   step sees the other step's token. In a pipeline it refuses --step all and the mcp route (the route there is api).
 # - Hand-over: the only artifacts are agentic-io/in/** (after fetch) and agentic-io/out/** (after agent). The post step reads
-#   config.json, readiness.md, regeln/ and local.json from its own fresh clone, never from artifacts.
+#   config.json, readiness.md and local.json from its own fresh clone, never from artifacts.
 # - APPLY is read from the environment by the script (APPLY=1 sets the clarified description in the post step, and the agent
 #   step reads it too). It is not passed as a flag. Leave it empty for a dry run.
 # - build is not offered: the script refuses it in a pipeline, its code would vanish with the step. Run build locally.

@@ -12,26 +12,20 @@ from . import ticket as ticket_mod
 HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
-def me_of(run, req):
-    """The account running this script, when this process has a Jira layer and doesn't only print (api: GET /myself;
-    mcp: one short Copilot call, cached for the post step); None otherwise (offline, the split agent step)."""
-    route = req["route"]
-    return run.layers[route].myself() if route in run.layers and not run.a.print_only else None
-
-
 def decide(run, req, comments, quiet=False):
     """What this spec run is, from the comments alone: {"kind": "first" or "revision", "revision": n, "change",
     "handled": the ids of the new [Mensch] comments, "new": those comments, "checksum": the previous Spec-Prüfsumme,
     "last": the comment the revision builds on, "answers": the spec fragen comment and the answers after it}.
     Stops when the latest result comment can't be trusted (it names --fresh), in the build phase, and when the
-    previous spec names no change. --fresh: always a first run, as today."""
+    previous spec names no change. The running account is req["me"], recorded by the fetch step (fetch.account_of)
+    and checked again by the post step (verify_me). --fresh: always a first run, as today."""
     key = req["key"]
     first = {"kind": "first", "revision": 1, "change": None, "handled": [], "new": [], "checksum": None, "last": None,
              "answers": []}
     if req["fresh"]:
         return first
     raw = feedback.state(comments, key)
-    me = me_of(run, req) if raw["last"] is not None or raw["answers"] else None  # no account call without a marker
+    me = req["me"]
     if raw["last"] is not None:
         feedback.trust(raw["last"], me)
     st = feedback.state(comments, key, me) if me is not None else raw
@@ -244,12 +238,10 @@ def checked_nothing_new(path, mode):
     return copied.redact(clarify.one_line(d["reason"])[:300])
 
 
-def trust_before_post(req, comments, layer):
-    """The post step, right before posting, with the running account (layer.myself(), asked only when there is a
-    result comment): the comment the run builds on must be the account's own, unedited. decide checked it already
-    when the process had a Jira layer; the split post step has one only now."""
-    if req["fresh"]:
-        return
-    last = feedback.state(comments, req["key"])["last"]
-    if last is not None:
-        feedback.trust(last, layer.myself())
+def verify_me(run, req, comments):
+    """The post step on a Jira route, before it reads out/: the account in in/request.json must be the one this step
+    runs as (fetch.account_of, asked again). A tampered me would change which comments count; stops on a mismatch."""
+    want = fetch.account_of(run, req["mode"], req["route"], req["key"], comments)
+    if req["me"] != want:
+        raise config.Stop(f"{run.io / 'in' / 'request.json'}: me names another account than the one this post step "
+                          "runs as; nothing is posted. Run the steps again from --step fetch")

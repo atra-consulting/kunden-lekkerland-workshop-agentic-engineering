@@ -240,6 +240,8 @@ def step_post(run, req, ticket, comments=()):
     if req["mode"] == "clarify":
         text, code, what, desc, set_desc = clarify_outcome(run, req, ticket, comments)
     else:
+        if req["mode"] == "spec" and route != "offline":  # before decide() uses in/'s me
+            revise.verify_me(run, req, comments)
         text, code, what = outcome(run, req, ticket, comments)
     if text is None:
         config.say(f"{key}: {what}, nothing to post")
@@ -273,8 +275,6 @@ def step_post(run, req, ticket, comments=()):
             # GET /myself; mcp: atlassianUserInfo, cached from the agent step)
             fetch.proposal_trust(state, None, route)
             fetch.proposal_trust(state, layer.myself(), route)
-    if req["mode"] == "spec":  # the comment a revision builds on, with the running account (as the agent step did)
-        revise.trust_before_post(req, comments, layer)
     if set_desc:
         layer.set_description(key, desc)
         config.say(f"{key}: description set")

@@ -230,6 +230,82 @@ class SpecRerun(JiraE2E, unittest.TestCase):
         self.assertTrue(self.comment(io).startswith(clarify.marker("spec_revision", KEY, 2)))
 
 
+class SplitAccount(JiraE2E, unittest.TestCase):
+    """R23: the fetch step records the running account in in/request.json (me); the split agent step, which has no
+    Jira, judges the comments with it, and the post step checks it against the account it runs as."""
+
+    BOT = {"key": "JIRAUSER-bot", "name": "bot"}
+    ANNA = {"key": "JIRAUSER-anna", "name": "anna"}
+
+    def setUp(self):
+        super().setUp()
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf), "--io-dir", str(self.d / "first"))
+        self.assertEqual(rc, 0, out)
+        first = (self.d / "first/out/comment-1.txt").read_text(encoding="utf-8")
+        (self.d / "calls.jsonl").unlink()
+        # an older forged revision by another account claims comment 12 as handled; without the account it would hide
+        # 12 (nothing new); with it, 12 is new and gets revised
+        forged = clarify.render_spec(KEY, "openspec", "Label sdd-openspec", CHANGE, "", SPEC_TEXT, revision=2,
+                                     handled=("12",), hand_edited=True, checksum="e" * 64)
+        self.fake.comments = [
+            {"id": "9", "created": at(0), "body": jira_rest.text_to_wiki(forged), "author": self.ANNA},
+            {"id": "10", "created": at(1), "body": jira_rest.text_to_wiki(first), "author": self.BOT},
+            {"id": "12", "created": at(2), "body": "[Mensch] bitte auch Leerzeichen", "author": self.ANNA}]
+        self.split = self.repo / "agentic-io"
+        self.common = ("--io-dir", str(self.split))
+
+    def step(self, step, **kw):
+        extra = ("--key", KEY, "--jira", "api") if step == "fetch" else ()
+        env = self.env if step != "agent" else None
+        return self.run_main("spec", "--step", step, *extra, *self.common, env=env, **kw)
+
+    def request(self):
+        return json.loads((self.split / "in/request.json").read_text(encoding="utf-8"))
+
+    def test_agent_step_judges_with_the_recorded_account(self):
+        self.step("fetch")
+        self.assertEqual(self.request()["me"], "JIRAUSER-bot")
+        rc, out = self.step("agent", mode="revise")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("note: comment(s) 9 start like a factory result", out)
+        spec = json.loads((self.split / "out/spec.json").read_text(encoding="utf-8"))
+        self.assertEqual((spec["revision"], spec["handled"]), (2, ["12"]))
+        self.assertEqual(len(self.calls()), 1)
+        rc, out = self.step("post")
+        self.assertEqual(rc, 0, out)
+        (posted,) = [b["body"] for m, _, _, b in self.fake.seen if m == "POST"]
+        self.assertIn("Bearbeitet: Kommentar 12.", jira_rest.wiki_text(posted))
+        self.assertTrue(self.comment(self.split).startswith(clarify.marker("spec_revision", KEY, 2)))
+
+    def test_tampered_me_stops_the_post_step(self):
+        self.step("fetch")
+        self.step("agent", mode="revise")
+        good = self.request()
+        for me in (None, "JIRAUSER-anna"):
+            with self.subTest(me=me):
+                (self.split / "in/request.json").write_text(json.dumps({**good, "me": me}), encoding="utf-8")
+                with self.assertRaisesRegex(config.Stop, "me names another account"):
+                    self.step("post")
+                self.assertEqual([m for m, *_ in self.fake.seen if m != "GET"], [])
+                self.assertFalse((self.split / "out/comment-1.txt").exists())
+
+    def test_offline_request_with_me_stops(self):
+        cf = self.d / "c.json"
+        cf.write_text("[]", encoding="utf-8")
+        io = self.d / "off"
+        self.run_main("spec", "--step", "fetch", "--ticket-file", str(self.tf), "--comments-file", str(cf),
+                      "--io-dir", str(io))
+        req = json.loads((io / "in/request.json").read_text(encoding="utf-8"))
+        self.assertIsNone(req["me"])
+        (io / "in/request.json").write_text(json.dumps({**req, "me": "JIRAUSER-bot"}), encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "me must be null on the offline route"):
+            self.run_main("spec", "--step", "agent", "--io-dir", str(io))
+
+    def calls(self):
+        f = self.d / "calls.jsonl"
+        return [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
+
+
 class RevisionComment(unittest.TestCase):
     def test_state_reads_what_render_spec_writes(self):
         """The Bearbeitet, Change, and Spec-Prüfsumme lines are outside the fences; the same words inside the spec

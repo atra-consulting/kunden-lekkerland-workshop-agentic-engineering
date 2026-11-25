@@ -6,7 +6,7 @@ import re
 import time
 from pathlib import Path
 
-from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify
+from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify, feedback
 from . import ticket as ticket_mod
 
 
@@ -19,7 +19,8 @@ from . import ticket as ticket_mod
 MODES = ("assess", "spec", "build", "clarify", "init")
 STEPS = ("fetch", "agent", "post", "all")
 ROUTES = ("offline", "mcp", "api")
-REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post", "fresh")
+REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post", "fresh", "me")
+FEEDBACK_MODES = ("spec", "build")  # the modes whose reruns read [KI] results and [Mensch] comments
 TICKET_KEYS = ("key", "summary", "description", "labels")
 COMMENT_KEYS = ["author", "body", "created", "id", "updated"]  # jira_rest.make_comment, sorted
 NOTHING_NEW = "nothing-new.json"  # spec and build reruns without new comments or hand edits: {"mode", "reason"}
@@ -298,6 +299,18 @@ def proposal_description(state, summary, route, me=None):
     return c["id"], clarify.neutral(text)
 
 
+def account_of(run, mode, route, key, comments):
+    """The account running this script, as in/request.json records it (me): over the route's Jira layer (api: GET
+    /myself; mcp: atlassianUserInfo, one short Copilot call, cached), for spec and build only, and only when the
+    comments hold a result or answers (feedback.needs_account). None offline, with --print-only, and otherwise. The
+    fetch step records it, so the split agent step, which has no Jira, judges the comments as the post step does;
+    the post step asks again and stops when in/ says otherwise."""
+    if (route == "offline" or mode not in FEEDBACK_MODES or run.a.print_only
+            or not feedback.needs_account(comments, key)):
+        return None
+    return run.jira(route, key).myself()
+
+
 # --- step fetch -----------------------------------------------------------------------------------------------------
 
 def fetch(run):
@@ -318,7 +331,8 @@ def fetch(run):
     else:
         ticket, comments = run.jira(route, key).read(key)
     request = {"mode": a.mode, "key": key, "route": route, "framework": a.framework, "change": a.change,
-               "no_assess": a.no_assess, "no_post": a.no_post, "fresh": a.fresh}
+               "no_assess": a.no_assess, "no_post": a.no_post, "fresh": a.fresh,
+               "me": account_of(run, a.mode, route, key, comments)}
     return request, ticket, comments
 
 
@@ -352,6 +366,10 @@ def read_in(run):
     for k in ("no_assess", "no_post", "fresh"):
         if not isinstance(req[k], bool):
             raise config.Stop(f"{d / 'request.json'}: {k} must be true or false")
+    if req["me"] is not None and not (isinstance(req["me"], str) and req["me"].strip() and len(req["me"]) <= 200):
+        raise config.Stop(f"{d / 'request.json'}: me must be an account id or null")
+    if req["route"] == "offline" and req["me"] is not None:
+        raise config.Stop(f"{d / 'request.json'}: me must be null on the offline route")
     t = config.read_json(d / "ticket.json")
     if (not isinstance(t, dict) or sorted(t) != sorted(TICKET_KEYS) or t["key"] != req["key"]
             or not all(isinstance(t[k], str) for k in ("summary", "description"))

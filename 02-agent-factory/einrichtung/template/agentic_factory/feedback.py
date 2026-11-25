@@ -146,6 +146,13 @@ def state(comments, key, me=None):
     }
 
 
+def needs_account(comments, key):
+    """Whether the account running this script matters for the state: the comments hold a spec or build result, or
+    answers after spec questions, for this ticket. Without one, no account call is made."""
+    s = state(comments, key)
+    return s["last"] is not None or bool(s["answers"])
+
+
 def trust(comment, me):
     """Stops unless the previous spec or build comment can be trusted: with me, the account running this script, it
     must have written it, and it must not have been edited (updated differs from created; an offline file may have

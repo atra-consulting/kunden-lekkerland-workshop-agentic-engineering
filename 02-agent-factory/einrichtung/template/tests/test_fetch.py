@@ -34,7 +34,7 @@ class Steps(JiraE2E, unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertEqual(json.loads((io / "in/request.json").read_text(encoding="utf-8")),
                          {"mode": "assess", "key": KEY, "route": "api", "framework": None, "change": None,
-                          "no_assess": False, "no_post": False, "fresh": False})
+                          "no_assess": False, "no_post": False, "fresh": False, "me": None})
         self.assertEqual(json.loads((io / "in/ticket.json").read_text(encoding="utf-8"))["key"], KEY)
         self.assertEqual(json.loads((io / "in/comments.json").read_text(encoding="utf-8")), [])
         rc, out = self.run_main("assess", "--step", "agent", *common, cfg=self.acfg, verdict="not_ready")

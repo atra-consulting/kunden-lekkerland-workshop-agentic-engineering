@@ -38,9 +38,8 @@ The verdict file is JSON with exactly these keys and nothing else:
 Protected paths (regular expressions; the factory refuses any change there):
 - ^bitbucket-pipelines\.yml$
 - ^factory/
-- (^|/)AGENTS\.md$
-- (^|/)CLAUDE\.md$
-- ^\.github/
+- (?i)(^|/)(AGENTS|CLAUDE|GEMINI)\.md$
+- (?i)^\.github/
 - ^\.agents/
 - ^\.specify/
 - ^_bmad/

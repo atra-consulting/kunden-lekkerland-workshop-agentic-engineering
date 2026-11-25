@@ -577,3 +577,17 @@ class AgentsMd(unittest.TestCase):
         bad = subprocess.CompletedProcess([], 1, b"", b"error")
         with mock.patch.object(copilot.subprocess, "run", return_value=bad):
             self.assertIsNone(copilot.instruction_sources(["copilot"], Path("/r"), {}))
+
+    def test_agents_links(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            self.assertEqual(copilot.agents_links(repo), set())
+            (repo / "AGENTS.md").write_text(
+                "Read [style](docs/style.md#top), [arch]( ./docs/arch.md ), [dir](conventions/), <https://x.example>,\n"
+                "[web](https://example.com/a.md), [mail](mailto:a@b.c), [anchor](#rules), [out](../outside.md),\n"
+                "[abs](/root.md)\n\n[ref]: docs/ref.md \"Title\"\n", encoding="utf-8")
+            self.assertEqual(copilot.agents_links(repo),
+                             {"docs/style.md", "docs/arch.md", "conventions", "root.md", "docs/ref.md"})
+        self.assertEqual(copilot.linked_hits({"conventions", "docs/a.md"}, ["conventions/x.md", "docs/a.md", "docs/b.md",
+                                                                           "conventions-old.md"]),
+                         ["conventions/x.md", "docs/a.md"])

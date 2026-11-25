@@ -146,8 +146,10 @@ class Work:
         self.mcp_off = copilot.mcp_servers(self.exe, self.repo, self.env)
         config.say(f"MCP servers switched off for this run: {self.mcp_off}" if self.mcp_off
             else "no MCP servers to switch off")
-        for line in copilot.instruction_notes(copilot.instruction_sources(self.exe, self.repo, self.env)):
+        self.instructions = copilot.instruction_sources(self.exe, self.repo, self.env)
+        for line in copilot.instruction_notes(self.instructions):
             config.say(line)
+        self.linked = copilot.agents_links(self.repo)  # the prompts tell the agent to follow these, too
         self.logdir.mkdir(parents=True, exist_ok=True)
         self.total = 0.0
         self.ctx, self.blocked = ctx, 0  # ctx: mode, framework, key, run; blocked: the calls logged to blocked.jsonl
@@ -254,20 +256,28 @@ def _commits_since(repo, head, prefix):
     if not now or now == head:
         return [], [], []
     commits = ticket_mod.git(repo, "log", "--oneline", f"{head}..HEAD" if head else "HEAD").splitlines()
-    files = ticket_mod.git(repo, "diff", "--no-ext-diff", "--no-textconv", "--name-status", "--no-renames",
-                           head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
-    paths = [x for x in (l.split("\t", 1)[-1] for l in files) if not (prefix and x.startswith(prefix))]
+    raw = ticket_mod.git(repo, "diff", "--no-ext-diff", "--no-textconv", "--name-status", "--no-renames", "-z",
+                         head or ticket_mod.EMPTY_TREE, "HEAD").split("\0")
+    pairs = list(zip(raw[0::2], raw[1::2]))  # -z: "status\0path\0", paths unquoted, as git status -z gives them
+    files = [f"{s}\t{x}" for s, x in pairs]
+    paths = [x for _, x in pairs if not (prefix and x.startswith(prefix))]
     return commits, files, paths
 
 
-def _stop_on_protected(cfg, repo, before, now, head, prefix, n, total):
-    """Stops before the next call when a call changed a protected path: the next call would load a changed AGENTS.md
-    or other instruction file, or build on a change the factory's check step refuses."""
-    paths = [l[3:] for l in copilot.changed_paths(before, now)] + _commits_since(repo, head, prefix)[2]
-    hit = copilot.protected_hits(cfg, paths)
+def _stop_on_protected(cfg, repo, before, now, head, work, n, total):
+    """Stops before the next call when a call changed a protected path or a file AGENTS.md links to, or when the
+    instruction files Copilot loads changed: the next call would follow changed instructions, or build on a change
+    the factory's check step refuses."""
+    paths = [l[3:] for l in copilot.changed_paths(before, now)] + _commits_since(repo, head, work.prefix)[2]
+    hit = copilot.protected_hits(cfg, paths) + copilot.linked_hits(work.linked, paths)
     if hit:
-        raise config.Stop(f"call {n}/{total} changed protected paths {hit[:20]}; the next call would load or build on "
-                          "them, so the run stops here and nothing is posted. Review `git diff`")
+        raise config.Stop(f"call {n}/{total} changed protected paths or files AGENTS.md links to {hit[:20]}; the next "
+                          "call would load or build on them, so the run stops here and nothing is posted. Review "
+                          "`git diff`")
+    sources = copilot.instruction_sources(work.exe, repo, work.env)
+    if sources != work.instructions:
+        raise config.Stop(f"call {n}/{total} changed the instruction files Copilot loads, now {sources}; the next call "
+                          "would follow them, so the run stops here and nothing is posted. Review `git diff`")
 
 
 def _run_calls(run, req, p, work):
@@ -313,7 +323,7 @@ def _run_calls(run, req, p, work):
                 f"run again. Credits {work.total:.2f}")
             return config.EXIT_QUESTIONS
         if tag != "assess" and n < len(calls):
-            _stop_on_protected(cfg, repo, before, work.snap(), head, work.prefix, n, len(calls))
+            _stop_on_protected(cfg, repo, before, work.snap(), head, work, n, len(calls))
 
     changed = copilot.changed_paths(before, work.snap())
     config.say(f"done: {ran} call(s), credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
@@ -329,6 +339,9 @@ def _run_calls(run, req, p, work):
         paths += committed
     for w in copilot.warnings_for(cfg, mode, p["fw"], paths):
         config.say("WARNING: " + w)
+    linked = copilot.linked_hits(work.linked, paths)
+    if linked:
+        config.say(f"WARNING: files AGENTS.md links to changed: {linked[:20]}. Later calls follow them; review them")
     if mode == "spec" and p["fb"]["kind"] == "revise":
         revise.revise_out(run, req, p, paths)
     elif mode == "spec":

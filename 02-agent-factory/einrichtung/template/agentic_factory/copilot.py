@@ -312,6 +312,37 @@ def instruction_sources(exe, repo, env):
             for x in items if isinstance(x, dict) and not x.get("defaultDisabled")]
 
 
+MD_LINK = re.compile(r"\]\(\s*<?([^)\s>]+)>?[^)]*\)|^[ \t]*\[[^\]]+\]:[ \t]*<?([^\s>]+)", re.M)
+
+
+def agents_links(repo):
+    """The project files the root AGENTS.md links to, relative to the project, as git shows them. The prompts tell the
+    agent to follow them, so a change to one between two calls counts like a change to AGENTS.md. Links to the web,
+    to anchors, and out of the project are left out."""
+    repo = repo.resolve()
+    try:
+        text = (repo / "AGENTS.md").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    out = set()
+    for m in MD_LINK.finditer(text):
+        target = (m.group(1) or m.group(2) or "").split("#", 1)[0].split("?", 1)[0]
+        if not target or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", target):
+            continue
+        try:
+            rel = (repo / target.lstrip("/")).resolve().relative_to(repo).as_posix()
+        except (ValueError, OSError):
+            continue
+        if rel != ".":
+            out.add(rel)
+    return out
+
+
+def linked_hits(linked, paths):
+    """The paths that are a file AGENTS.md links to, or lie in a folder it links to."""
+    return [p for p in paths if any(p == x or p.startswith(x + "/") for x in linked)]
+
+
 def instruction_notes(sources):
     """What to say about the instruction files of a run: which ones Copilot loads, a warning for files from outside
     the project (the factory's container has none of them), and one when the project has no AGENTS.md."""

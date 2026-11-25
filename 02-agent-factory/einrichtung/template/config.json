@@ -45,9 +45,8 @@
   "protected_paths": [
     "^bitbucket-pipelines\\.yml$",
     "^factory/",
-    "(^|/)AGENTS\\.md$",
-    "(^|/)CLAUDE\\.md$",
-    "^\\.github/",
+    "(?i)(^|/)(AGENTS|CLAUDE|GEMINI)\\.md$",
+    "(?i)^\\.github/",
     "^\\.agents/",
     "^\\.specify/",
     "^_bmad/",

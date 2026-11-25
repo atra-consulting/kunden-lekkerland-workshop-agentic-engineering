@@ -49,7 +49,8 @@ class TemplateConfig(unittest.TestCase):
     def test_agents_md_protected_in_subfolders(self):
         """A nested AGENTS.md or CLAUDE.md is protected, too."""
         prot = [re.compile(p) for p in FULL_CFG["protected_paths"]]
-        for path in ("AGENTS.md", "src/AGENTS.md", "CLAUDE.md", "packages/a/CLAUDE.md"):
+        for path in ("AGENTS.md", "src/AGENTS.md", "CLAUDE.md", "packages/a/CLAUDE.md", "GEMINI.md", "agents.md",
+                     "src/Claude.md", ".GitHub/copilot-instructions.md", ".github/instructions/x.instructions.md"):
             self.assertTrue(any(r.search(path) for r in prot), path)
         self.assertFalse(any(r.search("docs/MY-AGENTS.md") for r in prot))
 

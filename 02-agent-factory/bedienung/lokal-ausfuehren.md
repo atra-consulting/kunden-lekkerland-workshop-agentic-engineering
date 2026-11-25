@@ -650,7 +650,8 @@ Jeder Stopp beginnt mit `[agentic-factory] STOP:` und endet mit Exit-Code 2.
 | `can't list your MCP servers` | `copilot mcp list --json` lief nicht. Copilot CLI aktualisieren, mindestens 1.0.114 |
 | `config.json has no spec_rules` (oder `build_rules`) | Die `config.json` ist alt. Den Schlüssel aus der Vorlage übernehmen |
 | `forbidden flag --no-custom-instructions` | Das Flag schaltet `AGENTS.md` ab. Aus `copilot` in `local.json` entfernen |
-| `call N/M changed protected paths […]` | Ein Aufruf hat etwa `AGENTS.md` geändert, und der nächste würde sie laden. `git diff` prüfen, zurücksetzen, neu starten |
+| `call N/M changed protected paths or files AGENTS.md links to […]` | Ein Aufruf hat etwa `AGENTS.md` oder eine Datei, auf die sie verlinkt, geändert, und der nächste würde sie befolgen. `git diff` prüfen, zurücksetzen, neu starten |
+| `call N/M changed the instruction files Copilot loads` | Nach dem Aufruf lädt Copilot andere Anweisungs-Dateien, etwa eine neue `GEMINI.md`. `git diff` prüfen, zurücksetzen, neu starten |
 | `copilot exited with …` | Copilot ist abgebrochen. Die Ereignisse liegen im genannten Protokoll-Ordner |
 
 Keine Stopps, aber wichtig:
@@ -662,6 +663,7 @@ Keine Stopps, aber wichtig:
 | `WARNING: protected paths changed` | Der Agent hat Dateien geändert, die die Factory ablehnen würde. Prüfen und zurücksetzen |
 | `WARNING: Copilot also loads instruction files from outside the project` | Copilot lädt Anweisungen, die der Container der Factory nicht hat, etwa `~/.copilot/copilot-instructions.md`. Für einen Lauf wie in der Factory beiseitelegen |
 | `note: the project has no AGENTS.md` | Die Aufrufe bekommen keine Regeln deines Teams |
+| `WARNING: files AGENTS.md links to changed` | Der letzte Aufruf hat eine Datei geändert, die spätere Aufrufe befolgen. Prüfen |
 | `WARNING: Copilot … ran no plugin hook for this Jira call` | Mit Copilot 1.0.115 erwartet. Das Skript hat den Aufruf danach geprüft |
 | `WARNING: LL-123 has 50 comments` | Der MCP-Server liefert vielleicht nicht alle Kommentare |
 | `nothing new since comment …` | Zweiter Lauf von `spec` oder `build` ohne neue `[Mensch]`-Kommentare und ohne Änderung an der Spec. Kein Aufruf, nichts gepostet. Exit-Code 0 |

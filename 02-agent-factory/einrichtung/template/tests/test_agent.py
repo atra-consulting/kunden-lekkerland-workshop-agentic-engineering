@@ -57,9 +57,40 @@ class EndToEnd(E2E, unittest.TestCase):
         cfg["test_command"] = "./bin/phpunit"
         fw = cfg["frameworks"]["openspec"]
         cfg["frameworks"] = {**cfg["frameworks"], "openspec": {**fw, "spec_prompts": [*fw["spec_prompts"]] * 2}}
-        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed protected paths \['AGENTS.md'\]; the next call"):
+        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed protected paths or files AGENTS.md links to "
+                                                 r"\['AGENTS.md'\]; the next call"):
             self.run_main("spec", "--ticket-file", str(self.tf), mode="agents", cfg=cfg)
         self.assertEqual(len((self.d / "calls.jsonl").read_text(encoding="utf-8").splitlines()), 1)
+
+    def two_spec_calls(self):
+        cfg = {k: v for k, v in CFG.items() if k != "assess"}
+        cfg["test_command"] = "./bin/phpunit"
+        fw = cfg["frameworks"]["openspec"]
+        cfg["frameworks"] = {**cfg["frameworks"], "openspec": {**fw, "spec_prompts": [*fw["spec_prompts"]] * 2}}
+        return cfg
+
+    def test_changed_linked_file_stops_before_the_next_call(self):
+        """The prompts tell the agent to follow the files AGENTS.md links to, so they count like AGENTS.md."""
+        (self.repo / "AGENTS.md").write_text("See [rules](docs/rules.md) and [web](https://x.example/a.md).\n",
+                                             encoding="utf-8")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs/rules.md").write_text("Be careful.\n", encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed protected paths or files AGENTS.md links to "
+                                                 r"\['docs/rules.md'\]"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="linked", cfg=self.two_spec_calls())
+        shutil.rmtree(self.repo / "openspec/changes/lower-tags")
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf), mode="linked")  # one call: a warning
+        self.assertEqual(rc, 0, out)
+        self.assertIn("WARNING: files AGENTS.md links to changed: ['docs/rules.md']", out)
+
+    def test_changed_instruction_list_stops_before_the_next_call(self):
+        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed the instruction files Copilot loads"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="new-instructions", cfg=self.two_spec_calls())
+
+    def test_committed_path_with_non_ascii_name_is_checked(self):
+        """git quotes such a path without -z, and a quoted path would slip past the protected patterns."""
+        with self.assertRaisesRegex(config.Stop, "call 1/2 changed protected paths .*src/\u00e4/agents.md"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="commit-unicode", cfg=self.two_spec_calls())
 
     def test_changed_agents_md_in_the_last_call_warns(self):
         rc, out = self.run_main("spec", "--ticket-file", str(self.tf), mode="agents")

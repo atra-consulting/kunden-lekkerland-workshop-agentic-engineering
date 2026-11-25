@@ -62,7 +62,7 @@ Diese Seite sagt, was sich an `agentic-factory.py` gegenüber `local.py` und der
 | – | `read_tools`: lesende Befehle wie `ls`, `cat` und `grep` für jeden Aufruf von `spec` und `build` |
 | – | Neue Blöcke: `clarify`, `init`, und je Framework `revise_prompt` und `amend_prompt` |
 | `spec_rules` und `build_rules` nennen `AGENTS.md` nicht | Beide enden mit „Follow AGENTS.md in the repository root, if it exists, and the files it links to; where they conflict with these factory rules, these rules win.“ Die Regeln der Bereitschaftsprüfung, von `clarify` und der amend-Aufrufe auch. Fehlt `spec_rules` oder `build_rules` in `config.json`, stoppt das Skript, statt die Regeln des Labs mit `./bin/phpunit` zu nehmen |
-| `protected_paths`: `^AGENTS\.md$`, `^CLAUDE\.md$` | `(^\|/)AGENTS\.md$`, `(^\|/)CLAUDE\.md$`: auch in Unterordnern |
+| `protected_paths`: `^AGENTS\.md$`, `^CLAUDE\.md$`, `^\.github/` | `(?i)(^\|/)(AGENTS\|CLAUDE\|GEMINI)\.md$` und `(?i)^\.github/`: auch `GEMINI.md`, das Copilot ebenfalls lädt, auch in Unterordnern und in jeder Schreibweise. Copilot lädt auch `agents.md` |
 | `forbidden_flags` ohne `--no-custom-instructions` | `--no-custom-instructions` ist verboten, auch wenn eine alte `config.json` es nicht nennt |
 | `readiness.md` mit Beispielen aus der Symfony-Demo, Status „Klärung nötig“ und Image | Dieselben Kriterien und IDs, Beispiele ohne Stack, ohne Status und ohne Image |
 

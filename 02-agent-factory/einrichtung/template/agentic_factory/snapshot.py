@@ -14,12 +14,37 @@ LINE_RE = re.compile(r"[^\n]*\n|[^\n]+")  # lines split on \n only, so \r stays 
 NO_NEWLINE = "\\ No newline at end of file\n"
 
 
+def _inside(repo, p):
+    """repo / p, if p is a plain repo-relative path whose parts are no symlinks and that stays inside the repo; else Stop.
+    A symlink in a spec folder must never get its target read, copied, or posted."""
+    parts = Path(p).parts
+    if not p or Path(p).is_absolute() or ".." in parts:
+        raise config.Stop(f"not a path inside the repository: {p}")
+    cur = repo
+    for part in parts:
+        cur = cur / part
+        if cur.is_symlink():
+            raise config.Stop(f"{p} is or lies behind a symbolic link; the spec files must be plain files")
+    try:
+        cur.resolve().relative_to(repo.resolve())
+    except ValueError:
+        raise config.Stop(f"not a path inside the repository: {p}")
+    return cur
+
+
+def _plain_file(repo, p):
+    try:
+        return _inside(repo, p).is_file()
+    except config.Stop:
+        return False
+
+
 def spec_files(repo, F, change, known):
     """Sorted repo-relative files of the change: those matching spec_change_re with this change as group 1, and all files
     under the folder of any known path in the spec area that doesn't belong to another change (BMad PRD folders)."""
     rx = re.compile(F["spec_change_re"])
     area = re.compile(F["spec_any_under"]) if F.get("spec_any_under") else None
-    files = [p for p in ticket.repo_files(repo) if (repo / p).is_file()]
+    files = [p for p in ticket.repo_files(repo) if _plain_file(repo, p)]
     folders = []
     for k in known:
         m = rx.match(k)
@@ -39,7 +64,7 @@ def checksum(repo, paths):
     h = hashlib.sha256()
     for p in sorted(set(paths)):
         try:
-            data = (repo / p).read_bytes()
+            data = _inside(repo, p).read_bytes()
         except OSError as e:
             raise config.Stop(f"can't read the spec file {p}: {e.strerror or e}")
         h.update(p.encode("utf-8") + b"\0" + data + b"\0")
@@ -69,16 +94,14 @@ def save(repo, paths, dest):
         raise config.Stop(f"the spec copy goes below {local_root()}, not to {dest}")
     if dest.resolve() == local_root().resolve():
         raise config.Stop(f"the spec copy goes below {local_root()}, not to {dest}")
-    for p in paths:
-        if Path(p).is_absolute() or ".." in Path(p).parts:
-            raise config.Stop(f"not a path inside the repository: {p}")
+    sources = {p: _inside(repo, p) for p in paths}
     try:
         if dest.exists():
             shutil.rmtree(dest)
         for p in paths:
             target = dest / p
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes((repo / p).read_bytes())
+            target.write_bytes(sources[p].read_bytes())
         dest.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         raise config.Stop(f"can't save the spec copy to {dest}: {e.strerror or e}")
@@ -108,10 +131,11 @@ def diff(dest, repo, paths):
         saved = {p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()} if dest.is_dir() else set()
     except OSError as e:
         raise config.Stop(f"can't read the spec copy {dest}: {e.strerror or e}")
+    sources = {p: _inside(repo, p) for p in paths}
     out = []
     for p in sorted(saved | set(paths)):
         old = _read(dest / p) if p in saved else None
-        new = _read(repo / p) if p in paths else None
+        new = _read(sources[p]) if p in paths else None
         if old == new:
             continue
         out.extend(difflib.unified_diff(_lines(old), _lines(new), f"a/{p}", f"b/{p}"))

@@ -138,6 +138,44 @@ class SaveAndDiff(SnapshotTest):
                 snapshot.save(self.repo, [p], self.home_dest())
 
 
+class Unsafe(SnapshotTest):
+    """Paths from Jira comments and symlinks must never reach files outside the repository."""
+    def setUp(self):
+        super().setUp()
+        self.secret = self.d / "secret.txt"
+        self.secret.write_text("secret\n", encoding="utf-8")
+        self.write("openspec/changes/c/proposal.md", "p\n")
+        (self.repo / "openspec/changes/c/link.md").symlink_to(self.secret)
+        (self.repo / "openspec/changes/c/dirlink").symlink_to(self.d, target_is_directory=True)
+        self.bad = ["../secret.txt", str(self.secret), "openspec/changes/c/link.md", "openspec/changes/c/dirlink/secret.txt"]
+
+    def test_spec_files_skips_symlinks(self):
+        F = CFG["frameworks"]["openspec"]
+        self.assertEqual(snapshot.spec_files(self.repo, F, "c", []), ["openspec/changes/c/proposal.md"])
+        self.assertEqual(snapshot.spec_files(self.repo, F, "c", ["../secret.txt", str(self.secret)]),
+                         ["openspec/changes/c/proposal.md"])
+
+    def test_checksum_stops(self):
+        for p in self.bad:
+            with self.subTest(p=p), self.assertRaises(config.Stop):
+                snapshot.checksum(self.repo, ["openspec/changes/c/proposal.md", p])
+
+    def test_save_stops_and_copies_nothing(self):
+        dest = self.home_dest()
+        for p in self.bad:
+            with self.subTest(p=p), self.assertRaises(config.Stop):
+                snapshot.save(self.repo, ["openspec/changes/c/proposal.md", p], dest)
+            self.assertFalse(dest.exists())
+
+    def test_diff_stops(self):
+        dest = self.home_dest()
+        snapshot.save(self.repo, ["openspec/changes/c/proposal.md"], dest)
+        for p in self.bad:
+            with self.subTest(p=p), self.assertRaises(config.Stop) as cm:
+                snapshot.diff(dest, self.repo, ["openspec/changes/c/proposal.md", p])
+            self.assertIn(p, str(cm.exception))
+
+
 class SpecFiles(SnapshotTest):
     def commit_all(self):
         subprocess.run(["git", "add", "-A"], cwd=self.repo, check=True, env=GIT_ENV)

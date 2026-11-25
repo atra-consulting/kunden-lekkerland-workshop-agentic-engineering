@@ -20,18 +20,31 @@ JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on 
 
 TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # the first word; no quotes, "$", "=", ";", "&", "|", "<", ">"
 ARG_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%=-]+")  # the other words: the same, plus "=" (--maxfail=1)
-INTERPRETERS = {"bash", "sh", "zsh", "dash", "python", "python3", "node", "ruby", "perl", "pwsh", "powershell"}
+INTERPRETERS = {"bash", "sh", "zsh", "dash", "fish", "ksh", "csh", "tcsh", "node", "bun", "deno", "ruby", "perl", "php",
+                "lua", "rscript", "osascript", "pwsh", "powershell"}
+PYTHONS = re.compile(r"(python|pypy)(\d+(\.\d+)?)?")  # python, python3, python3.12, pypy3
 INLINE_CODE_FLAGS = {"-c", "-e", "-E", "-p", "--print", "--eval", "-Command"}
 SHORT_FLAGS_FOR_CODE = re.compile(r"-[A-Za-z]*[ceEp]")  # a cluster such as -lc, -Sc, -pe, -ep
-POWERSHELL_CODE_FLAGS = ("-command", "-encodedcommand")  # PowerShell accepts any prefix of these, such as -Com or -enc
+POWERSHELL_CODE_FLAGS = ("-command", "-encodedcommand")  # PowerShell accepts any prefix of these, such as -C or -enc
+
+
+def interpreter_name(word):
+    """The lower-case interpreter a word names (basename, no .exe), or None. Any word of a test command counts, so
+    wrappers (uv run python, env node, timeout 60 bash) don't hide it."""
+    name = os.path.basename(word).lower()
+    name = name[:-4] if name.endswith(".exe") else name
+    return name if name in INTERPRETERS or PYTHONS.fullmatch(name) else None
 
 
 def runs_inline_code(interpreter, word):
-    """Whether an argument of an interpreter looks like a flag that runs code from the command line."""
+    """Whether an argument of an interpreter looks like a flag or word that runs code from the command line."""
     if word in INLINE_CODE_FLAGS or SHORT_FLAGS_FOR_CODE.fullmatch(word):
         return True
-    return (interpreter in ("pwsh", "powershell") and len(word) >= 3 and word.startswith("-")
-            and any(f.startswith(word.lower()) for f in POWERSHELL_CODE_FLAGS))
+    if interpreter in ("pwsh", "powershell"):
+        return len(word) >= 2 and word.startswith("-") and any(f.startswith(word.lower()) for f in POWERSHELL_CODE_FLAGS)
+    if interpreter == "php":
+        return word == "-r"
+    return interpreter in ("deno", "bun") and word == "eval"
 
 
 def check_test_command(cmd):
@@ -48,12 +61,15 @@ def check_test_command(cmd):
             raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % - "
                               "(and = after the first word); shell syntax and quotes aren't allowed, "
                               "put them in a script or a make target")
-    interpreter = os.path.basename(words[0])
-    if interpreter in INTERPRETERS:
-        for w in words[1:]:  # every word: an option's value word must not hide a later flag
-            if runs_inline_code(interpreter, w):
-                raise config.Stop(f"test_command {cmd!r}: {words[0]} with {w} may run inline code, or this check can't "
-                                  "tell; wrap the command in a script file or a Make target and use that")
+    interpreter = None
+    for w in words:  # every word after an interpreter: an option's value word must not hide a later flag
+        if interpreter and runs_inline_code(interpreter, w):
+            raise config.Stop(f"test_command {cmd!r}: {interpreter} with {w} may run inline code, or this check can't "
+                              "tell; wrap the command in a script file or a Make target and use that")
+        interpreter = interpreter_name(w) or interpreter
+    if interpreter and (interpreter_name(words[-1]) or words[-1].startswith("-")):
+        raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or argument; "
+                          f"ending in {words[-1]!r} lets the agent supply the code or module")
 
 
 def test_tool(cmd):

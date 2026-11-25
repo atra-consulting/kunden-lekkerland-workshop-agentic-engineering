@@ -236,7 +236,10 @@ class TestCommand(unittest.TestCase):
                     "python3 -W error -c 1", "bash -o pipefail -c x", "python3 -X importtime -c 1",
                     "node --require x -e 1", "node -p 1", "node --print 1", "perl -E 1", "pwsh -e x", "pwsh -enc x",
                     "powershell -ep x", "pwsh -Com x", "pwsh -COMMAND x", "python3 run.py -c x", "python3 -I run.py -e x",
-                    "bash test.sh -c", "bash -xe scripts/test.sh"):
+                    "bash test.sh -c", "bash -xe scripts/test.sh",
+                    "pwsh -C x", "powershell -co x", "uv run python -c 1", "env python3 -c 1", "timeout 60 python3 -c 1",
+                    "poetry run python -c 1", "python3.12 -c 1", "PYTHON3 -c 1", "pypy3 -c 1", "php -r x", "deno eval x",
+                    "bun eval x", "uv run python", "python3 -m", "env node", "python3 test.py --verbose", "FISH -c x"):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
 
@@ -246,7 +249,8 @@ class TestCommand(unittest.TestCase):
                 self.build(cmd)
 
     def test_interpreter_commands_without_inline_flags_pass(self):
-        for cmd in ("python3 -m pytest", "python3 run.py", "uv run pytest", "bash test.sh", "python3 -I -B -m unittest"):
+        for cmd in ("python3 -m pytest", "python3 run.py", "uv run pytest", "bash test.sh", "make test", "npm test",
+                    "python3 -I -B -m unittest discover -s tests -t ."):
             with self.subTest(cmd=cmd):
                 self.build(cmd)
 

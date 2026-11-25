@@ -1,9 +1,10 @@
 # Bereitschaftsprüfung (`assess`)
 
-Ticket [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md), Ausgabe von `local.py --print-only` (heute `agentic-factory.py`). Die Flags erklärt die [README](README.md#die-parameter-für-copilot). Die rohe Ausgabe: [`roh/assess.txt`](roh/assess.txt).
+Ticket [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md), Ausgabe von `agentic-factory.py --print-only`. Die Flags erklärt die [README](README.md#die-parameter-für-copilot). Die rohe Ausgabe: [`roh/assess.txt`](roh/assess.txt).
 
 ```text
-[local] FLAB-41: readiness check, project <projekt>
+[agentic-factory] Jira route: offline (offline input)
+[agentic-factory] FLAB-41: readiness check, project <projekt>
 # 1 copilot call(s), assess, no framework, run in <projekt>
 # environment: COPILOT_AUTO_UPDATE=false SPECKIT_COPILOT_ALLOW_ALL_TOOLS=0 DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0
 ```
@@ -11,6 +12,7 @@ Ticket [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md), Ausgabe von 
 ## Aufruf 1 von 1: Bereitschaftsprüfung
 
 - Erlaubte Werkzeuge: `read`, `write`
+- Dazu verboten: `shell`, denn der Aufruf hat kein Shell-Werkzeug
 - Credit-Grenze: 40
 
 Prompt:
@@ -59,23 +61,13 @@ Protected paths (regular expressions; the factory refuses any change there):
 - ^openspec/config\.yaml$
 - (^|/)Dockerfile[^/]*$
 - (^|/)\.dockerignore$
-- ^phpunit(\.dist)?\.xml(\.dist)?$
-- ^phpstan[^/]*\.neon$
-- ^\.php-cs-fixer[^/]*$
 - ^bin/
-- ^composer\.(json|lock)$
-- ^symfony\.lock$
-- ^package(-lock)?\.json$
-- ^importmap\.php$
 - (^|/)\.gitattributes$
 - ^\.gitmodules$
 - ^\.gitignore$
 - ^\.env
 - ^\.devcontainer/
 - ^\.vscode/
-- ^tests/bootstrap\.php$
-- ^config/packages/
-- ^config/bundles\.php$
 - ^FACTORY-QUESTIONS\.md$
 
 <<<CRITERIA (readiness.md)

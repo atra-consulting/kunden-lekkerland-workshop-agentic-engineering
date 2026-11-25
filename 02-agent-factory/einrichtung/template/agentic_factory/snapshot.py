@@ -101,9 +101,22 @@ def _part(value):
     return value
 
 
+CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def repo_part(name):
+    """The project's folder name as one folder under ~/.factory-local/: any name (spaces, umlauts, a leading dot)
+    except empty, . and .., a slash or backslash, and control characters. fetch.Run checks it before any call."""
+    if name in ("", ".", "..") or "/" in name or "\\" in name or CONTROL.search(name):
+        raise config.Stop(f"{name!r} can't be the folder name of the local spec copy and logs; rename the project "
+                          "folder (no control characters, slashes, or backslashes)")
+    return name
+
+
 def copy_dir(repo, key, change, mode, n):
-    """~/.factory-local/<repo>/specs/<key>/<change>/<mode>-<n>/. Not created here."""
-    return local_root() / _part(repo.name) / "specs" / _part(key) / _part(change) / f"{_part(mode)}-{int(n)}"
+    """~/.factory-local/<repo>/specs/<key>/<change>/<mode>-<n>/. Not created here. The key, change, and mode keep the
+    strict check; the repo folder name takes any plain name (repo_part)."""
+    return local_root() / repo_part(repo.name) / "specs" / _part(key) / _part(change) / f"{_part(mode)}-{int(n)}"
 
 
 def save(repo, paths, dest):

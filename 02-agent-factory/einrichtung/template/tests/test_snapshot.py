@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from agentic_factory import config, fetch, snapshot
-from .fakes import CFG
+from .fakes import CFG, E2E
 
 GIT_ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
@@ -265,6 +265,28 @@ class CopyDir(SnapshotTest):
         for key, change in (("../x", "c"), ("LL-1", "a/b"), ("", "c"), ("LL-1", "..")):
             with self.subTest(key=key, change=change), self.assertRaises(config.Stop):
                 snapshot.copy_dir(self.repo, key, change, "spec", 1)
+
+    def test_copy_dir_takes_any_plain_repo_folder_name(self):
+        for name in ("Mein Projekt", "bestellübersicht", ".hidden", "_intern"):
+            with self.subTest(name=name):
+                got = snapshot.copy_dir(self.repo.parent / name, "LL-1", "c", "spec", 1)
+                self.assertEqual(got, Path.home() / ".factory-local" / name / "specs" / "LL-1" / "c" / "spec-1")
+
+    def test_repo_folder_name_check(self):
+        for name in ("", ".", "..", "a/b", "a\\b", "bad\x07name", "zeile\nzwei"):
+            with self.subTest(name=name), self.assertRaisesRegex(config.Stop, "can't be the folder name"):
+                snapshot.repo_part(name)
+        self.assertEqual(snapshot.repo_part("Mein Projekt"), "Mein Projekt")
+
+
+class RepoNameBeforeCalls(E2E, unittest.TestCase):
+    def test_bad_repo_folder_name_stops_before_any_call(self):
+        bad = self.d / "bad\x07name"
+        self.repo.rename(bad)
+        self.repo = bad
+        with self.assertRaisesRegex(config.Stop, "can't be the folder name"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertFalse((self.d / "calls.jsonl").exists())
 
 
 if __name__ == "__main__":

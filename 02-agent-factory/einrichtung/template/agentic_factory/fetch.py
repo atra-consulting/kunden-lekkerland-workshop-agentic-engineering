@@ -6,7 +6,7 @@ import re
 import time
 from pathlib import Path
 
-from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify, feedback
+from . import copied, config, copilot, readiness, jira_rest, jira_mcp, checks, clarify, feedback, snapshot
 from . import ticket as ticket_mod
 
 
@@ -168,6 +168,7 @@ class Run:
         self.cfg = config.read_json(a.config)
         self.local = config.load_local(a.local)
         self.repo = Path(ticket_mod.git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
+        snapshot.repo_part(self.repo.name)  # the logs and spec copies need it: stop before any Copilot call
         self.A = self.cfg.get("assess") or {}
         config.check_config(self.cfg)  # every step, before any Copilot call
         self.io = None

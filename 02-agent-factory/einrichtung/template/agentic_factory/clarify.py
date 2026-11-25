@@ -18,6 +18,8 @@ MARKERS = {
     "spec": "[KI] agentic-factory spec key={key}",
     "spec_questions": "[KI] agentic-factory spec fragen key={key}",
     "build": "[KI] agentic-factory build key={key}",
+    "spec_revision": "[KI] agentic-factory spec überarbeitung={rnd} key={key}",
+    "build_revision": "[KI] agentic-factory build überarbeitung={rnd} key={key}",
 }
 ROUND_RE = re.compile(r"\[KI\] agentic-factory klärung runde=([1-9][0-9]{0,2}) key=(\S+)")
 ASSUMPTION_RE = re.compile(r"(?m)^Annahme (A[1-9][0-9]?): (.+)$")

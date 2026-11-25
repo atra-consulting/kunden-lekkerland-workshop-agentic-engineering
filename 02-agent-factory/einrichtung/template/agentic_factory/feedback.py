@@ -1,0 +1,145 @@
+"""Human feedback for `spec` and `build`: the state the ticket's comments are in. Only reads; the comment texts are
+rendered in clarify.py, and what a run does with the state is decided in main."""
+import re
+
+from . import clarify, config, jira_rest
+
+# The ids a [KI] result comment names as handled, and the lines it carries besides its marker.
+ID = r"[A-Za-z0-9_-]+"
+HANDLED_RE = re.compile(rf"Bearbeitet: Kommentar ({ID}(?:, {ID})*)\.")
+COMMIT_RE = re.compile(r"Start-Commit: ([0-9a-f]{40})")
+CHECKSUM_RE = re.compile(r"Spec-Prüfsumme: ([0-9a-f]{64})")
+CHANGE_RE = re.compile(r"(?:\A|\s)Change: (\S+?)\.(?=\s|\Z)")
+FILES_HEAD = "Geänderte Dateien:"
+
+
+def handled_line(ids):
+    """The line a result comment names the [Mensch] comments it handled on."""
+    ids = list(ids)
+    if not ids or not all(re.fullmatch(ID, i) for i in ids):
+        raise ValueError(f"not a list of comment ids: {ids!r}")
+    return f"Bearbeitet: Kommentar {', '.join(ids)}."
+
+
+def _revision_re(kind, key):
+    """The marker line of a revision comment of this ticket, the number as group 1."""
+    parts = re.split(r"(\{rnd\}|\{key\})", clarify.MARKERS[kind])
+    return re.compile("".join(r"([1-9][0-9]{0,2})" if p == "{rnd}" else re.escape(key) if p == "{key}" else re.escape(p)
+                              for p in parts))
+
+
+def _result_of(line, key, patterns):
+    """(kind, revision, plain) of a marker line, kind 'spec' or 'build'; None for any other line."""
+    for kind in ("spec", "build"):
+        if line == clarify.marker(kind, key):
+            return kind, 1, True
+        m = patterns[kind].fullmatch(line)
+        if m:
+            return kind, int(m.group(1)), False
+    return None
+
+
+def _outside_fences(body):
+    """The lines of a comment that are not inside a fenced block: the fence lines themselves and the text between."""
+    out, closing = [], None
+    for line in body.split("\n"):
+        s = line.strip()
+        if closing is not None:
+            if s == closing:
+                closing = None
+        elif jira_rest.FENCE_LINE.fullmatch(s):
+            closing = s
+        else:
+            out.append(line.rstrip())
+    return out
+
+
+def _fenced_after(body, head):
+    """The lines of the fenced block that follows the line `head` (blank lines may sit between); [] when there is
+    none."""
+    lines = [line.strip() for line in body.split("\n")]
+    for i, line in enumerate(lines):
+        if line != head:
+            continue
+        rest = [j for j in range(i + 1, len(lines)) if lines[j]]
+        if not rest or not jira_rest.FENCE_LINE.fullmatch(lines[rest[0]]):
+            continue
+        opening, found = lines[rest[0]], []
+        for inner in lines[rest[0] + 1:]:
+            if inner == opening:
+                return found
+            if inner:
+                found.append(inner)
+        return []
+    return []
+
+
+def _line_value(lines, regex):
+    """The group of the last full-line match of `regex`, or None."""
+    hits = [m.group(1) for m in (regex.fullmatch(line) for line in lines) if m]
+    return hits[-1] if hits else None
+
+
+def state(comments, key):
+    """What the comments of one ticket say about its spec and build feedback. Only `[KI]` comments whose first line is
+    a marker of this ticket count as results; the others are data. A plain marker is revision 1."""
+    cs = sorted(comments, key=lambda c: c["created"])  # stable: equal timestamps keep their order
+    patterns = {k: _revision_re(f"{k}_revision", key) for k in ("spec", "build")}
+    results, handled, questions_at, plain_spec_at = [], set(), None, None
+    for i, c in enumerate(cs):
+        if clarify.tag_of(c["body"]) != "KI":
+            continue
+        line = clarify.first_line(c["body"])
+        found = _result_of(line, key, patterns)
+        if found:
+            kind, rnd, plain = found
+            results.append((i, kind, rnd, c))
+            if kind == "spec" and plain:
+                plain_spec_at = i
+            for m in map(HANDLED_RE.fullmatch, _outside_fences(c["body"])):
+                if m:
+                    handled.update(m.group(1).split(", "))
+        elif line == clarify.marker("spec_questions", key):
+            questions_at = i
+    last_at, last_kind, revision, last = results[-1] if results else (None, None, 0, None)
+    last_spec = next((r[3] for r in reversed(results) if r[1] == "spec"), None)
+    last_build_at = next((r[0] for r in reversed(results) if r[1] == "build"), None)
+    last_build = cs[last_build_at] if last_build_at is not None else None
+    if last_build_at is not None and (plain_spec_at is None or last_build_at > plain_spec_at):
+        phase = "build"
+    else:
+        phase = "spec" if results else "none"
+    lines = _outside_fences(last["body"]) if last else []
+    # the files of the latest result when it is a build; a spec comment names none
+    files = _fenced_after(last["body"], FILES_HEAD) if last_kind == "build" else []
+    change = next((m.group(1) for m in map(CHANGE_RE.search, lines) if m), None)
+    return {
+        "phase": phase,
+        "last": last,
+        "last_spec": last_spec,
+        "last_build": last_build,
+        "revision": revision,
+        "change": change,
+        "checksum": _line_value(lines, CHECKSUM_RE),
+        "start_commit": _line_value(lines, COMMIT_RE),
+        "files": files,
+        "new_human": [c for j, c in enumerate(cs) if last_at is not None and j > last_at
+                      and clarify.tag_of(c["body"]) == "Mensch" and c["id"] not in handled],
+        "answers": [c for j, c in enumerate(cs) if questions_at is not None and j > questions_at
+                    and (last_at is None or last_at < questions_at) and clarify.tag_of(c["body"]) == "Mensch"],
+        "handled": handled,
+    }
+
+
+def trust(comment, me):
+    """Stops unless the previous spec or build comment can be trusted: with me, the account running this script, it
+    must have written it, and it must not have been edited (updated differs from created; an offline file may have
+    no updated). The message names the comment and the way out, --fresh."""
+    why = None
+    if me is not None and (comment.get("author") or "") != me:
+        why = "it wasn't posted by the account running this script"
+    elif comment.get("updated") and comment["updated"] != comment.get("created"):
+        why = "it was edited after it was posted"
+    if why:
+        raise config.Stop(f"the comment {comment['id']} can't be trusted: {why}; nothing is posted or changed; "
+                          "run with --fresh to start again without it")

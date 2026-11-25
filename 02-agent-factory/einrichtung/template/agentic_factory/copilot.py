@@ -59,9 +59,11 @@ def runs_inline_code(interpreter, word):
     return interpreter.startswith(("deno", "bun")) and word == "eval"
 
 
-def command_start(words):
-    """The index of the command a test command runs: wrappers (env, timeout 60, nice -n 10, uv run) and their own
-    options, numbers, and KEY=VALUE words are skipped. len(words) when only wrappers are left."""
+def command_start(cmd, words):
+    """The index of the command a test command runs: wrappers (env, timeout 60, uv run) are skipped with their own
+    numbers and KEY=VALUE words. Fail closed on options: one is accepted only as --opt=value or a bare --, because
+    without a table of each wrapper's options a value word (-u bob) would be taken for the command. len(words) when
+    only wrappers are left."""
     i = 0
     while i < len(words):
         name = base_name(words[i])
@@ -72,6 +74,11 @@ def command_start(words):
         else:
             break
         while i < len(words) and (words[i].startswith("-") or NUMBER.fullmatch(words[i]) or "=" in words[i]):
+            w = words[i]
+            if w.startswith("-") and w != "--" and "=" not in w:
+                raise config.Stop(f"test_command {cmd!r}: the option {w!r} after {words[i - 1]!r} may take a value that "
+                                  "this check can't tell from the command; write wrapper options as --opt=value, "
+                                  "or wrap the command in a script file or a Make target and use that")
             i += 1
     return i
 
@@ -97,7 +104,7 @@ def check_test_command(cmd):
             raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % - "
                               "(and = after the first word); shell syntax and quotes aren't allowed, "
                               "put them in a script or a make target")
-    start = command_start(words)
+    start = command_start(cmd, words)
     if start == len(words):
         raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or target; "
                           f"{words[-1]!r} with nothing after it lets the agent supply the command")

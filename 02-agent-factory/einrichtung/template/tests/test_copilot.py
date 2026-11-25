@@ -288,13 +288,14 @@ class TestCommand(unittest.TestCase):
     def test_bare_wrapper_endings_refused(self):
         for cmd in ("env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox", "uv run",
                     "poetry run", "pipenv run", "pdm run", "hatch run", "rye run", "UV run", "timeout 60", "timeout 60s",
-                    "nice -n 10", "env timeout 60", "sudo -n", "timeout 60 env FOO=1", "timeout --foreground 60", "uv run --frozen"):
+                    "env timeout 60", "timeout 60 env FOO=1", "timeout --signal=KILL 60", "uv run --python=3.12", "env FOO=1"):
             with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, "fixed script, module, or target"):
                 self.build(cmd)
 
     def test_wrapper_with_a_target_allowed(self):
-        for cmd in ("uv run pytest", "poetry run pytest -q", "timeout 60 make test", "nice -n 10 make test",
-                    "make run", "npm run test", "cargo run", "make timeout 60", "sudo -u bob make test"):
+        for cmd in ("uv run pytest", "poetry run pytest -q", "timeout 60 make test", "timeout --signal=KILL 60 make test",
+                    "uv run --python=3.12 pytest", "uv run -- pytest", "make run", "npm run test", "cargo run",
+                    "make timeout 60"):
             with self.subTest(cmd=cmd):
                 self.build(cmd)
 
@@ -310,6 +311,16 @@ class TestCommand(unittest.TestCase):
                     "uv run env node", "timeout 60 nice python3 -m", "poetry run nohup bash"):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
+
+    def test_wrapper_options_must_carry_their_value(self):
+        for cmd in ("sudo -u bob python -c 1", "timeout -s KILL 60 python -c 1", "env -u FOO python -c 1",
+                    "sudo -u bob make test", "nice -n 10 make test", "timeout --foreground 60 make test",
+                    "uv run --frozen pytest", "uv run --with x pytest", "sudo -n", "uv run --frozen", "nice -n 10"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, r"--opt=value"):
+                copilot.check_test_command(cmd)
+
+    def test_wrapper_with_assignment_passes_the_check(self):
+        copilot.check_test_command("env FOO=1 make test")  # the template deny list (shell(env:*)) may still stop it
 
     def test_shell_syntax_refused(self):
         for cmd in ("make test && rm x", "a; b", "a | b", "$(x)", "`x`", 'pytest -k "a b"', "CI=1 npm test"):

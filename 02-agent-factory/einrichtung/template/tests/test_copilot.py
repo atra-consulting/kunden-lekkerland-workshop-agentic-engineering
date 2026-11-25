@@ -239,8 +239,63 @@ class TestCommand(unittest.TestCase):
                     "bash test.sh -c", "bash -xe scripts/test.sh",
                     "pwsh -C x", "powershell -co x", "uv run python -c 1", "env python3 -c 1", "timeout 60 python3 -c 1",
                     "poetry run python -c 1", "python3.12 -c 1", "PYTHON3 -c 1", "pypy3 -c 1", "php -r x", "deno eval x",
-                    "bun eval x", "uv run python", "python3 -m", "env node", "python3 test.py --verbose", "FISH -c x"):
+                    "bun eval x", "uv run python", "python3 -m", "env node", "FISH -c x"):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_option_ending_after_a_script_or_module_allowed(self):
+        for cmd in ("python3 -m pytest -v", "python3 test.py --verbose", "node test.js --silent", "bash test.sh -x",
+                    "uv run pytest -q", "python3 -m unittest discover -v"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
+    def test_open_endings_refused(self):
+        for cmd in ("python3 -m", "env node", "uv run python", "python3 -I", "python3 -I -B", "bash -x", "node --no-warnings",
+                    "timeout 60 bash", "env python3 -u"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, "fixed script, module, or target"):
+                self.build(cmd)
+
+    def test_interpreter_name_variants_refused(self):
+        for cmd in ("python3.13t -c 1", "python3.12.1 -c 1", "pypy3 -c 1", "php8.2 -r x", "python3-dbg -c 1",
+                    "/usr/bin/python3.13t -c 1", "C:/Python/PYTHON.EXE -c 1", "python3.13t", "cmd /c x", "cmd /K x",
+                    "julia -e 1", "julia -E 1", "tsx -e 1", "ts-node -e 1", "ts-node -p 1", "nodejs -e 1", "tclsh",
+                    "node18 -e 1", "ruby3.2 -e 1", "python3.12-dbg -c 1", "bash5 -c x"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_interpreter_name_variants_with_a_script_allowed(self):
+        for cmd in ("python3.13t test.py", "python3.12.1 -m pytest", "pypy3 -m pytest -v", "php8.2 vendor/bin/phpunit",
+                    "tsx test.ts", "nodejs test.js", "julia test.jl"):
+            with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_not_interpreters(self):
+        self.assertIsNone(copilot.interpreter_name("pythonista"))
+        self.assertIsNone(copilot.interpreter_name("nodes"))
+        self.assertIsNone(copilot.interpreter_name("shell"))
+        self.assertEqual(copilot.interpreter_name("python3.13t"), "python3.13t")
+
+    def test_powershell_slash_switches_refused(self):
+        for cmd in ("pwsh /c x", "powershell /enc x", "pwsh /Command x", "pwsh /EncodedCommand x", "powershell /co x"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
+                self.build(cmd)
+
+    def test_powershell_script_allowed(self):
+        for cmd in ("pwsh test.ps1", "powershell ./test.ps1 -Verb", "pwsh /tmp/test.ps1", "pwsh test.ps1 /x"):
+            with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_bare_wrapper_endings_refused(self):
+        for cmd in ("env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox", "uv run",
+                    "poetry run", "pipenv run", "pdm run", "hatch run", "rye run", "UV run", "timeout 60", "timeout 60s",
+                    "nice -n 10", "make timeout 60", "env timeout 60", "timeout --foreground 60", "uv run --frozen"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, "fixed script, module, or target"):
+                self.build(cmd)
+
+    def test_wrapper_with_a_target_allowed(self):
+        for cmd in ("uv run pytest", "poetry run pytest -q", "timeout 60 make test", "nice -n 10 make test",
+                    "make run", "npm run test", "cargo run"):
+            with self.subTest(cmd=cmd):
                 self.build(cmd)
 
     def test_shell_syntax_refused(self):
@@ -284,6 +339,82 @@ class TestCommand(unittest.TestCase):
     def test_lab_build_rules_equal_factory(self):
         self.assertEqual(copilot.fill(FULL_CFG["build_rules"], {"test_command": "./bin/phpunit"}, "x"),
                          copied.BUILD_RULES)
+
+
+DEFAULT_READ_TOOLS = ["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tail:*)", "shell(wc:*)", "shell(grep:*)",
+                      "shell(pwd:*)", "shell(diff:*)", "shell(stat:*)", "shell(cd:*)", "shell(git status:*)",
+                      "shell(git diff:*)", "shell(git log:*)", "shell(git show:*)", "shell(git ls-files:*)"]
+
+
+class ReadTools(unittest.TestCase):
+    """Default read-only shell tools for the spec and build calls (read_tools in config.json)."""
+
+    CFG = {**FULL_CFG, "test_command": "make test"}
+
+    def plan(self, mode, fw, cfg=None):
+        return copilot.plan(cfg or self.CFG, {}, mode, KEY, fw, TICKET, "c", "x")[1]
+
+    def test_default_list(self):
+        self.assertEqual(FULL_CFG["read_tools"], DEFAULT_READ_TOOLS)
+
+    def test_spec_and_build_get_read_tools(self):
+        for fw in FULL_CFG["frameworks"]:
+            for mode in ("spec", "build"):
+                tools = self.plan(mode, fw)
+                for entry in DEFAULT_READ_TOOLS:
+                    with self.subTest(fw=fw, mode=mode, entry=entry):
+                        self.assertIn(entry, tools)
+
+    def test_dangerous_ones_absent(self):
+        words = {e[len("shell("):-len(":*)")] for e in FULL_CFG["read_tools"]}
+        for bad in ("find", "sed", "awk", "xargs", "rg", "git grep", "tree", "sort"):
+            self.assertNotIn(bad, words)
+
+    def test_order_test_tool_last(self):
+        for fw, F in FULL_CFG["frameworks"].items():
+            self.assertEqual(self.plan("spec", fw), [*F["spec_tools"], *DEFAULT_READ_TOOLS])
+            self.assertEqual(self.plan("build", fw), [*F["build_tools"], *DEFAULT_READ_TOOLS, "shell(make test:*)"])
+
+    def test_empty_read_tools_add_nothing(self):
+        cfg = {**self.CFG, "read_tools": []}
+        self.assertEqual(self.plan("spec", "openspec", cfg), FULL_CFG["frameworks"]["openspec"]["spec_tools"])
+        self.assertEqual(self.plan("build", "openspec", cfg),
+                         [*FULL_CFG["frameworks"]["openspec"]["build_tools"], "shell(make test:*)"])
+
+    def test_non_shell_entry_stops(self):
+        for entry in ("write", "shell", "read", "ls", "url(example.com)", "powershell(ls:*)", "shell(ls:*", 7):
+            cfg = {**self.CFG, "read_tools": ["shell(ls:*)", entry]}
+            with self.subTest(entry=entry), self.assertRaisesRegex(config.Stop, "read_tools"):
+                self.plan("spec", "openspec", cfg)
+
+    def test_denied_entry_stops(self):
+        cfg = {**self.CFG, "read_tools": ["shell(ls:*)", "shell(git push:*)"]}
+        for mode in ("spec", "build"):
+            with self.subTest(mode=mode), self.assertRaises(config.Stop) as cm:
+                self.plan(mode, "openspec", cfg)
+            self.assertIn("shell(git push:*)", str(cm.exception))
+            self.assertIn("deny_tools", str(cm.exception))
+
+    def test_entry_below_a_denied_prefix_stops(self):
+        cfg = {**self.CFG, "read_tools": ["shell(git status:*)"], "deny_tools": ["shell(git:*)"]}
+        with self.assertRaisesRegex(config.Stop, r"shell\(git status:\*\)"):
+            self.plan("spec", "openspec", cfg)
+
+    def test_check_read_tools_returns_the_list(self):
+        self.assertEqual(copilot.check_read_tools(FULL_CFG), DEFAULT_READ_TOOLS)
+        self.assertEqual(copilot.check_read_tools({**FULL_CFG, "read_tools": []}), [])
+
+    def test_template_deny_list_covers_no_default(self):
+        self.assertEqual(copilot.check_read_tools(FULL_CFG), DEFAULT_READ_TOOLS)
+        for entry in DEFAULT_READ_TOOLS:
+            self.assertIsNone(copilot.denied_by(entry[len("shell("):-len(":*)")], FULL_CFG["deny_tools"]))
+
+    def test_assess_and_clarify_unchanged(self):
+        self.assertEqual(FULL_CFG["assess"]["tools"], [])
+        self.assertEqual(FULL_CFG["clarify"]["tools"], [])
+
+    def test_lab_fixture_has_none(self):
+        self.assertEqual(LAB_CFG["read_tools"], [])
 
 
 class Overrides(unittest.TestCase):

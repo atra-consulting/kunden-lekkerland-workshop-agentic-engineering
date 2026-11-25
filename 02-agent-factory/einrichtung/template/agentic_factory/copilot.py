@@ -20,36 +20,66 @@ JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on 
 
 TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # the first word; no quotes, "$", "=", ";", "&", "|", "<", ">"
 ARG_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%=-]+")  # the other words: the same, plus "=" (--maxfail=1)
-INTERPRETERS = {"bash", "sh", "zsh", "dash", "fish", "ksh", "csh", "tcsh", "node", "bun", "deno", "ruby", "perl", "php",
-                "lua", "rscript", "osascript", "pwsh", "powershell"}
-PYTHONS = re.compile(r"(python|pypy)(\d+(\.\d+)?)?")  # python, python3, python3.12, pypy3
+INTERPRETERS = ("bash", "sh", "zsh", "dash", "fish", "ksh", "csh", "tcsh", "node", "nodejs", "bun", "deno", "tsx", "ts-node",
+                "ruby", "perl", "php", "lua", "julia", "rscript", "osascript", "tclsh", "cmd", "pwsh", "powershell",
+                "python", "pypy")
+# a known name, then a version (3, 3.12.1) with an optional letter (3.13t), then an optional -dbg
+INTERPRETER_NAME = re.compile(r"(%s)(\d+(\.\d+)*[a-z]?)?(-dbg)?" % "|".join(INTERPRETERS))
 INLINE_CODE_FLAGS = {"-c", "-e", "-E", "-p", "--print", "--eval", "-Command"}
 SHORT_FLAGS_FOR_CODE = re.compile(r"-[A-Za-z]*[ceEp]")  # a cluster such as -lc, -Sc, -pe, -ep
-POWERSHELL_CODE_FLAGS = ("-command", "-encodedcommand")  # PowerShell accepts any prefix of these, such as -C or -enc
+POWERSHELL_CODE_FLAGS = ("command", "encodedcommand")  # PowerShell accepts any prefix of these, such as -C or /enc
+WRAPPERS = {"env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox"}
+RUNNERS = {"uv", "poetry", "pipenv", "pdm", "hatch", "rye"}  # "<runner> run" is a wrapper too
+NUMBER = re.compile(r"\d+(\.\d+)?[smhd]?")  # timeout 60, timeout 1.5s
+
+
+def base_name(word):
+    """The lower-case basename of a word, without .exe."""
+    name = os.path.basename(word).lower()
+    return name[:-4] if name.endswith(".exe") else name
 
 
 def interpreter_name(word):
     """The lower-case interpreter a word names (basename, no .exe), or None. Any word of a test command counts, so
     wrappers (uv run python, env node, timeout 60 bash) don't hide it."""
-    name = os.path.basename(word).lower()
-    name = name[:-4] if name.endswith(".exe") else name
-    return name if name in INTERPRETERS or PYTHONS.fullmatch(name) else None
+    name = base_name(word)
+    return name if INTERPRETER_NAME.fullmatch(name) else None
 
 
 def runs_inline_code(interpreter, word):
     """Whether an argument of an interpreter looks like a flag or word that runs code from the command line."""
     if word in INLINE_CODE_FLAGS or SHORT_FLAGS_FOR_CODE.fullmatch(word):
         return True
-    if interpreter in ("pwsh", "powershell"):
-        return len(word) >= 2 and word.startswith("-") and any(f.startswith(word.lower()) for f in POWERSHELL_CODE_FLAGS)
-    if interpreter == "php":
+    if interpreter.startswith(("pwsh", "powershell")):
+        return len(word) >= 2 and word[0] in "-/" and any(f.startswith(word[1:].lower()) for f in POWERSHELL_CODE_FLAGS)
+    if interpreter.startswith("cmd"):
+        return word.lower() in ("/c", "/k")
+    if interpreter.startswith("php"):
         return word == "-r"
-    return interpreter in ("deno", "bun") and word == "eval"
+    return interpreter.startswith(("deno", "bun")) and word == "eval"
+
+
+def open_ending(words):
+    """The word where the command leaves the code, module, or target to the agent, or None: the last interpreter with
+    no non-option word after it (the word after -m counts), or a wrapper (env, timeout 60, uv run) followed only by
+    numbers and options."""
+    last = max((i for i, w in enumerate(words) if interpreter_name(w)), default=None)
+    if last is not None:
+        rest = words[last + 1:]
+        if not any(not w.startswith("-") or (i and rest[i - 1] == "-m") for i, w in enumerate(rest)):
+            return words[last]
+    for i, w in enumerate(words):
+        name = base_name(w)
+        if name in WRAPPERS or (name == "run" and i and base_name(words[i - 1]) in RUNNERS):
+            if all(x.startswith("-") or NUMBER.fullmatch(x) for x in words[i + 1:]):
+                return w
+    return None
 
 
 def check_test_command(cmd):
     """Stops unless cmd is plain words: no shell syntax, no environment assignment, and no interpreter running inline
-    code (bash -c, python -c, node -e, ...), because the build call's tool is the whole command as a prefix."""
+    code (bash -c, python -c, node -e, ...), because the build call's tool is the whole command as a prefix. A
+    misconfiguration check, not a security boundary: the prefix lets the agent append arguments anyway."""
     words = cmd.split(" ")
     if not cmd or "" in words:
         raise config.Stop(f"test_command {cmd!r}: words must be separated by single spaces, with no leading or trailing space")
@@ -67,9 +97,10 @@ def check_test_command(cmd):
             raise config.Stop(f"test_command {cmd!r}: {interpreter} with {w} may run inline code, or this check can't "
                               "tell; wrap the command in a script file or a Make target and use that")
         interpreter = interpreter_name(w) or interpreter
-    if interpreter and (interpreter_name(words[-1]) or words[-1].startswith("-")):
-        raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or argument; "
-                          f"ending in {words[-1]!r} lets the agent supply the code or module")
+    ending = open_ending(words)
+    if ending:
+        raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or target; "
+                          f"{ending!r} with nothing after it lets the agent supply the code or module")
 
 
 def test_tool(cmd):
@@ -101,6 +132,22 @@ def build_test_command(cfg):
     return cmd
 
 
+def check_read_tools(cfg):
+    """The read_tools of config.json. Stops on an entry that isn't shell(...) or that a deny_tools entry covers, because
+    a deny entry beats every allow and a non-shell tool would widen the calls."""
+    tools = cfg.get("read_tools") or []
+    for entry in tools:
+        if not (isinstance(entry, str) and entry.startswith("shell(") and entry.endswith(")") and len(entry) > 7):
+            raise config.Stop(f"read_tools entry {entry!r}: only shell(...) entries are allowed")
+        x = entry[len("shell("):-1]
+        x = x[:-2] if x.endswith(":*") else x
+        denied = denied_by(x, cfg["deny_tools"])
+        if denied:
+            raise config.Stop(f"read_tools entry {entry!r} is covered by {denied} in deny_tools, which beats every "
+                              "allow; remove it from read_tools or change deny_tools")
+    return list(tools)
+
+
 def stack_override(local, prompts, fw):
     hint = local.get("stack_hint")
     if not hint or fw != "speckit":
@@ -127,11 +174,11 @@ def plan(cfg, local, mode, key, fw, ticket=None, change=None, spec_file=None, te
         vals = {"ticket_block": ticket_mod.ticket_block(ticket), "spec_rules": rules, "key": key, "slug": key.lower()}
         prompts = [fill(p, vals, f"{fw} spec_prompts") for p in F["spec_prompts"]]
         prompts = stack_override(local, prompts, fw)
-        tools = list(F["spec_tools"])
+        tools = [*F["spec_tools"], *check_read_tools(cfg)]
     elif mode == "build":
         cmd = build_test_command(cfg)
         rules = fill(cfg.get("build_rules", copied.BUILD_RULES), {"test_command": cmd}, "build_rules")
-        tools = [*F["build_tools"], test_tool(cmd)]
+        tools = [*F["build_tools"], *check_read_tools(cfg), test_tool(cmd)]
         vals = {"change": change, "build_rules": rules, "key": key, "spec_file": spec_file}
         prompts = [fill(p, vals, f"{fw} build_prompts") for p in F["build_prompts"]]
         if fw == "speckit" and F.get("env_feature_dir"):

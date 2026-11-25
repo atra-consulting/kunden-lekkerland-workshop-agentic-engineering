@@ -71,7 +71,7 @@ LAB_DENY_TOOLS = [
     "shell(npm:*)",
     "shell(npx:*)"
 ]
-LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
+LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "read_tools": [], "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
            "frameworks": {**CFG["frameworks"], "speckit": {**CFG["frameworks"]["speckit"], "spec_prompts": [
                *CFG["frameworks"]["speckit"]["spec_prompts"][:1],
                "/speckit-plan Use the existing Symfony 7 / PHP stack and PHPUnit; no new dependencies.\n\n{spec_rules}",

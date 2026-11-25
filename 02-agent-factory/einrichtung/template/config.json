@@ -170,6 +170,23 @@
     "shell(npm exec:*)",
     "shell(npx:*)"
   ],
+  "read_tools": [
+    "shell(ls:*)",
+    "shell(cat:*)",
+    "shell(head:*)",
+    "shell(tail:*)",
+    "shell(wc:*)",
+    "shell(grep:*)",
+    "shell(pwd:*)",
+    "shell(diff:*)",
+    "shell(stat:*)",
+    "shell(cd:*)",
+    "shell(git status:*)",
+    "shell(git diff:*)",
+    "shell(git log:*)",
+    "shell(git show:*)",
+    "shell(git ls-files:*)"
+  ],
   "forbidden_flags": [
     "--allow-all",
     "--allow-all-tools",

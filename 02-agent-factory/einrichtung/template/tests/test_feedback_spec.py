@@ -69,10 +69,13 @@ class SpecRerun(JiraE2E, unittest.TestCase):
 
     def test_revision_with_human_comment(self):
         first = self.first()
-        rc, out = self.spec(comments=[comment(10, first, 0), comment(11, "[Mensch] Bitte auch Leerzeichen", 5)],
+        rc, out = self.spec(comments=[comment(10, first, 0), comment(11, "[Mensch] Bitte auch Leerzeichen", 5,
+                                                                     author="acc-anna")],
                             mode="revise")
         self.assertEqual(rc, 0, out)
+        self.assertIn("handles comments 11 (by acc-anna)", out)  # who wrote it, in the run's output (R30)
         (call,) = self.calls()
+        self.assertNotIn("acc-anna", call[call.index("-p") + 1])  # never in the prompt
         self.assertTrue(any(a.endswith("usage-revise.json") for a in call), call)
         prompt = call[call.index("-p") + 1]
         self.assertIn("Bitte auch Leerzeichen", prompt)
@@ -140,6 +143,7 @@ class SpecRerun(JiraE2E, unittest.TestCase):
         rc, out = self.spec(comments=[comment(10, clarify.render_spec_questions(KEY, "1. Welche Seite?"), 0),
                                       comment(11, "[Mensch] 1. Die Tag-Liste", 5)])
         self.assertEqual(rc, 0, out)
+        self.assertIn("the spec prompt has the answers in [Mensch] comments 11 (author unknown)", out)
         (call,) = self.calls()
         prompt = call[call.index("-p") + 1]
         self.assertTrue(prompt.startswith("/openspec-propose "))
@@ -199,7 +203,7 @@ class SpecRerun(JiraE2E, unittest.TestCase):
         rc, out = self.spec("--print-only", comments=[comment(10, first, 0), comment(11, "[Mensch] a", 5),
                                                       comment(12, "[Mensch] b", 6)])
         self.assertEqual(rc, 0, out)
-        self.assertIn("comments 11, 12", out)
+        self.assertIn("comments 11 (author unknown), 12 (author unknown)", out)
         self.assertIn("changed by hand", out)
         self.assertEqual(self.calls(), [])
         self.assertFalse(self.copy(2).exists())

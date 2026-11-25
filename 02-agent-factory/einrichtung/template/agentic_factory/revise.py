@@ -128,10 +128,14 @@ def plan(run, req, F, d):
     return {**d, "kind": kind, "copy": copy, "paths": paths, "hand_edited": hand}
 
 
+def answers_line(who):
+    return f"the spec prompt has the answers in [Mensch] comments {who}"
+
+
 def describe(d):
     """What a revision does, for the log and --print-only."""
     head = f"{d['mode']} revision {d['revision']} of change {d['change']}"
-    comments = (f"handles comments {', '.join(d['handled'])}" if d["handled"]
+    comments = (f"handles comments {clarify.human_authors(d['new'])}" if d["handled"]
                 else f"no new [Mensch] comments since comment {d['last']['id']}")
     edits = (f"the spec was changed by hand since comment {d['last']['id']}" if d["hand_edited"]
              else f"the spec was not changed by hand since comment {d['last']['id']}")
@@ -146,8 +150,8 @@ def nothing_reason(d):
 def print_lines(d):
     """--print-only: what the run would handle, without any call."""
     if d["kind"] == "first":
-        ids = [c["id"] for c in d.get("answers", ()) if clarify.tag_of(c["body"]) == "Mensch"]
-        return [f"# the spec prompt has the answers in comments {', '.join(ids)}"] if ids else []
+        who = clarify.human_authors(d.get("answers", ()))
+        return [f"# {answers_line(who)}"] if who else []
     lines = [f"# {describe(d)}"]
     if d["kind"] == "hand":
         lines.append(f"# no copilot call: this run posts the spec as changed by hand (revision {d['revision']})")

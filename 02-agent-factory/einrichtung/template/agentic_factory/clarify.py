@@ -328,6 +328,13 @@ def render_assess(key, verdict):
     return "\n\n".join(parts)
 
 
+def human_authors(comments):
+    """The [Mensch] comments of a list as "11 (by acc-anna), 12 (author unknown)": for the run's output, so the person
+    starting a run sees who steers it (ruling R30). Never in a prompt."""
+    return ", ".join(f"{c['id']} ({'by ' + one_line(c['author'])[:80] if c.get('author') else 'author unknown'})"
+                     for c in comments if tag_of(c["body"]) == "Mensch")
+
+
 NOT_APPROVED = "Sie ist nicht freigegeben: Ein Kommentar von agentic-factory.py ist nie eine Freigabe."
 # How to ask for changes, outside the fences of a spec or build comment (like ANSWER_LINE for clarify)
 FEEDBACK_LINES = {m: f"Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste "

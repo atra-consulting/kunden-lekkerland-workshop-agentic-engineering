@@ -15,6 +15,8 @@ def work_plan(run, req, ticket, comments=()):
     mode, key = req["mode"], req["key"]
     # spec and build: what the comments say; a refused or untrusted rerun stops here
     fb = revise.decide(run, req, comments) if mode in fetch.FEEDBACK_MODES else None
+    if fb and fb["kind"] == "first" and clarify.human_authors(fb.get("answers", ())):
+        config.say(revise.answers_line(clarify.human_authors(fb["answers"])))
     p = {"calls": [], "env_extra": {}, "fw": None, "source": None, "F": None, "change": None, "crit": None, "fb": fb,
          # a revision has no readiness check: the ticket passed it the first time
          "with_assess": fetch.assesses(cfg, mode, req["no_assess"]) and (fb is None or fb["kind"] == "first")}
@@ -43,6 +45,8 @@ def work_plan(run, req, ticket, comments=()):
             calls.append(("assess", prompt, tools, cap))
             config.say(f"{key}: clarify --apply, the proposal in comment {p['proposal'][0]}, project {repo}")
         else:
+            if clarify.human_authors(state["tagged"]):
+                config.say(f"[Mensch] comments this run reads: {clarify.human_authors(state['tagged'])}")
             prompt, tools, cap = checks.clarify_call(cfg, ticket, clarify.comments_block(key, state["tagged"]), p["crit"])
             calls.append(("clarify", prompt, tools, cap))
             config.say(f"{key}: clarify, project {repo}")

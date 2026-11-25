@@ -35,6 +35,8 @@ Diese Seite erklärt, wie `agentic-factory.py` gebaut ist und warum. Die Bedienu
 
 Läuft eine Überarbeitung ohne neue Kommentare und ohne Änderung von Hand, schreibt der Agent-Schritt `nothing-new.json` und startet keinen Aufruf.
 
+Das Ticket steht direkt nach dem Modus, als Schlüssel (`spec LL-123`) oder als Jira-URL (`spec https://example.atlassian.net/browse/LL-123`, auch mit `?selectedIssue=LL-123`). `ticket.key_from_arg` macht daraus den Schlüssel. Der Host der URL muss der von `jira_site` oder `JIRA_BASE_URL` sein, sonst stoppt das Skript vor jedem Aufruf. `--key LL-123` ist die lange Form. `init` nimmt kein Ticket.
+
 ### Drei Schritte: `fetch`, `agent`, `post`
 
 Jeder Lauf außer `init` besteht aus drei Schritten. Sie übergeben über einen Ordner mit `in/` und `out/`:

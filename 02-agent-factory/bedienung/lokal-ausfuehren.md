@@ -193,7 +193,7 @@ py -3 -I factory\agentic-factory.py spec --ticket-file "$HOME\factory-tickets\LL
 ```
 
 - Copilot darf nur die zwei lesenden Jira-Werkzeuge und das Schreiben im Ordner `factory-tickets`. Web-Zugriffe und schreibende Jira-Werkzeuge lehnt er ab. Shell-Befehle nicht immer: Copilot 1.0.115 führt Shell-Befehle aus, die es für nur lesend hält, auch wenn sie nicht freigegeben sind. `agentic-factory.py` verbietet deshalb `shell` in jedem Aufruf ohne Shell-Werkzeuge und stoppt, wenn trotzdem einer lief. Diesen Aufruf hier startest du selbst: Häng `--deny-tool=shell` an. Am 25. November live geprüft: Copilot 1.0.115 hat damit einen Shell-Befehl abgelehnt (`denied`).
-- Das Ticket kommt als Text durch ein Sprachmodell. Es kann Text weglassen oder umformulieren. Lies die Datei, bevor du das Skript startest. Mit `--key` und `--jira mcp` passiert das nicht: Dort nimmt das Skript den Text aus dem Ergebnis des Werkzeugs.
+- Das Ticket kommt als Text durch ein Sprachmodell. Es kann Text weglassen oder umformulieren. Lies die Datei, bevor du das Skript startest. Mit dem Ticket aus Jira und `--jira mcp` passiert das nicht: Dort nimmt das Skript den Text aus dem Ergebnis des Werkzeugs.
 
 ## Kommentare: `[KI]` und `[Mensch]`
 
@@ -228,27 +228,29 @@ Was jeder Modus postet:
 Starte im Projekt, irgendwo im Git-Repository. Unter Windows `py -3` statt `python3`.
 
 ```bash
-python3 -I factory/agentic-factory.py assess  --key LL-123                 # nur Bereitschaft prüfen
-python3 -I factory/agentic-factory.py clarify --key LL-123                 # eine Runde Klärung
-python3 -I factory/agentic-factory.py clarify --key LL-123 --apply         # Vorschlag als Beschreibung setzen
-python3 -I factory/agentic-factory.py spec    --key LL-123                 # Bereitschaft prüfen, dann Spec schreiben
-python3 -I factory/agentic-factory.py spec    --key LL-123 --no-assess     # Spec ohne Bereitschaftsprüfung
-python3 -I factory/agentic-factory.py spec    --key LL-123 --framework speckit
-python3 -I factory/agentic-factory.py build   --key LL-123                 # die Spec umsetzen
-python3 -I factory/agentic-factory.py build   --key LL-123 --change 001-lesezeit
-python3 -I factory/agentic-factory.py spec    --key LL-123                 # noch einmal: Spec nach Kommentaren überarbeiten
-python3 -I factory/agentic-factory.py build   --key LL-123 --fresh         # neu bauen, frühere Builds übergehen
-python3 -I factory/agentic-factory.py init                                 # config.json und readiness.md vorschlagen
-python3 -I factory/agentic-factory.py init    --apply                      # Vorschläge schreiben
-python3 -I factory/agentic-factory.py spec    --key LL-123 --no-post       # Kommentar nur als Datei
-python3 -I factory/agentic-factory.py spec    --key LL-123 --jira api      # per API-Token statt MCP
-python3 -I factory/agentic-factory.py spec    --ticket-file LL-123.json    # Ticket aus einer Datei, offline
-python3 -I factory/agentic-factory.py spec    --key LL-123 --print-only    # nur die Copilot-Befehle zeigen
+python3 -I factory/agentic-factory.py assess  LL-123                      # nur Bereitschaft prüfen
+python3 -I factory/agentic-factory.py assess  https://example.atlassian.net/browse/LL-123  # dasselbe mit der Ticket-URL
+python3 -I factory/agentic-factory.py clarify LL-123                      # eine Runde Klärung
+python3 -I factory/agentic-factory.py clarify LL-123 --apply              # Vorschlag als Beschreibung setzen
+python3 -I factory/agentic-factory.py spec    LL-123                      # Bereitschaft prüfen, dann Spec schreiben
+python3 -I factory/agentic-factory.py spec    LL-123 --no-assess          # Spec ohne Bereitschaftsprüfung
+python3 -I factory/agentic-factory.py spec    LL-123 --framework speckit
+python3 -I factory/agentic-factory.py build   LL-123                      # die Spec umsetzen
+python3 -I factory/agentic-factory.py build   LL-123 --change 001-lesezeit
+python3 -I factory/agentic-factory.py spec    LL-123                      # noch einmal: Spec nach Kommentaren überarbeiten
+python3 -I factory/agentic-factory.py build   LL-123 --fresh              # neu bauen, frühere Builds übergehen
+python3 -I factory/agentic-factory.py init                                # config.json und readiness.md vorschlagen
+python3 -I factory/agentic-factory.py init    --apply                     # geprüfte Vorschläge des letzten Laufs schreiben
+python3 -I factory/agentic-factory.py spec    LL-123 --no-post            # Kommentar nur als Datei
+python3 -I factory/agentic-factory.py spec    LL-123 --jira api           # per API-Token statt MCP
+python3 -I factory/agentic-factory.py spec    --ticket-file LL-123.json   # Ticket aus einer Datei, offline
+python3 -I factory/agentic-factory.py spec    LL-123 --print-only         # nur die Copilot-Befehle zeigen
 ```
 
 | Option | Wirkung |
 |---|---|
-| `--key LL-123` | Das Ticket in Jira |
+| `LL-123` oder die Ticket-URL | Das Ticket in Jira, direkt nach dem Modus. Die URL ist die aus dem Browser, etwa `https://example.atlassian.net/browse/LL-123`. Ihr Host muss zu `jira_site` in `local.json` oder `JIRA_BASE_URL` passen, sonst stoppt das Skript vor jedem Aufruf |
+| `--key LL-123` | Die lange Form. Geht weiter |
 | `--jira mcp` oder `api` | Der Weg zu Jira. Ohne die Option: `api` in einer Pipeline, sonst `mcp` |
 | `--ticket-file t.json` | Das Ticket aus einer Datei. Offline: kein Jira, kein Post |
 | `--comments-file c.json` | Nur mit `--ticket-file`: Kommentare aus einer Datei |
@@ -257,7 +259,7 @@ python3 -I factory/agentic-factory.py spec    --key LL-123 --print-only    # nur
 | `--no-assess` | `spec` ohne Bereitschaftsprüfung |
 | `--fresh` | `spec` und `build`: frühere `[KI]`-Ergebnisse des Modus übergehen und wie beim ersten Mal laufen |
 | `--no-post` | Kommentar nur als Datei, nichts posten |
-| `--apply` | `clarify`: den geklärten Text als Beschreibung setzen. Steht schon ein Vorschlag im Ticket, genau dessen Text. `init`: die geprüften Vorschläge in `config.json` und `readiness.md` schreiben |
+| `--apply` | `clarify`: den geklärten Text als Beschreibung setzen. Steht schon ein Vorschlag im Ticket, genau dessen Text. `init`: die geprüften Vorschläge des letzten `init`-Laufs in `config.json` und `readiness.md` schreiben, ohne neuen Copilot-Aufruf |
 | `--print-only` | Ticket lesen (über den Jira-MCP mit einem Jira-Aufruf), die Copilot-Befehle der Arbeitsaufrufe zeigen, keinen davon starten, nichts setzen oder posten. Nur mit `--step all` oder `--step agent` |
 | `--step fetch`, `agent`, `post` oder `all` | Die Schritte einzeln, für die Pipeline. Standard `all`. Siehe [In der Pipeline](#in-der-pipeline-fetch-agent-post) |
 | `--io-dir <Ordner>` | Übergabe-Ordner der Schritte, mit `in/` und `out/` |

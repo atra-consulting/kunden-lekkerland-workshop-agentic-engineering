@@ -55,6 +55,7 @@ python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-12
 - Der Ordner heißt `factory/`, denn dort sucht der Skill [`schreibe-ticket`](../../werkzeuge/schreibe-ticket/README.md) `agentic-factory.py` und `readiness.md`.
 - Euren Testbefehl tragt ihr in `config.json` ein, als `test_command`, etwa `"make test"`. `init` schlägt ihn vor. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. `assess`, `clarify` und `spec` brauchen ihn nicht. Was das Skript am Testbefehl prüft, steht unter [Der Testbefehl](#der-testbefehl).
 - `local.json` hat nur noch die Einstellungen eures Rechners. Steht dort noch ein älterer Schlüssel, stoppt das Skript und sagt, wohin der Wert gehört, etwa `test_command moved to config.json (key test_command); remove it from local.json`.
+- Das Ticket nennt ihr direkt nach dem Modus, als Schlüssel oder als URL aus dem Browser: `spec LL-123` oder `spec https://example.atlassian.net/browse/LL-123`. Der Host der URL muss zu eurer Jira-Seite passen (`jira_site` in `local.json` oder `JIRA_BASE_URL`), sonst stoppt das Skript. `--key LL-123` ist die lange Form und geht weiter.
 - `--ticket-file` heißt offline: Das Skript fragt Jira nie und postet nichts. Der erste Lauf mit `--print-only` startet keinen Copilot-Aufruf und kostet nichts.
 - Jira-Zugangsdaten gehören nie in `local.json`, nur in die Umgebung: `JIRA_BASE_URL`, `JIRA_API_TOKEN` und für Jira Cloud `JIRA_EMAIL`. Die braucht nur `--jira api`.
 
@@ -187,8 +188,8 @@ Was ein neuer Lauf damit macht, hängt davon ab, ob es schon einen Build gibt. �
 
 1. `spec` schreibt die Spec und postet `[KI] agentic-factory spec key=LL-123`.
 2. Lest die Spec. Schreibt euer Feedback als Kommentar ins Ticket, der mit `[Mensch]` beginnt. Oder ändert die Spec-Dateien selbst. Oder beides.
-3. Prüft, was der nächste Lauf tun würde: `python3 -I factory/agentic-factory.py spec --key LL-123 --print-only`. Die Ausgabe nennt die Kommentare, die er bearbeitet, und ob die Spec von Hand geändert ist.
-4. Startet `spec` noch einmal, mit denselben Optionen wie beim ersten Mal, etwa `--framework`: `python3 -I factory/agentic-factory.py spec --key LL-123`.
+3. Prüft, was der nächste Lauf tun würde: `python3 -I factory/agentic-factory.py spec LL-123 --print-only`. Die Ausgabe nennt die Kommentare, die er bearbeitet, und ob die Spec von Hand geändert ist.
+4. Startet `spec` noch einmal, mit denselben Optionen wie beim ersten Mal, etwa `--framework`: `python3 -I factory/agentic-factory.py spec LL-123`.
 5. Das Skript postet `[KI] agentic-factory spec überarbeitung=2 key=LL-123`: welche Kommentare bearbeitet sind, den Diff zur vorigen Fassung und die ganze Spec. Lest ihn.
 6. Wiederholt das, bis die Spec passt. Dann startet ihr `build`.
 
@@ -198,7 +199,7 @@ Eine Überarbeitung hat keine Bereitschaftsprüfung: Das Ticket hat sie beim ers
 
 1. `build` setzt die Spec um und postet `[KI] agentic-factory build key=LL-123`, mit den geänderten Dateien, der Testzeile, `Start-Commit` und `Spec-Prüfsumme`.
 2. Lest `git diff` und startet die Tests. Schreibt euer Feedback als `[Mensch]`-Kommentar ins Ticket. Oder ändert die Spec-Dateien. Oder beides. Committen dürft ihr zwischendurch: Das Skript vergleicht mit dem `Start-Commit`, committete und uncommittete Änderungen zählen gleich.
-3. Startet `build` noch einmal: `python3 -I factory/agentic-factory.py build --key LL-123`. Das passiert:
+3. Startet `build` noch einmal: `python3 -I factory/agentic-factory.py build LL-123`. Das passiert:
    - **Mit neuen Kommentaren** startet zuerst ein Aufruf „amend“. Er schreibt die Kommentare als neue, offene Aufgaben in die Spec, unter der Überschrift `## Änderungen nach Review (Überarbeitung <n>)`. Danach prüft das Skript, dass er nur die erlaubten Dateien geändert und nichts committet hat.
    - **Dann der Build-Aufruf** des Frameworks, mit dem normalen Prompt. Er setzt die offenen Aufgaben um. Habt ihr die Spec von Hand geändert, bekommt der Prompt dazu den Diff seit dem letzten Build, als Block `<<<SPEC CHANGES … SPEC CHANGES>>>`, mit dem Auftrag, den Code daran anzupassen. Die Tests laufen wieder.
    - Die Änderungen liegen danach uncommittet auf dem vorigen Build.

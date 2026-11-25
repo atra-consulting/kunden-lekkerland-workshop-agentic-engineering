@@ -27,6 +27,7 @@ Diese Seite sagt, was sich an `agentic-factory.py` gegenüber `local.py` und der
 | Jeder Lauf von `spec` und `build` startet wie der erste | Ein neuer Lauf überarbeitet Spec oder Code nach `[Mensch]`-Kommentaren und Änderungen von Hand, siehe [Feedback](#feedback). `--fresh` startet wie beim ersten Mal |
 | `build --framework …` liest kein Ticket | `build` liest das Ticket immer, aus Jira oder aus `--ticket-file` |
 | Die Optionen `--key`, `--ticket-file`, `--framework`, `--change`, `--no-assess`, `--print-only`, `--config`, `--local`, `--readiness`, `--repo` | Bleiben. Neu: `--jira`, `--comments-file`, `--no-post`, `--apply`, `--fresh`, `--step`, `--io-dir` |
+| `--key LL-123` nennt das Ticket | Neu: das Ticket direkt nach dem Modus, als Schlüssel oder Jira-URL: `spec LL-123` oder `spec https://example.atlassian.net/browse/LL-123`. Der Host der URL muss zu `jira_site` oder `JIRA_BASE_URL` passen. `--key` bleibt als lange Form |
 | Exit-Codes 0, 2, 4 (nicht bereit) und 5 (Fragen) | Dazu 6: `clarify` hat seine Grenze an Runden erreicht |
 
 ### Jira
@@ -228,7 +229,7 @@ Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test
 
 ### Was danach anders läuft
 
-- **Das Skript postet (A).** Jeder Lauf mit `--key` liest das Ticket mit allen Kommentaren. `spec`, `build` und `clarify` posten ihr Ergebnis als `[KI]`-Kommentar unter eurem Konto, `assess` nur bei „nicht bereit“. Wollt ihr nur lesen, nehmt `--no-post`. Ganz ohne Jira geht es mit `--ticket-file`.
+- **Das Skript postet (A).** Jeder Lauf mit einem Ticket aus Jira liest das Ticket mit allen Kommentaren. `spec`, `build` und `clarify` posten ihr Ergebnis als `[KI]`-Kommentar unter eurem Konto, `assess` nur bei „nicht bereit“. Wollt ihr nur lesen, nehmt `--no-post`. Ganz ohne Jira geht es mit `--ticket-file`.
 - **Der Standardweg ist der Jira-MCP (A).** Wollt ihr REST wie bei `local.py`, gebt `--jira api` an.
 - **Ein neuer Lauf überarbeitet.** Startet ihr `spec` oder `build` noch einmal, nimmt das Skript die neuen `[Mensch]`-Kommentare und eure Änderungen an der Spec. Gibt es beides nicht, stoppt es mit `nothing new since comment …`, postet nichts und endet mit Exit-Code 0. Ganz neu anfangen: `--fresh`.
 - **`spec` lehnt nach einem Build ab:** `a build exists for LL-123 (comment …); give feedback through build, or run spec --fresh`.

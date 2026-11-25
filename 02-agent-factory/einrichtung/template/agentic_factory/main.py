@@ -1,16 +1,18 @@
 """agentic-factory.py: run the factory's Copilot calls for one Jira ticket, in your own project, and post the result
 on the ticket as a comment that starts with [KI].
 
-Usage (from anywhere inside the project's git repository):
-  python3 agentic-factory.py assess  --key LL-123          readiness check (needs an "assess" block in config.json)
-  python3 agentic-factory.py spec    --key LL-123 [--framework speckit] [--no-assess]
-  python3 agentic-factory.py build   --key LL-123 [--change <name>] [--framework speckit]
-  python3 agentic-factory.py clarify --key LL-123 [--apply]  clarify the ticket in rounds of comments
-  python3 agentic-factory.py spec    --key LL-123 [--fresh]  again: revise the spec from [Mensch] comments and hand edits;
+Usage (from anywhere inside the project's git repository; the ticket is its key or its Jira URL, such as
+https://example.atlassian.net/browse/LL-123; --key LL-123 is the long form):
+  python3 agentic-factory.py assess  LL-123                readiness check (needs an "assess" block in config.json)
+  python3 agentic-factory.py spec    LL-123 [--framework speckit] [--no-assess]
+  python3 agentic-factory.py build   LL-123 [--change <name>] [--framework speckit]
+  python3 agentic-factory.py clarify LL-123 [--apply]      clarify the ticket in rounds of comments
+  python3 agentic-factory.py spec    LL-123 [--fresh]      again: revise the spec from [Mensch] comments and hand edits;
                                                            --fresh starts over as a first spec
-  python3 agentic-factory.py spec    --key LL-123 --print-only  read the ticket, print the work calls, run none of them
+  python3 agentic-factory.py build   LL-123 [--fresh]      again: revise the build from [Mensch] comments and spec edits
+  python3 agentic-factory.py spec    LL-123 --print-only   read the ticket, print the work calls, run none of them
   python3 agentic-factory.py init    [--apply]             suggest config.json and readiness.md changes from the project's docs
-                                                           (local only; no --key, no Jira; --apply writes the last checked result)
+                                                           (local only; no ticket, no Jira; --apply writes the last checked result)
 
 Options:
   --jira mcp|api         how to reach Jira. mcp: your Copilot's Atlassian MCP server (local.json jira_mcp_server,
@@ -43,6 +45,7 @@ import os
 import sys
 
 from . import copied, config, checks, fetch, agent, init, post
+from . import ticket as ticket_mod
 
 
 # --- main -------------------------------------------------------------------------------------------------------------
@@ -51,7 +54,9 @@ def parse(argv):
     ap = argparse.ArgumentParser(prog="agentic-factory.py",
                                  description="Run the factory's Copilot calls for a Jira ticket and post the result.")
     ap.add_argument("mode", choices=list(fetch.MODES))
-    ap.add_argument("--key", help="Jira ticket key, such as LL-123")
+    ap.add_argument("ticket", nargs="?", help="the ticket: its key, such as LL-123, or its Jira URL, such as "
+                    "https://example.atlassian.net/browse/LL-123 (not for init)")
+    ap.add_argument("--key", help="Jira ticket key, such as LL-123 (the long form of the ticket argument)")
     ap.add_argument("--jira", choices=["mcp", "api"], help="how to reach Jira: mcp (your Copilot's Atlassian MCP "
                     "server; default outside a pipeline) or api (REST; default in a pipeline)")
     ap.add_argument("--ticket-file", help="JSON with key, summary, description, labels; offline: no Jira, no posts")
@@ -83,7 +88,14 @@ def main(argv=None):
     fetch.step_checks(a.step, a.mode, os.environ)
     if a.print_only and a.step not in ("all", "agent"):
         raise config.Stop("--print-only works with --step all or --step agent")
+    if a.mode == "init" and a.ticket is not None:
+        raise config.Stop("init takes no ticket: it reads the project's docs, not Jira")
     run = fetch.Run(a)
+    if a.ticket is not None:  # the short form of --key: a key or a ticket URL, before any call (ruling R33)
+        key = ticket_mod.key_from_arg(a.ticket, run.cfg, run.local, os.environ)
+        if a.key and a.key != key:
+            raise config.Stop(f"the ticket {key} differs from --key {a.key}")
+        a.key = key
     if a.mode == "init":  # no ticket, no Jira, no route
         return init.run_init(run, a.apply, a.print_only)
     if a.mode == "assess" and not run.A:

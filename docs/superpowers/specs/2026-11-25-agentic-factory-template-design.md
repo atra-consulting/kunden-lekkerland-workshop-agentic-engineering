@@ -415,6 +415,21 @@ The steps cover:
   - A rerun of `spec`/`build` with `[Mensch]` comments revises.
   - A `local.json` with old keys stops the script.
 
+## Fix wave additions (rulings R29 to R33)
+
+- **Git runs no repo code (R29, R31, R32).** Every git call of the script runs with `-c core.fsmonitor=false
+  -c core.hooksPath=~/.factory-local/no-hooks -c diff.external= -c core.pager=cat`; its `git diff` calls add
+  `--no-ext-diff --no-textconv`. `fetch.Run` records sha256 of `.git/config`, `config.worktree`, every file under
+  `hooks/`, and every file their `include.path`/`includeIf.*.path` name (recursively, depth 10). Every later git call
+  checks against that record, and each Copilot call checks before/after in a `finally`. A change stops the run before
+  the next git command. An include inside the project stops before any Copilot call. Defense in depth, not extended
+  further.
+- **The ticket as a positional argument (R33).** `agentic-factory.py spec OFT-1` or `spec
+  https://<site>/browse/OFT-1` (also `?selectedIssue=OFT-1`). The URL's host and port must match `jira_site`, else
+  `JIRA_BASE_URL`; without either the key counts and the host is named as ignored. `--key` stays as the long form; both
+  given and different stop. `init` takes no ticket.
+- **revise and amend keep `read_tools`** (the user's answer to security I1 item 3).
+
 ## Left to the builder
 
 - Exact wording of the new prompts (`init.prompt`, `frameworks.<fw>.revise_prompt`, the amend prompt) and of the German

@@ -2,6 +2,7 @@
 import hashlib
 import re
 import subprocess
+import urllib.parse
 from pathlib import Path
 
 from . import copied, config
@@ -41,6 +42,44 @@ def load_ticket_file(path, key):
     t = {"key": key or t.get("key", ""), "summary": str(t.get("summary") or "").strip(),
          "description": str(t.get("description") or "").strip(), "labels": list(t.get("labels") or [])}
     return t
+
+
+NOT_A_TICKET = "expected a ticket key such as OFT-1 or a Jira ticket URL"
+BROWSE = re.compile(r"(?:.*/)?browse/([^/]+)/?")
+
+
+def _host_port(netloc_url):
+    """(host in lower case, port) of a URL; the scheme's default port when it names none."""
+    u = urllib.parse.urlsplit(netloc_url)
+    try:
+        port = u.port
+    except ValueError:
+        port = -1
+    return (u.hostname or "").lower(), port or {"https": 443, "http": 80}.get(u.scheme)
+
+
+def key_from_arg(value, cfg, local, env):
+    """The ticket key of the positional argument (ruling R33): a key that matches key_pattern, or a Jira URL,
+    https://<host>/browse/<KEY> (also with a query or fragment) or one with ?selectedIssue=<KEY>. The URL's host and
+    port must be the configured site's (local.json jira_site, else JIRA_BASE_URL); without one the key counts and
+    the host is named as ignored. Anything else stops."""
+    value = (value or "").strip()
+    if re.fullmatch(cfg["key_pattern"], value):
+        return value
+    u = urllib.parse.urlsplit(value)
+    if u.scheme not in ("https", "http") or not u.hostname:
+        raise config.Stop(f"{value[:120]!r}: {NOT_A_TICKET}")
+    m = BROWSE.fullmatch(u.path)
+    key = urllib.parse.unquote(m.group(1)) if m else (urllib.parse.parse_qs(u.query).get("selectedIssue") or [""])[0]
+    if not re.fullmatch(cfg["key_pattern"], key):
+        raise config.Stop(f"{value[:120]!r}: {NOT_A_TICKET}")
+    site = local.get("jira_site") or env.get("JIRA_BASE_URL") or ""
+    host = u.hostname.lower() + (f":{u.port}" if u.port else "")
+    if not site:
+        config.say(f"note: no Jira site configured; took {key} from the URL and ignored the host {host}")
+    elif _host_port(value) != _host_port(site):
+        raise config.Stop(f"the ticket URL is on {host}, but the configured Jira site is {site.rstrip('/')}")
+    return key
 
 
 def check_key(cfg, key):

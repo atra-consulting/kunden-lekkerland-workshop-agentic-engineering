@@ -6,13 +6,14 @@ import os
 import subprocess
 import re
 import shutil
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from agentic_factory import config
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, E2E
+from .fakes import CFG, E2E, KEY
 
 
 class EndToEnd(E2E, unittest.TestCase):
@@ -72,6 +73,28 @@ class EndToEnd(E2E, unittest.TestCase):
         with self.assertRaisesRegex(config.Stop, "copilot exited with 3"):
             self.run_main("spec", "--ticket-file", str(self.tf))
         self.assertIn("Copilot's last lines:\n    Error: the model is not available", self.last_out)
+
+    def test_ticket_as_positional_argument(self):
+        rc, out = self.run_main("spec", KEY, "--ticket-file", str(self.tf), "--print-only")
+        self.assertEqual(rc, 0, out)
+        rc, out = self.run_main("spec", f"https://example.atlassian.net/browse/{KEY}?x=1#c", "--key", KEY,
+                                "--ticket-file", str(self.tf), "--print-only")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("ignored the host example.atlassian.net", out)
+
+    def test_ticket_argument_stops(self):
+        cases = ((("spec", "FLAB-8", "--key", KEY), "FLAB-8 differs from --key FLAB-7"),
+                 (("spec", "kaputt"), "expected a ticket key such as OFT-1 or a Jira ticket URL"),
+                 (("init", KEY), "init takes no ticket"))
+        for args, msg in cases:
+            with self.subTest(args=args), self.assertRaisesRegex(config.Stop, msg):
+                self.run_main(*args, "--ticket-file", str(self.tf))
+        self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "fake.py")],
+                                       "jira_site": "https://example.atlassian.net"}), encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "the ticket URL is on other.example, but the configured Jira site is "
+                                                 "https://example.atlassian.net"):
+            self.run_main("spec", f"https://other.example/browse/{KEY}", "--jira", "mcp")
+        self.assertFalse((self.d / "calls.jsonl").exists())
 
     def test_agent_commits_are_shown_and_checked(self):
         self.run_main("spec", "--ticket-file", str(self.tf))

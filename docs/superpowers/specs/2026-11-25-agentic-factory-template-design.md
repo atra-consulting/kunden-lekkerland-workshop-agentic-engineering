@@ -177,9 +177,11 @@ prompt examples in `einrichtung/prompt-beispiele/`, and `werkzeuge/schreibe-tick
 
 - `agentic-factory.py init [--apply] [--print-only]`. No ticket, no Jira, no `--key`. Local only: refused in a
   pipeline.
-- One unattended Copilot call: tools `read` and `write` only, `shell` denied, every MCP server off, cap 40 credits
-  (`init.max_ai_credits` in `config.json`, with `init.prompt`). It may write only `FACTORY-INIT.json` in the repo root;
-  the script checks that afterwards (as it does for `FACTORY-ASSESSMENT.json`) and removes the file.
+- One unattended Copilot call: file tool `read` only (no write tool), `shell` denied, every MCP server off, cap 40
+  credits (`init.max_ai_credits` in `config.json`, with `init.prompt`). The model replies with the JSON object as its
+  final message (bare or fenced as ```json). Any changed file or moved HEAD after the call stops the run. (Changed from
+  writing `FACTORY-INIT.json` after a security review: the docs in the prompt may carry a prompt injection, and the
+  after-call check can't see `.git/config`, hooks, or ignored files.)
 - It reads `AGENTS.md` and the files it links to, `README*`, `CONTRIBUTING*`, `.github/copilot-instructions.md`, and
   build files (`Makefile`, `package.json` scripts, `pom.xml`, `build.gradle*`, `pyproject.toml`, `go.mod`,
   `Cargo.toml`, and similar).
@@ -189,7 +191,7 @@ prompt examples in `einrichtung/prompt-beispiele/`, and `werkzeuge/schreibe-tick
 
 ### What it may suggest
 
-`FACTORY-INIT.json`, each suggestion with `reason` and `source` (file and line, or "blocked.jsonl"):
+The reply JSON, each suggestion with `reason` and `source` (file and line, or "blocked.jsonl"):
 
 - `test_command`: one string.
 - `add_tools`: per framework and mode (`spec`, `build`), tools to add.
@@ -210,6 +212,12 @@ The docs go into the prompt and may carry a prompt injection, so the script chec
   `shell(uv:*)` stays as it is; `init` just can't add more like it.
 - A `test_command` suggestion passes the same checks as a hand-set one (part 1); its derived tool is the whole
   command as a prefix, so `uv run pytest` is fine although `shell(uv:*)` is refused.
+- Package managers fail closed: only test/run-style subcommands are accepted (npm/pnpm/yarn/bun `test`, `t`, `tst`,
+  `run`; uv/poetry/pipenv/pdm `run`; cargo `test`, `build`, `check`, `clippy`, `fmt`; go `test`, `build`, `vet`; composer
+  `test`, `run-script`; none for bundle, gem, pip), with only `--opt=value` options before the subcommand.
+- Also refused: `git` (any subcommand), `find`, `sed`, `awk`, `xargs`, `rg`, `tree`, `sort`, `tar`, `docker`, `podman`.
+- `add_protected_paths`: at most 200 characters each, no whitespace or control characters, at most 20 per run.
+- `readiness_md` with control characters (other than newline and tab) or bidi marks is refused.
 - A refused suggestion is shown as refused, with the reason, not silently dropped.
 - Broad tools are flagged in the report, such as `shell(make:*)` ("allows every Make target").
 - `readiness_md` passes the same checks as `readiness.md` today (`readiness.criteria`), and must keep every existing

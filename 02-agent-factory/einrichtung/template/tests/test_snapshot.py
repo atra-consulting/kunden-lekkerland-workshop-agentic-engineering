@@ -248,6 +248,16 @@ class PathsInSpecText(SnapshotTest):
         self.assertEqual(snapshot.paths_in_spec_text(text),
                          ["openspec/changes/c/design.md", "openspec/changes/c/proposal.md", "openspec/changes/c/tasks.md"])
 
+    def test_spec_result_skips_symlinks(self):
+        F = CFG["frameworks"]["openspec"]
+        self.write("openspec/changes/c/proposal.md", "p")
+        secret = self.d / "secret.txt"
+        secret.write_text("geheim", encoding="utf-8")
+        (self.repo / "openspec/changes/c/leak.md").symlink_to(secret)
+        _, text = fetch.spec_result(self.repo, F, ["openspec/changes/c/proposal.md", "openspec/changes/c/leak.md"])
+        self.assertNotIn("geheim", text)
+        self.assertEqual(snapshot.paths_in_spec_text(text), ["openspec/changes/c/proposal.md"])
+
     def test_no_headers(self):
         self.assertEqual(snapshot.paths_in_spec_text(""), [])
         self.assertEqual(snapshot.paths_in_spec_text("just text\n"), [])

@@ -120,13 +120,13 @@ def spec_result(repo, F, paths):
     """(change, spec text) of a spec run: the changed files under the framework's spec folders, in the format of
     factory/common.py spec_text. Exactly one change."""
     rx = re.compile(F["spec_change_re"])
-    files = sorted({p for p in paths if rx.match(p) and (repo / p).is_file()})
+    files = sorted({p for p in paths if rx.match(p) and snapshot._plain_file(repo, p)})  # never a symlink's target
     names = sorted({m.group(1) for p in files for m in [rx.match(p)] if m.group(1)})
     if len(names) != 1:
         raise config.Stop(f"the spec calls must write exactly one change; found {names or 'none'}, so nothing is posted")
     parts = []
     for p in files:
-        body = (repo / p).read_bytes().decode("utf-8", errors="replace")
+        body = snapshot._inside(repo, p).read_bytes().decode("utf-8", errors="replace")
         parts.append(f"=== {p} ===\n{body.rstrip(chr(10))}\n")
     return names[0], "\n".join(parts)
 

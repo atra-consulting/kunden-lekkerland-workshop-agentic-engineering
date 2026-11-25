@@ -167,7 +167,7 @@ Jedes Ticket hat genau dieses Format:
 ```
 
 - Übernimm Entscheidungen und Kriterien aus dem Ergebnis des Frameworks. Kopiere keine Framework-Abschnitte wörtlich.
-- **Regeln des Teams:** Hat `factory/config.json` einen Block `rules`, lies die Dateien unter `rules.calls.clarify`. Ihre Pfade gelten ab `factory/`, etwa `factory/regeln/stil.md`. Lies nur Pfade, die unter `factory/` bleiben: keine absoluten Pfade, kein `..`. Befolge sie beim Schreiben. Fehlt eine Datei, überspring sie.
+- **Teamregeln:** Sie stehen in `AGENTS.md` im Wurzelordner des Projekts. Copilot lädt die Datei selbst. Befolge sie beim Schreiben.
 - Ist eine Änderung am heutigen Verhalten gewollt, steht unter „Hinweise“: das alte Verhalten, die Fundstelle und die Tests, die sich ändern.
 - Kein Markdown außer `#`, `##`, `-` und `` `Code` ``. Keine Links in der Form `[x]: y`.
 - Keine Kundendaten oder Zugangsdaten. Ist das Jira-Projekt öffentlich, auch keine internen Namen.

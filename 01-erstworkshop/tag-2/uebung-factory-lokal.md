@@ -20,7 +20,7 @@ Die Übung hat zwei Teile:
 
 Aus dem Test dieser Übung am Morgen des 24. November:
 
-1. **Testbefehl vor dem Commit eintragen ([Schritt 2](#2-agentic-factorypy-einrichten)).** In `factory/local.json` steht `make test`. Lasst ihn nur stehen, wenn euer Makefile dieses Ziel hat.
+1. **Testbefehl vor dem Commit eintragen ([Schritt 2](#2-agentic-factorypy-einrichten)).** In `factory/config.json` ist `test_command` leer. Ohne Testbefehl stoppt `build`.
 2. **Anmeldung beim Jira-MCP prüfen ([Schritt 3](#3-jira-mcp-in-copilot-cli-prüfen)).** Nach „Authenticate“ muss `/mcp` den Server `atlassian` als verbunden zeigen. Ohne Anmeldung scheitert Schritt 4 still: Copilot meldet, die Werkzeuge seien nicht verfügbar, und schreibt keine Datei. Das kostet trotzdem etwa 7 Credits.
 3. **Klappt die Anmeldung nicht ([Schritt 4](#4-ticket-über-den-jira-mcp-holen)):** Legt die Ticket-Datei von Hand an, im Format aus [Übung 2, Schritt 1](uebung-bereitschaft.md#1-ein-vages-ticket-schreiben). Dann geht es mit Schritt 5 weiter.
 4. **Beim Bauen `--change <name>` angeben ([Schritt 9](#9-bauen)).** `<name>` ist der Spec-Ordner aus Schritt 7. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
@@ -42,12 +42,12 @@ git merge <doku-branch>
 
 ## 2. `agentic-factory.py` einrichten
 
-Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien und die Ordner `agentic_factory/`, `agentic-factory-plugin/` und `regeln/` aus der [Vorlage](../../02-agent-factory/einrichtung/template/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
+Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien und die Ordner `agentic_factory/` und `agentic-factory-plugin/` aus der [Vorlage](../../02-agent-factory/einrichtung/template/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
 
 ```bash
 git clone https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering.git ~/workshop-agentic-engineering
 mkdir -p factory
-cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic_factory,agentic-factory-plugin,regeln} factory/
+cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic_factory,agentic-factory-plugin} factory/
 cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic-factory.py,config.json,readiness.md,local.example.json} factory/
 cp factory/local.example.json factory/local.json
 ```
@@ -59,8 +59,7 @@ cp factory/local.example.json factory/local.json
 | `agentic_factory/` | Ja | Stopp mit `can't load agentic_factory/`. |
 | `config.json` | Ja | Prompts, Werkzeug-Freigaben, Modell und Credit-Grenzen fehlen. Das Skript läuft nicht. |
 | `readiness.md` | Für `assess` und für `spec` mit Bereitschaftsprüfung | Stopp mit `readiness.md not found`. `spec --no-assess` und `build` laufen ohne sie. |
-| `regeln/` | Solange `config.json` die Dateien im Block `rules` nennt | Stopp mit `team rules: regeln/stil.md not found`. |
-| `local.json` | Nein | Keine Anpassungen. Es gelten die Werte aus `config.json`, auch der Testbefehl `./bin/phpunit`. |
+| `local.json` | Nein | Keine Einstellungen für euren Rechner. Es gelten die Werte aus `config.json`. |
 | `agentic-factory-plugin/` | Nur, wenn das Skript selbst Jira über MCP ruft. In dieser Übung nicht | Nichts. Mit `--ticket-file` ruft das Skript Jira nie |
 
 Die Vorlage ist aus `local.py` im Lab-Repo entstanden, Branch `factory-base`. Die anderen Dateien dort, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
@@ -69,16 +68,16 @@ Lest vor dem ersten Lauf den Abschnitt [Sicherheit](../../02-agent-factory/einri
 
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `agentic-factory.py` und `readiness.md`.
 - Diese Übung nimmt das Ticket immer mit `--ticket-file`. Dann fragt das Skript Jira nie und schreibt keine Kommentare ins Ticket. Wie es Jira selbst liest und kommentiert, steht in der [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#zwei-wege-zu-jira---jira).
-- Öffnet `factory/local.json`. Dort steht `"test_command": "make test"`. Tragt euren echten Testbefehl ein, bevor ihr committet. `make test` lasst ihr nur stehen, wenn euer Makefile dieses Ziel hat. Sonst laufen beim Bauen keine Tests.
-- Achtung: Aus `make test` wird die Erlaubnis `shell(make:*)`, allgemein `shell(<erstes Wort eures Testbefehls>:*)`. Damit darf der Agent **jedes** Make-Ziel starten, nicht nur `make test`. Über Make kann er beliebige Befehle ausführen, als ihr und mit eurer Umgebung.
-- In `local.json` steht auch `stack_hint`. Spec Kit nutzt ihn im Plan-Prompt. Passt ihn an euren Stack an.
+- Öffnet `factory/config.json`. Dort steht `"test_command": ""`. Tragt euren echten Testbefehl ein, bevor ihr committet, etwa `"test_command": "make test"`. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. Den Vorschlag kann euch auch `init` machen, siehe [Vorlage](../../02-agent-factory/einrichtung/template/README.md#erste-einrichtung-mit-init). Das kostet einen Aufruf, höchstens 40 Credits.
+- Aus dem Testbefehl wird die Erlaubnis für den ganzen Befehl: Aus `make test` wird `shell(make test:*)`. Das ist enger als früher, aber keine Grenze: Der Agent darf Argumente anhängen, bei Make also auch weitere Ziele, etwa `make test deploy`. `bash -c …`, `&&`, `|` und Anführungszeichen lehnt das Skript im Testbefehl ab. Braucht ihr so etwas, schreibt ein Make-Ziel.
+- `local.json` hat nur Einstellungen eures Rechners, etwa `model`. Euren Stack beschreibt ihr in `AGENTS.md`. Copilot liest die Datei selbst.
 
 ```bash
 git add factory
 git commit -m "Factory-Schritte lokal"
 ```
 
-**Das seht ihr:** Copilot CLI 1.0.114 oder neuer. Im Ordner `factory/` liegen `agentic-factory.py`, `config.json`, `readiness.md`, `local.json` und die Ordner `agentic_factory/`, `agentic-factory-plugin/` und `regeln/`.
+**Das seht ihr:** Copilot CLI 1.0.114 oder neuer. Im Ordner `factory/` liegen `agentic-factory.py`, `config.json`, `readiness.md`, `local.json` und die Ordner `agentic_factory/` und `agentic-factory-plugin/`.
 
 ## 3. Jira-MCP in Copilot CLI prüfen
 
@@ -171,7 +170,7 @@ python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-12
 
 Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“ startet der Spec-Schritt.
 
-**Das seht ihr:** `[agentic-factory] Jira route: offline (offline input)`, `[agentic-factory] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Mit den Regeln des Teams aus `config.json` kann die Prüfung auch `not_ready` mit dem Grund `team_rules` melden, etwa bei mehr als 10 Akzeptanzkriterien. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Am Ende `[agentic-factory] done: … credits …`, `[agentic-factory] uncommitted changes` und `comment not posted (offline input)`: Den Kommentar für Jira schreibt das Skript nur in eine Datei.
+**Das seht ihr:** `[agentic-factory] Jira route: offline (offline input)`, `[agentic-factory] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Jede Ablehnung schreibt das Skript auch nach `~/.factory-local/<repo>/blocked.jsonl`, siehe [Vorlage](../../02-agent-factory/einrichtung/template/README.md#blockierte-aufrufe-blockedjsonl). Am Ende `[agentic-factory] done: … credits …`, `[agentic-factory] uncommitted changes`, eine Zeile wie `[agentic-factory] no blocked calls` und `comment not posted (offline input)`: Den Kommentar für Jira schreibt das Skript nur in eine Datei.
 
 - **`not ready: no spec calls`, Exit-Code 4:** Gründe und Fragen stehen in der Ausgabe. Verbessert die Beschreibung in Jira und holt das Ticket neu (Schritt 4). Genau das übt ihr in Übung 2.
 - **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe. Löscht `FACTORY-QUESTIONS.md`, bevor ihr `spec` neu startet. Sonst stoppt das Skript.
@@ -206,13 +205,13 @@ python3 -I factory/agentic-factory.py build --ticket-file ~/factory-tickets/LL-1
 
 `<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
 
-**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(<erstes Wort eures Testbefehls>:*)`, etwa `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
+**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste euer ganzer Testbefehl, etwa `shell(make test:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
 
 ## 10. Freigabe 2: Ihr lest den Diff
 
 ```bash
 git diff
-make test      # oder euer Testbefehl aus local.json
+make test      # oder euer Testbefehl aus config.json
 ```
 
 Beim Bau stoppt lokal keine Prüfung den Lauf. Darum lest ihr den Diff selbst:
@@ -221,7 +220,7 @@ Beim Bau stoppt lokal keine Prüfung den Lauf. Darum lest ihr den Diff selbst:
 - Hat der Agent etwas geändert, das das Ticket nicht verlangt?
 - Würdet ihr den Code von einem Kollegen so annehmen?
 
-Steht in der Ausgabe `WARNING: protected paths changed`, prüft diese Dateien und setzt sie zurück. Die Liste ist die des Labs: Euer `Makefile` steht nicht darauf. Dann committet ihr den Bau:
+Steht in der Ausgabe `WARNING: protected paths changed`, prüft diese Dateien und setzt sie zurück. Die Liste steht in `config.json` unter `protected_paths`. Euer `Makefile` steht nicht darauf. Dann committet ihr den Bau:
 
 ```bash
 git add -A

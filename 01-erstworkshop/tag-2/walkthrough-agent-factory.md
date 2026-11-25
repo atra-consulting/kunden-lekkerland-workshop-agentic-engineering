@@ -204,7 +204,7 @@ Hinweise
 
 ### Lokal, ohne Pipeline
 
-Dieselben Copilot-Aufrufe wie die Factory startet ihr auch im Terminal, in eurem eigenen Repository: mit `agentic-factory.py`. Prompts, Werkzeuge und Optionen kommen aus derselben `factory/config.json`, die Kriterien aus derselben `readiness.md`. Ein Test stellt sicher, dass beide Wege dieselben Aufrufe machen.
+Dieselben Copilot-Aufrufe wie die Factory startet ihr auch im Terminal, in eurem eigenen Repository: mit `agentic-factory.py`. Prompts, Werkzeuge und Optionen kommen aus `factory/config.json`, aufgebaut wie die der Factory, die Kriterien aus derselben `readiness.md`. Mit einer Konfiguration wie der des Labs stellt ein Test sicher, dass beide Wege dieselben Aufrufe machen. Die Vorlage ist allgemeiner: ohne Symfony, mit lesenden Befehlen wie `ls` und `grep` für Spec und Bau. Die Unterschiede zeigen die [Prompt-Beispiele](../../02-agent-factory/einrichtung/prompt-beispiele/README.md).
 
 ```bash
 python3 -I factory/agentic-factory.py assess --ticket-file ~/factory-tickets/LL-123.json               # nur die Bereitschaftsprüfung
@@ -215,7 +215,7 @@ python3 -I factory/agentic-factory.py clarify --key LL-123                      
 ```
 
 - **Das Ticket** liest das Skript mit `--key` selbst, über euren Jira-MCP-Server. Mit `--ticket-file` liest es eine Datei. Ein API-Token braucht ihr nicht.
-- **Euer Testbefehl,** etwa `make test`, kommt in `local.json` unter `test_command`.
+- **Euer Testbefehl,** etwa `make test`, kommt in `config.json` unter `test_command`. `init` schlägt ihn und weitere Einstellungen aus der Doku eures Projekts vor.
 - **Anders als in der Factory:** Mit `--ticket-file` schreibt das Skript nichts nach Jira. Mit `--key` postet es Kommentare, die mit `[KI]` beginnen, und setzt nie einen Status. Es gibt keine Freigabe zwischen Spec und Bau. Keine Prüfung der geänderten Dateien stoppt den Lauf. `agentic-factory.py` warnt nur bei geschützten Pfaden und, beim Spec-Lauf, bei Dateien außerhalb des Spec-Ordners. Copilot läuft als ihr, mit euren Rechten und ohne Container. Den Diff prüft ihr selbst.
 - **`--print-only`** zeigt die Copilot-Befehle. Diese Befehle sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines. Guard, Prüfung und die getrennten Schritte der Factory kommen dazu.
 - **Im Lab** kostete OpenSpec etwa 27 Credits für die Spec und 17 für den Bau, je etwa eine Minute. Windows ist nicht getestet.

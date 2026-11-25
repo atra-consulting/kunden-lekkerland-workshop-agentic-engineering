@@ -18,7 +18,8 @@ JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on 
 
 # --- the calls --------------------------------------------------------------------------------------------------------
 
-TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # one word of a test command; no quotes, "$", "=", ";", "&", "|", "<", ">"
+TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # the first word; no quotes, "$", "=", ";", "&", "|", "<", ">"
+ARG_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%=-]+")  # the other words: the same, plus "=" (--maxfail=1)
 INTERPRETERS = {"bash", "sh", "zsh", "dash", "python", "python3", "node", "ruby", "perl", "pwsh", "powershell"}
 INLINE_CODE_FLAGS = {"-c", "-e", "--eval", "-Command"}
 
@@ -32,10 +33,11 @@ def check_test_command(cmd):
     if "=" in words[0]:
         raise config.Stop(f"test_command {cmd!r}: an environment assignment in front of the command isn't allowed; "
                           "put it in a script or a make target")
-    for w in words:
-        if not TEST_CHARS.fullmatch(w):
-            raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % -; "
-                              "shell syntax and quotes aren't allowed, put them in a script or a make target")
+    for i, w in enumerate(words):
+        if not (TEST_CHARS if i == 0 else ARG_CHARS).fullmatch(w):
+            raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % - "
+                              "(and = after the first word); shell syntax and quotes aren't allowed, "
+                              "put them in a script or a make target")
     if os.path.basename(words[0]) in INTERPRETERS and len(words) > 1 and words[1] in INLINE_CODE_FLAGS:
         raise config.Stop(f"test_command {cmd!r}: {words[0]} {words[1]} runs inline code; "
                           "use a script file or a make target")

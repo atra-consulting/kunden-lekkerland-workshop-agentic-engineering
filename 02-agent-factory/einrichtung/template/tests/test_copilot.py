@@ -240,6 +240,11 @@ class TestCommand(unittest.TestCase):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
 
+    def test_equals_sign_allowed_after_the_first_word(self):
+        for cmd in ("pytest --maxfail=1", "pytest -k a=b", "a a=b"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
     def test_denied_test_tool_stops(self):
         with self.assertRaises(config.Stop) as cm:
             self.build("npx jest")

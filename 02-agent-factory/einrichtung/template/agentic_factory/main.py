@@ -6,7 +6,7 @@ Usage (from anywhere inside the project's git repository):
   python3 agentic-factory.py spec    --key LL-123 [--framework speckit] [--no-assess]
   python3 agentic-factory.py build   --key LL-123 [--change <name>] [--framework speckit]
   python3 agentic-factory.py clarify --key LL-123 [--apply]  clarify the ticket in rounds of comments
-  python3 agentic-factory.py spec    --key LL-123 --print-only  read the ticket, print the copilot commands, run nothing
+  python3 agentic-factory.py spec    --key LL-123 --print-only  read the ticket, print the work calls, run none of them
 
 Options:
   --jira mcp|api         how to reach Jira. mcp: your Copilot's Atlassian MCP server (local.json jira_mcp_server,
@@ -58,7 +58,8 @@ def parse(argv):
     ap.add_argument("--no-post", action="store_true", help="write the comments to out/comment-<n>.txt, post nothing")
     ap.add_argument("--apply", action="store_true", help="clarify: set the clarified description")
     ap.add_argument("--print-only", action="store_true",
-                    help="read the ticket, print the copilot commands, run nothing")
+                    help="read the ticket (over MCP: one Jira call), print the copilot commands of the work calls, "
+                    "run none of them and set or post nothing")
     ap.add_argument("--step", choices=list(fetch.STEPS), default="all",
                     help="all (default) runs fetch, agent, and post in one process; a pipeline runs them one by one")
     ap.add_argument("--io-dir", help=f"the hand-over folder with in/ and out/ (default: <log folder>/io for --step "

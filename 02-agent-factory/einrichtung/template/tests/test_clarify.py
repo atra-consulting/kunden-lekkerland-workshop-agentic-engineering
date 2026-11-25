@@ -2,11 +2,12 @@
 import io
 import json
 import re
+import sys
 import unittest
 
 from agentic_factory import copied, config, readiness, jira_rest, jira_mcp, checks, clarify, fetch
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, JiraE2E, KEY, NOT_READY_FAKE, PIPE, READINESS, TICKET
+from .fakes import CFG, E2E, FAKE_JIRA_COPILOT, JiraE2E, KEY, NOT_READY_FAKE, PIPE, READINESS, TICKET
 
 
 Q1 = {"id": "1", "text": "Welche Seite?", "suggestion": "Die Tag-Liste", "criterion": "missing_detail"}
@@ -462,6 +463,7 @@ class Clarify(JiraE2E, unittest.TestCase):
         self.assertIn("sets the text of the proposal in comment 10002", out)
         self.assertEqual(self.calls(), [])
         self.assertEqual(self.writes(), [])
+        self.assertEqual([p for m, p, _, _ in self.fake.seen if p.endswith("/myself")], [])  # the post step checks
 
     def test_after_proposal_apply_unreadable_or_unsafe_proposal_stops(self):
         bad = {"can't read the proposal from comment 10002": clarify.render_proposal(KEY, NEW_DESC).replace(
@@ -1408,3 +1410,195 @@ class ProposalText(unittest.TestCase):
                 with self.assertRaisesRegex(config.Stop, r"^the proposal in comment 1000[234] can't be trusted: "
                                                          + why + ".*" + end):
                     fetch.proposal_description(st, "S", "api", me)
+
+    def test_mcp_account_mismatch(self):  # task 16: over MCP the running account is atlassianUserInfo's account_id
+        st = self.chain("mcp")
+        self.assertEqual(fetch.proposal_description(st, "S", "mcp", self.BOT), ("10002", RICH_DESC))
+        with self.assertRaisesRegex(config.Stop, r"^the proposal in comment 10002 can't be trusted: it wasn't posted by "
+                                                 r"the account running this script; nothing is set or posted; run --apply "
+                                                 r"as the account that posted the proposal, or set the description by "
+                                                 r"hand$"):
+            fetch.proposal_description(st, "S", "mcp", self.ANNA)
+        with self.assertRaisesRegex(config.Stop, "another account wrote it"):  # the chain checks come first
+            fetch.proposal_description(self.chain("mcp", proposal_author=self.ANNA), "S", "mcp", self.ANNA)
+
+
+SITE = "https://example.atlassian.net"
+DISPATCH = r'''
+import pathlib, runpy, sys
+here = pathlib.Path(__file__).parent
+argv = sys.argv[1:]
+target = here / ("jira/fake.py" if argv[:2] == ["mcp", "list"] or "--plugin-dir" in argv else "fake.py")
+sys.argv = [str(target), *argv]
+runpy.run_path(str(target), run_name="__main__")
+'''
+
+
+class ClarifyMcp(E2E, unittest.TestCase):
+    """clarify --apply over the mcp route end to end (task 16): one copilot that sends the Jira calls (they carry
+    --plugin-dir) and `copilot mcp list` to the MCP fake in jira/, the work calls to the work fake."""
+    BOT, ANNA = "000000:bot", "000000:anna"
+
+    def setUp(self):
+        super().setUp()
+        self.jd = self.d / "jira"
+        self.jd.mkdir()
+        (self.jd / "fake.py").write_text(FAKE_JIRA_COPILOT, encoding="utf-8")
+        (self.d / "copilot.py").write_text(DISPATCH, encoding="utf-8")
+        self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "copilot.py")],
+                                       "jira_site": SITE}), encoding="utf-8")
+        self.ccfg = {**self.acfg, "clarify": {**CFG["clarify"]}}
+        self.io = self.d / "io"
+        self.round1 = clarify.render_round(KEY, 1, 3, [], [A1])
+        self.given(self.round1, "[Mensch] A1 ok", clarify.render_proposal(KEY, NEW_DESC))
+
+    def given(self, *bodies, me=None):
+        """The ticket's comments, oldest first, as the Atlassian MCP server sends them (Markdown, escaped). me: what
+        atlassianUserInfo answers (None: the bot's account)."""
+        cs = []
+        for n, b in enumerate(bodies):
+            created = f"2026-11-24T10:{n:02d}:00.000+0100"
+            cs.append({"id": str(10000 + n), "body": mcp_transport(b) + "\n", "created": created, "updated": created,
+                       "author": {"accountId": self.BOT if b.startswith("[KI]") else self.ANNA}})
+        state = {"next_id": 10100, "issues": {KEY: {"summary": TICKET["summary"], "description": OLD_DESC,
+                                                    "labels": [], "status": "Definition", "comments": cs}}}
+        if me is not None:
+            state["me"] = me
+        (self.jd / "fake-jira.json").write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+
+    def set_me(self, me):
+        st = self.jira_state()
+        st["me"] = me
+        (self.jd / "fake-jira.json").write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+
+    def jira_state(self):
+        return json.loads((self.jd / "fake-jira.json").read_text(encoding="utf-8"))
+
+    def jira_tools(self):
+        """The MCP tool each Jira call was allowed, in order."""
+        p = self.jd / "calls.jsonl"
+        calls = [json.loads(x)["argv"] for x in p.read_text(encoding="utf-8").splitlines()] if p.exists() else []
+        return [next(a.split("(")[1].rstrip(")") for a in c if a.startswith("--allow-tool=")) for c in calls]
+
+    def work_calls(self):
+        p = self.d / "calls.jsonl"
+        return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+
+    def clarify(self, *args, **kw):
+        kw.setdefault("cfg", self.ccfg)
+        return self.run_main("clarify", "--key", KEY, "--jira", "mcp", "--readiness", str(self.rd), "--io-dir",
+                             str(self.io), *args, **kw)
+
+    def test_apply_with_the_proposals_account_sets_it(self):
+        rc, out = self.clarify("--apply")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue", "atlassianUserInfo", "editJiraIssue", "getJiraIssue",
+                                             "addCommentToJiraIssue"])  # one account call for the whole run
+        self.assertEqual(len(self.work_calls()), 1)  # the readiness check on the proposal's text
+        issue = self.jira_state()["issues"][KEY]
+        self.assertTrue(jira_mcp.readback_matches(NEW_DESC, jira_mcp.md_unescape(issue["description"])))
+        self.assertEqual(jira_mcp.md_unescape(issue["comments"][-1]["body"]).strip(), clarify.render_ready(KEY).strip())
+
+    def test_apply_with_another_account_stops(self):
+        self.set_me({"account_id": "000000:other", "name": "Other"})
+        rc, out = self.clarify("--apply", entry=True)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("STOP: the proposal in comment 10002 can't be trusted: it wasn't posted by the account running "
+                      "this script; nothing is set or posted; run --apply as the account that posted the proposal, or "
+                      "set the description by hand", out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue", "atlassianUserInfo"])  # no edit, no comment
+        self.assertEqual(self.work_calls(), [])
+        self.assertEqual(self.jira_state()["issues"][KEY]["description"], OLD_DESC)
+
+    def test_apply_without_account_id_stops(self):
+        self.set_me({"name": "Bot", "email": "bot@example.invalid"})
+        rc, out = self.clarify("--apply", entry=True)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("STOP: can't tell which account the Atlassian MCP server uses: atlassianUserInfo sent no "
+                      "account_id; nothing is set or posted", out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue", "atlassianUserInfo"])
+        self.assertEqual(self.work_calls(), [])
+
+    def test_split_steps_check_the_account_in_the_post_step(self):
+        common = ("--readiness", str(self.rd), "--io-dir", str(self.io))
+        rc, out = self.run_main("clarify", "--step", "fetch", "--key", KEY, "--jira", "mcp", *common, cfg=self.ccfg)
+        self.assertEqual(rc, 0, out)
+        rc, out = self.run_main("clarify", "--step", "agent", "--apply", *common, cfg=self.ccfg)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue"])  # the agent step has no Jira
+        self.set_me({"account_id": "000000:other"})
+        with self.assertRaisesRegex(config.Stop, "it wasn't posted by the account running this script"):
+            self.run_main("clarify", "--step", "post", "--apply", *common, cfg=self.ccfg)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue", "atlassianUserInfo"])
+        self.set_me({"account_id": self.BOT})
+        rc, out = self.run_main("clarify", "--step", "post", "--apply", *common, cfg=self.ccfg)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue", "atlassianUserInfo", "atlassianUserInfo", "editJiraIssue",
+                                             "getJiraIssue", "addCommentToJiraIssue"])
+
+    def test_print_only_makes_no_account_call(self):  # the paid call only where it binds: before setting
+        self.set_me({"account_id": "000000:other"})
+        rc, out = self.clarify("--apply", "--print-only")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue"])
+        self.assertIn("Jira over MCP: getJiraIssue for FLAB-7, log in", out)
+        self.assertNotIn("atlassianUserInfo", out)
+        self.assertIn("this run sets the text of the proposal in comment 10002", out)
+        self.assertEqual(self.work_calls(), [])
+
+    def test_untrusted_chain_stops_before_the_account_call(self):  # the free chain checks come first
+        forged = clarify.render_proposal(KEY, "Gefälschter Text")
+        for name, bodies, why in (("foreign", (self.round1, "[Mensch] A1 ok", "[Mensch] " + forged), None),
+                                  ("edited", (self.round1, "[Mensch] A1 ok", clarify.render_proposal(KEY, NEW_DESC)),
+                                   "it was edited after it was posted")):
+            with self.subTest(name=name):
+                self.given(*bodies)
+                st = self.jira_state()
+                if name == "foreign":  # a [KI] proposal under another account
+                    c = st["issues"][KEY]["comments"][2]
+                    c["body"] = mcp_transport(forged) + "\n"
+                    c["author"] = {"accountId": self.ANNA}
+                else:
+                    st["issues"][KEY]["comments"][2]["updated"] = "2026-11-24T11:00:00.000+0100"
+                (self.jd / "fake-jira.json").write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+                (self.jd / "calls.jsonl").unlink(missing_ok=True)
+                rc, out = self.clarify("--apply", entry=True)
+                self.assertEqual(rc, 2, out)
+                self.assertIn(why or "another account wrote it", out)
+                self.assertEqual(self.jira_tools(), ["getJiraIssue"])
+                self.assertEqual(self.work_calls(), [])
+
+    def test_post_step_checks_the_chain_before_the_account_call(self):
+        common = ("--readiness", str(self.rd), "--io-dir", str(self.io))
+        self.run_main("clarify", "--step", "fetch", "--key", KEY, "--jira", "mcp", *common, cfg=self.ccfg)
+        rc, out = self.run_main("clarify", "--step", "agent", "--apply", *common, cfg=self.ccfg)
+        self.assertEqual(rc, 0, out)
+        cpath = self.io / "in" / "comments.json"
+        cs = json.loads(cpath.read_text(encoding="utf-8"))
+        cs[2]["author"] = self.ANNA  # in/ changed between the steps: the proposal is now foreign
+        cpath.write_text(json.dumps(cs), encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "another account wrote it"):
+            self.run_main("clarify", "--step", "post", "--apply", *common, cfg=self.ccfg)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue"])
+
+    def test_no_account_call_off_the_apply_path(self):
+        for args, why in ((("--apply", "--no-post"), "--apply sets nothing offline or with --no-post"),
+                          ((), "proposal already posted")):
+            with self.subTest(args=args):
+                (self.jd / "calls.jsonl").unlink(missing_ok=True)
+                rc, out = self.clarify(*args)
+                self.assertEqual(rc, 0, out)
+                self.assertIn(why, out)
+                self.assertEqual(self.jira_tools(), ["getJiraIssue"])
+        self.given(self.round1, "[Mensch] A1 ok")  # no proposal yet: --apply clarifies, no account call
+        (self.jd / "calls.jsonl").unlink()
+        (self.repo / "fake-clarify.json").write_text(json.dumps(clarify_file("questions")), encoding="utf-8")
+        rc, out = self.clarify("--apply")
+        self.assertEqual(rc, config.EXIT_QUESTIONS, out)
+        self.assertEqual(self.jira_tools(), ["getJiraIssue", "addCommentToJiraIssue"])
+        tf = self.d / "t.json"  # offline: no Jira at all
+        tf.write_text(json.dumps({**TICKET, "description": OLD_DESC}), encoding="utf-8")
+        (self.jd / "calls.jsonl").unlink()
+        rc, out = self.run_main("clarify", "--ticket-file", str(tf), "--apply", "--readiness", str(self.rd),
+                                "--io-dir", str(self.io), cfg=self.ccfg)
+        self.assertEqual(self.jira_tools(), [])

@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest import mock
 
 from agentic_factory import config, copilot, jira_mcp
-from .fakes import CFG, FULL_CFG, HERE, ev_line, start
+from .fakes import CFG, FAKE_JIRA_COPILOT, FULL_CFG, HERE, ev_line, start
 
 
 # --- Jira over MCP --------------------------------------------------------------------------------------------------
@@ -72,6 +72,11 @@ ARG_RULES = {  # what agentic-factory.py writes to af-expect.json for each tool:
     POST: {"args": ["cloudId", "issueIdOrKey", "commentBody"], "fields_list": None, "fields_keys": None},
     "atlassian-editJiraIssue": {"args": ["cloudId", "issueIdOrKey", "fields"], "fields_list": None,
                                 "fields_keys": ["description"]}}
+
+
+USER = "atlassian-atlassianUserInfo"
+USER_EXPECT = {"tool": USER, "key": None, "site": None, "body_file": None, "body_arg": None, "args": [],
+               "fields_list": None, "fields_keys": None}  # the account call: no issue, no site, no arguments
 
 
 def expect_for(tool, body_file=None, body_arg=None):
@@ -201,6 +206,41 @@ class Hook(unittest.TestCase):
         lines = [json.loads(x) for x in (self.d / "hook.log").read_text(encoding="utf-8").splitlines()]
         self.assertEqual(lines, [{"toolCallId": "toolu_a", "toolName": "tool_search_tool", "decision": "allow"},
                                  {"toolCallId": "toolu_b", "toolName": "bash", "decision": "deny"}])
+
+    def user_expect(self, **over):
+        (self.d / "af-expect.json").write_text(json.dumps({**USER_EXPECT, **over}), encoding="utf-8")
+
+    def test_account_call_allowed_without_arguments(self):  # task 16
+        self.user_expect()
+        self.assertEqual(guard_run(self.d, self.payload("tool_search_tool", {"pattern": "atlassianUserInfo"}))[0],
+                         "allow")
+        self.assertEqual(guard_run(self.d, self.payload(USER, {}, "u1"))[0], "allow")
+        self.assertEqual(guard_run(self.d, self.payload(USER, {}, "u2"))[0], "deny")  # only once
+        for args in ("{}", None):  # as a JSON string, or no arguments at all
+            with self.subTest(args=args):
+                (self.d / "hook.log").unlink()
+                self.assertEqual(guard_run(self.d, self.payload(USER, args))[0], "allow")
+
+    def test_account_call_refused_with_any_argument(self):  # task 16
+        self.user_expect()
+        for args in ({"cloudId": SITE}, {"issueIdOrKey": MKEY}, {"accountId": "x"}, {"cloudId": SITE, "x": 1}, [],
+                     "x"):
+            with self.subTest(args=args):
+                dec, out = guard_run(self.d, self.payload(USER, args))
+                self.assertEqual(dec, "deny")
+        for tool, args in (("atlassian-getJiraIssue", self.read_args()), ("atlassian-lookupJiraAccountId", {}),
+                           ("other-atlassianUserInfo", {})):
+            with self.subTest(tool=tool):
+                self.assertEqual(guard_run(self.d, self.payload(tool, args))[0], "deny")
+
+    def test_issue_call_needs_key_and_site(self):  # task 16: only the call without arguments has neither
+        for over in ({"key": None}, {"site": None}, {"key": ""}):
+            with self.subTest(over=over):
+                (self.d / "af-expect.json").write_text(json.dumps({**expect_for("atlassian-getJiraIssue"), **over}),
+                                                       encoding="utf-8")
+                dec, out = guard_run(self.d, self.payload("atlassian-getJiraIssue", self.read_args()))
+                self.assertEqual(dec, "deny")
+                self.assertIn("incomplete", out["permissionDecisionReason"])
 
     def test_hooks_json(self):
         d = json.loads((HERE / "agentic-factory-plugin" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
@@ -406,6 +446,21 @@ class McpEvents(unittest.TestCase):
             jira_mcp.check_jira_call(copilot.mcp_events(path), self.post_expect(), self.d / "hook.log")
         self.assertIn("WARNING: Copilot (unknown version) ran no plugin hook", self.out.getvalue())
 
+    def test_account_call_checked_afterwards(self):  # task 16
+        raw = json.dumps({"account_id": "000000:bot", "email": "bot@example.invalid"})
+        lines = [start(*SEARCH), complete("toolu_s", "found"), start("u", USER, {}), complete("u", raw)]
+        self.assertEqual(self.check(lines, dict(USER_EXPECT))["account_id"], "000000:bot")
+        for args in ({"cloudId": SITE}, {"issueIdOrKey": MKEY, "cloudId": SITE}):
+            with self.subTest(args=args):
+                lines = [start("u", USER, args), complete("u", raw)]
+                with self.assertRaisesRegex(config.Stop, "arguments not allowed"):
+                    self.check(lines, dict(USER_EXPECT))
+        lines = [start("u", USER, {}), complete("u", raw), start("r", "atlassian-getJiraIssue", {}), complete("r", "{}")]
+        with self.assertRaisesRegex(config.Stop, "the Jira call for the running account used other tools too"):
+            self.check(lines, dict(USER_EXPECT))
+        with self.assertRaisesRegex(config.Stop, "failed for the running account"):
+            self.check([start("u", USER, {}), complete("u", "boom", ok=False)], dict(USER_EXPECT))
+
     def test_dotted_body_arg(self):
         (self.d / "d.md").write_text("Neu\n", encoding="utf-8")
         expect = expect_for("atlassian-editJiraIssue", "d.md", "fields.description")
@@ -432,74 +487,6 @@ class Readback(unittest.TestCase):
         stored = sent.replace("[KI]", "\\[KI\\]").replace("*Titel*", "_Titel_")
         self.assertTrue(jira_mcp.readback_matches(sent, stored))
         self.assertFalse(jira_mcp.readback_matches(sent, stored.replace("Treffer", "Treffen")))
-
-
-FAKE_JIRA_COPILOT = r'''
-import json, pathlib, re, sys
-argv = sys.argv[1:]
-here = pathlib.Path(__file__).parent
-if argv[:2] == ["mcp", "list"]:
-    names = json.loads((here / "fake-servers.json").read_text()) if (here / "fake-servers.json").exists() \
-        else ["atlassian", "github-mcp-server"]
-    print(json.dumps({"mcpServers": {n: {"type": "http", "headers": {"Authorization": "Bearer not-a-real-token-1"}}
-                                     for n in names}}))
-    sys.exit(0)
-with open(here / "calls.jsonl", "a") as fh: fh.write(json.dumps({"argv": argv, "cwd": str(pathlib.Path.cwd())}) + "\n")
-prompt = argv[argv.index("-p") + 1]
-usage = next(a.split("=", 1)[1] for a in argv if a.startswith("--usage-output-file="))
-mode = (here / "fake-jira-mode").read_text().strip() if (here / "fake-jira-mode").exists() else "normal"
-allowed = [a.split("=", 1)[1] for a in argv if a.startswith("--allow-tool=")]
-server, tool = re.fullmatch(r"([^()]+)\((\w+)\)", allowed[0]).groups()
-state_file = here / "fake-jira.json"
-state = json.loads(state_file.read_text(encoding="utf-8"))
-seq = [0]
-def ev(t, **d): print(json.dumps({"type": t, "data": d}), flush=True)
-def call(name, args, raw):
-    seq[0] += 1
-    cid = "toolu_fake%02d" % seq[0]
-    srv, _, bare = name.partition("-")
-    ev("tool.execution_start", toolCallId=cid, toolName=name, arguments=args,
-       **({"mcpServerName": srv, "mcpToolName": bare} if bare else {}))
-    res = {"content": raw + "\n\n[cost: 8% used · $0.28 left]", "detailedContent": raw}
-    if mode == "truncated":  # Copilot 1.0.115: detailedContent cut at about 10 KB, contents complete
-        res["detailedContent"] = raw[:10299]
-        res["contents"] = [{"type": "text", "text": raw}]
-    ev("tool.execution_complete", toolCallId=cid, success=True, result=res)
-def md(s):  # what the Atlassian server sends back: [ ] escaped, *x* as _x_
-    s = re.sub(r"(?<![*\w])\*([^*\s][^*\n]*?)\*(?![*\w])", r"_\1_", s)
-    return s.replace("[", "\\[").replace("]", "\\]")
-ev("session.start", sessionId="fake", copilotVersion="1.0.115", context={"cwd": str(pathlib.Path.cwd())})
-call("tool_search_tool", {"pattern": tool}, "Tool search for '%s': found %s-%s" % (tool, server, tool))
-arg = lambda name: re.search(name + r' "([^"]*)"', prompt).group(1)
-args = {"cloudId": arg("cloudId"), "issueIdOrKey": arg("issueIdOrKey")}
-key = args["issueIdOrKey"]
-issue = state["issues"][key]
-body = prompt.split("\nBEGIN-BODY\n", 1)[1].rsplit("\nEND-BODY", 1)[0] if "\nBEGIN-BODY\n" in prompt else None
-if tool == "getJiraIssue":
-    args["fields"] = ["summary", "description", "labels", "status", "comment"]
-    raw = {"id": "10001", "key": key, "fields": {"summary": issue["summary"], "description": issue["description"],
-           "labels": issue["labels"], "status": {"name": issue["status"]}, "comment": {"comments": issue["comments"]}},
-           "comments": issue["comments"]}
-elif tool == "addCommentToJiraIssue":
-    sent = body + " (vom Modell ergänzt)" if mode == "altered-body" else body
-    args["commentBody"] = sent
-    stored = sent.replace("Frage", "Antwort") if mode == "altered-stored" else sent
-    cid = str(state["next_id"]); state["next_id"] += 1
-    c = {"id": cid, "body": md(stored) + "\n", "created": "2026-11-24T22:12:56.692+0100",
-         "updated": "2026-11-24T22:12:56.692+0100", "author": {"accountId": "000000:fake", "displayName": "Fake"}}
-    issue["comments"].append(c)
-    raw = {"self": "https://api.atlassian.com/ex/jira/fake/rest/api/3/issue/10001/comment/" + cid, **c}
-elif tool == "editJiraIssue":
-    args["fields"] = {"description": body}
-    issue["description"] = md(body + " extra" if mode == "altered-stored" else body)
-    raw = {"id": "10001", "key": key}
-call("%s-%s" % (server, tool), args, json.dumps(raw, ensure_ascii=False))
-if mode == "extra-call":
-    call("%s-getAccessibleAtlassianResources" % server, {}, "[]")
-state_file.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-ev("assistant.message", content="done")
-pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 4000000000}))
-'''
 
 
 class JiraMcp(unittest.TestCase):
@@ -640,6 +627,37 @@ class JiraMcp(unittest.TestCase):
         self.mode("altered-stored")
         with self.assertRaisesRegex(config.Stop, "description of LL-123"):
             self.run_quiet(self.jira().set_description, MKEY, md)
+
+    def test_myself_asks_atlassian_user_info_once(self):  # task 16
+        j = self.jira()
+        self.assertEqual(self.run_quiet(j.myself), "000000:bot")
+        self.assertEqual(self.run_quiet(j.myself), "000000:bot")  # cached: one call per process
+        (call,) = self.calls()
+        self.assertEqual([a for a in call["argv"] if a.startswith("--allow-tool")],
+                         ["--allow-tool=atlassian(atlassianUserInfo)"])
+        self.assertEqual(call["argv"][call["argv"].index("--max-ai-credits") + 1], "30")
+        prompt = call["argv"][call["argv"].index("-p") + 1]
+        self.assertIn("atlassianUserInfo exactly once, with no arguments", prompt)
+        self.assertNotIn(MKEY, prompt)
+        calldir = self.logdir / "jira-1-atlassianUserInfo"
+        self.assertEqual(Path(call["cwd"]).resolve(), calldir.resolve())
+        self.assertEqual(json.loads((calldir / "af-expect.json").read_text(encoding="utf-8")), USER_EXPECT)
+        # the expect file the script wrote and the arguments the call carried pass the guard
+        ev = [c for c in copilot.mcp_events(calldir / "events.jsonl")["calls"] if c["tool"] == USER][0]
+        payload = {"cwd": str(calldir), "toolCallId": "x", "toolName": ev["tool"], "toolArgs": ev["args"]}
+        self.assertEqual(guard_run(calldir, payload)[0], "allow")
+        self.assertIn("Jira over MCP: atlassianUserInfo, the account this run uses, log in", self.out.getvalue())
+
+    def test_myself_without_account_id_stops(self):  # task 16
+        for me in ({"name": "Bot"}, {"account_id": ""}, {"account_id": "  "}, {"account_id": 5}, ["000000:bot"],
+                   "000000:bot"):
+            with self.subTest(me=me):
+                st = self.state()
+                st["me"] = me
+                (self.d / "fake-jira.json").write_text(json.dumps(st), encoding="utf-8")
+                with self.assertRaisesRegex(config.Stop, "^can't tell which account the Atlassian MCP server uses: "
+                                                         "atlassianUserInfo sent no account_id; nothing is set or posted$"):
+                    self.run_quiet(self.jira().myself)
 
     def test_lone_carriage_return_becomes_newline(self):
         self.run_quiet(self.jira().add_comment, MKEY, "[KI] a\rb\r\nc")

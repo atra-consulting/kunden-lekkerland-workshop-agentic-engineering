@@ -261,13 +261,18 @@ def step_post(run, req, ticket, comments=()):
             f"written to {path}")
         return code
     layer = run.jira(route, key)
-    if req["mode"] == "clarify" and route == "api":  # free over REST; over MCP a read costs credits, so not there
-        now = layer.comments(key)
-        newer_run_check(now, comments, key)
+    if req["mode"] == "clarify":
         state = clarify.clarify_state(comments, key)
-        if clarify.applies_proposal(state, fetch.apply_wanted(run)):  # the proposal path, decided again from in/
-            newer_answer_check(now, comments, key)
-            fetch.proposal_trust(state, layer.myself())
+        proposal = clarify.applies_proposal(state, fetch.apply_wanted(run))  # the proposal path, decided again from in/
+        if route == "api":  # free over REST; over MCP a read costs credits, so not there
+            now = layer.comments(key)
+            newer_run_check(now, comments, key)
+            if proposal:
+                newer_answer_check(now, comments, key)
+        if proposal:  # the free chain checks first (proposal_outcome ran them too), then the running account (api:
+            # GET /myself; mcp: atlassianUserInfo, cached from the agent step)
+            fetch.proposal_trust(state, None, route)
+            fetch.proposal_trust(state, layer.myself(), route)
     if set_desc:
         layer.set_description(key, desc)
         config.say(f"{key}: description set")

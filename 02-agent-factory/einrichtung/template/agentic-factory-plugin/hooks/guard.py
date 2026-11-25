@@ -6,10 +6,11 @@ agentic-factory.py writes <cwd>/af-expect.json before each Jira call:
    "fields_list": ["summary", ...] | null, "fields_keys": ["description"] | null}
 Allowed: tool_search_tool, and one call of the expected tool with that issueIdOrKey and cloudId, no arguments
 but those in "args", fields exactly fields_list (a list of names) or exactly the keys fields_keys (an object), and,
-with a body_file, the file's text (trailing newlines ignored) at body_arg (a dotted path). Everything else is denied,
-and so is everything when the expect file is missing or broken, or anything goes wrong. Each decision is appended
-to <cwd>/hook.log. Copilot 1.0.115 runs no plugin hooks in -p mode, so agentic-factory.py also checks every call
-afterwards from the events. Python standard library only.
+with a body_file, the file's text (trailing newlines ignored) at body_arg (a dotted path). The account call
+(atlassianUserInfo) has "args": [] and "key" and "site" null: allowed only with no arguments at all (an empty
+object, or none). Everything else is denied, and so is everything when the expect file is missing or broken, or
+anything goes wrong. Each decision is appended to <cwd>/hook.log. Copilot 1.0.115 runs no plugin hooks in -p
+mode, so agentic-factory.py also checks every call afterwards from the events. Python standard library only.
 """
 import json
 import os
@@ -64,7 +65,9 @@ def check(data, cwd):
     with open(os.path.join(cwd, "af-expect.json"), encoding="utf-8") as fh:
         exp = json.load(fh)
     tool, key, site = exp["tool"], exp["key"], exp["site"]
-    if not (isinstance(tool, str) and isinstance(key, str) and isinstance(site, str) and tool and key and site):
+    scoped = bool(exp["args"])  # every call but the account call (no arguments) names the issue and the site
+    if not (isinstance(tool, str) and tool
+            and (not scoped or isinstance(key, str) and isinstance(site, str) and key and site)):
         return "deny", "af-expect.json is incomplete"
     name = data.get("toolName")
     if name == "tool_search_tool":
@@ -74,11 +77,13 @@ def check(data, cwd):
     args = data.get("toolArgs")
     if isinstance(args, str):
         args = json.loads(args)
+    if args is None and not scoped:  # a call without arguments may come with none at all
+        args = {}
     if not isinstance(args, dict):
         return "deny", "no tool arguments"
-    if args.get("issueIdOrKey") != key:
+    if scoped and args.get("issueIdOrKey") != key:
         return "deny", f"issueIdOrKey must be {key}"
-    if args.get("cloudId") != site:
+    if scoped and args.get("cloudId") != site:
         return "deny", f"cloudId must be {site}"
     problem = args_problem(args, exp)
     if problem:

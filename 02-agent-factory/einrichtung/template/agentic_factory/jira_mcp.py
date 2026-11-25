@@ -20,6 +20,7 @@ JIRA_CALL_CREDITS = 30  # Copilot CLI's minimum for --max-ai-credits; a Jira cal
 JIRA_CALL_TIMEOUT = 300
 SEARCH_TOOL = "tool_search_tool"  # Copilot's own: loads deferred MCP tools, needs no --allow-tool
 READ_TOOL, POST_TOOL, EDIT_TOOL = "getJiraIssue", "addCommentToJiraIssue", "editJiraIssue"
+USER_TOOL = "atlassianUserInfo"  # no arguments; answers with the account_id of the account the server signs in with
 READ_FIELDS = ["summary", "description", "labels", "status", "comment"]
 BODY_LINES = ("BEGIN-BODY", "END-BODY")
 ISSUE_KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-[0-9]+")
@@ -120,8 +121,10 @@ def check_jira_call(ev, expect, hook_log_path):
     expected key, site, arguments, and body, and it succeeded. Calls of other tools that Copilot denied did nothing,
     so they only get a note. body_file is relative to the call folder, which also holds
     hook.log. Returns the expected call's raw result parsed as JSON (None if it isn't JSON). Every Stop after a
-    successful post names the comment to delete."""
+    successful post names the comment to delete. An expect with no arguments (the account call, atlassianUserInfo)
+    has no key and no site: the call must carry no argument at all."""
     tool, key, site = expect["tool"], expect["key"], expect["site"]
+    who = key or "the running account"
     mine = [c for c in ev["calls"] if c["tool"] == tool]
     done = [c for c in mine if c["ok"]]
     suffix = ""
@@ -141,17 +144,18 @@ def check_jira_call(ev, expect, hook_log_path):
     other = sorted({str(c["tool"]) for c in ev["calls"]
                     if c["tool"] not in (SEARCH_TOOL, tool) and not c.get("denied")})
     if other:
-        raise config.Stop(f"the Jira call for {key} used other tools too: {other}{suffix}")
+        raise config.Stop(f"the Jira call for {who} used other tools too: {other}{suffix}")
     if len(mine) != 1:
-        raise config.Stop(f"the Jira call for {key} made {len(mine)} calls of {tool}, not exactly one{suffix}")
+        raise config.Stop(f"the Jira call for {who} made {len(mine)} calls of {tool}, not exactly one{suffix}")
     c = mine[0]
     if not hook_saw(hook_log_path, c["id"]):
         config.say(f"WARNING: Copilot {ev['version'] or '(unknown version)'} ran no plugin hook for this Jira call; "
             "checked afterwards from the events instead")
     args = c["args"] if isinstance(c["args"], dict) else {}
-    if args.get("issueIdOrKey") != key:
+    scoped = bool(expect["args"])  # every call but the account call names the issue and the site
+    if scoped and args.get("issueIdOrKey") != key:
         raise config.Stop(copied.redact(f"{tool} was called for issue {str(args.get('issueIdOrKey'))[:80]!r}, not {key}{suffix}"))
-    if args.get("cloudId") != site:
+    if scoped and args.get("cloudId") != site:
         raise config.Stop(copied.redact(f"{tool} was called with cloudId {str(args.get('cloudId'))[:120]!r}, not {site}{suffix}"))
     problem = jira_args_problem(args, expect)
     if problem:
@@ -162,7 +166,7 @@ def check_jira_call(ev, expect, hook_log_path):
         if not isinstance(got, str) or got.rstrip("\n") != want.rstrip("\n"):
             raise config.Stop(f"the body {tool} sent as {expect['body_arg']} differs from {expect['body_file']}{suffix}")
     if not c["ok"]:
-        raise config.Stop(copied.redact(f"{tool} failed for {key}: {str(c['raw'] or 'no result')[:300]}") + suffix)
+        raise config.Stop(copied.redact(f"{tool} failed for {who}: {str(c['raw'] or 'no result')[:300]}") + suffix)
     return raw_json(c["raw"])
 
 
@@ -202,8 +206,8 @@ def readback_matches(sent, stored):
 
 
 class JiraMcp:
-    """Jira Cloud over your Atlassian MCP server, with JiraRest's methods: read, add_comment, set_description.
-    Each method is one short Copilot call that may use exactly one MCP tool. env: the calls' environment
+    """Jira Cloud over your Atlassian MCP server, with JiraRest's methods: read, add_comment, set_description,
+    myself. Each method is one short Copilot call that may use exactly one MCP tool. env: the calls' environment
     (child_env); the site falls back to JIRA_BASE_URL from this process's environment."""
 
     def __init__(self, cfg, local, exe, env, logdir, plugin_dir):
@@ -212,6 +216,7 @@ class JiraMcp:
         self.server = jira_server(local)
         self.site = jira_site(local, os.environ)
         self.n = 0
+        self.me = None
 
     def calldir(self, tool):
         while True:
@@ -242,11 +247,16 @@ class JiraMcp:
         expect = {"tool": f"{self.server}-{tool}", "key": key, "site": self.site,
                   "body_file": body_file if has_body else None, "body_arg": body_arg if has_body else None,
                   "args": ["cloudId", "issueIdOrKey", *args], "fields_list": fields_list, "fields_keys": fields_keys}
+        return self.run(d, tool, prompt, expect, f"{tool} for {key}")
+
+    def run(self, d, tool, prompt, expect, what):
+        """The Copilot call of call() in its folder d, with the expect file for the guard, checked afterwards. what:
+        the call for the log. Returns (parsed raw result, the call's arguments)."""
         (d / "af-expect.json").write_text(json.dumps(expect, ensure_ascii=False), encoding="utf-8")
         mcp_off = [n for n in mcp_check(self.exe, self.server, d, self.env) if n != self.server]
         usage = d / "usage.json"
         argv = jira_call_argv(self.cfg, self.local, self.exe, prompt, tool, str(usage), mcp_off, self.plugin_dir)
-        config.say(f"Jira over MCP: {tool} for {key}, log in {d}")
+        config.say(f"Jira over MCP: {what}, log in {d}")
         t0 = time.time()
         rc, _, denied = copilot.run_call(argv, d, self.env, d / "events.jsonl", JIRA_CALL_TIMEOUT)
         config.say(f"Jira over MCP: {tool} exit={rc} credits={copilot.credits_of(usage)} denied={denied} "
@@ -256,6 +266,24 @@ class JiraMcp:
         if rc != 0:
             config.say(f"WARNING: copilot exited with {rc}, but the {tool} call checks out; events in {d}")
         return raw, next(c["args"] for c in ev["calls"] if c["tool"] == expect["tool"])
+
+    def myself(self):
+        """The account the MCP server works as (atlassianUserInfo's account_id, once per process), as read() gives a
+        comment's author: the Cloud accountId. Only compared, never shown. The call has no issue and no arguments."""
+        if self.me is None:
+            d = self.calldir(USER_TOOL)
+            expect = {"tool": f"{self.server}-{USER_TOOL}", "key": None, "site": None, "body_file": None,
+                      "body_arg": None, "args": [], "fields_list": None, "fields_keys": None}
+            prompt = (f"Call the {self.server} tool {USER_TOOL} exactly once, with no arguments. Do not call any "
+                      "other tool and do not write any file. If the call fails, report the error and stop; do not "
+                      "retry. Then reply \"done\".")
+            raw, _ = self.run(d, USER_TOOL, prompt, expect, f"{USER_TOOL}, the account this run uses")
+            me = raw.get("account_id") if isinstance(raw, dict) else None
+            if not isinstance(me, str) or not me.strip():
+                raise config.Stop(f"can't tell which account the Atlassian MCP server uses: {USER_TOOL} sent no "
+                                  "account_id; nothing is set or posted")
+            self.me = me
+        return self.me
 
     @staticmethod
     def check_body(text, what):

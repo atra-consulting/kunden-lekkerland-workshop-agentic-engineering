@@ -28,9 +28,13 @@ def work_plan(run, req, ticket, comments=()):
         applying = fetch.apply_wanted(run) and fetch.can_post(run, req)
         p.update(state=state, pause=fetch.clarify_pause_of(run, req, state), crit=run.criteria("clarify"), proposal=None)
         if clarify.applies_proposal(state, applying):  # --apply on a posted proposal: only the readiness check on its text
-            # api in one process: the layer fetch made also checks the token's account (free); the split agent step has
-            # no Jira, the post step checks it before setting
-            me = run.layers["api"].myself() if req["route"] == "api" and "api" in run.layers else None
+            # the free chain checks first: a foreign or edited chain stops before any account call. Then, in one
+            # process, the layer fetch made also checks the running account (api: GET /myself; mcp:
+            # atlassianUserInfo, one short Copilot call, cached for the post step). Not with --print-only, which sets
+            # nothing; the split agent step has no Jira. The post step checks the account before setting.
+            fetch.proposal_trust(state, None, req["route"])
+            me = (run.layers[req["route"]].myself()
+                  if req["route"] in run.layers and not run.a.print_only else None)
             p["proposal"] = fetch.proposal_description(state, ticket["summary"], req["route"], me)
             prompt, tools, cap = readiness.assess_call(cfg, {**ticket, "description": p["proposal"][1]}, run.criteria(),
                                                        rules.block(run.rules, "assess"))

@@ -170,6 +170,81 @@ pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
 '''
 
 
+# The fake copilot of the mcp route: answers the Jira calls (getJiraIssue, addCommentToJiraIssue, editJiraIssue,
+# atlassianUserInfo) like Copilot with the Atlassian MCP server, from the state in fake-jira.json next to it. It runs
+# no hook.
+FAKE_JIRA_COPILOT = r'''
+import json, pathlib, re, sys
+argv = sys.argv[1:]
+here = pathlib.Path(__file__).parent
+if argv[:2] == ["mcp", "list"]:
+    names = json.loads((here / "fake-servers.json").read_text()) if (here / "fake-servers.json").exists() \
+        else ["atlassian", "github-mcp-server"]
+    print(json.dumps({"mcpServers": {n: {"type": "http", "headers": {"Authorization": "Bearer not-a-real-token-1"}}
+                                     for n in names}}))
+    sys.exit(0)
+with open(here / "calls.jsonl", "a") as fh: fh.write(json.dumps({"argv": argv, "cwd": str(pathlib.Path.cwd())}) + "\n")
+prompt = argv[argv.index("-p") + 1]
+usage = next(a.split("=", 1)[1] for a in argv if a.startswith("--usage-output-file="))
+mode = (here / "fake-jira-mode").read_text().strip() if (here / "fake-jira-mode").exists() else "normal"
+allowed = [a.split("=", 1)[1] for a in argv if a.startswith("--allow-tool=")]
+server, tool = re.fullmatch(r"([^()]+)\((\w+)\)", allowed[0]).groups()
+state_file = here / "fake-jira.json"
+state = json.loads(state_file.read_text(encoding="utf-8"))
+seq = [0]
+def ev(t, **d): print(json.dumps({"type": t, "data": d}), flush=True)
+def call(name, args, raw):
+    seq[0] += 1
+    cid = "toolu_fake%02d" % seq[0]
+    srv, _, bare = name.partition("-")
+    ev("tool.execution_start", toolCallId=cid, toolName=name, arguments=args,
+       **({"mcpServerName": srv, "mcpToolName": bare} if bare else {}))
+    res = {"content": raw + "\n\n[cost: 8% used · $0.28 left]", "detailedContent": raw}
+    if mode == "truncated":  # Copilot 1.0.115: detailedContent cut at about 10 KB, contents complete
+        res["detailedContent"] = raw[:10299]
+        res["contents"] = [{"type": "text", "text": raw}]
+    ev("tool.execution_complete", toolCallId=cid, success=True, result=res)
+def md(s):  # what the Atlassian server sends back: [ ] escaped, *x* as _x_
+    s = re.sub(r"(?<![*\w])\*([^*\s][^*\n]*?)\*(?![*\w])", r"_\1_", s)
+    return s.replace("[", "\\[").replace("]", "\\]")
+ev("session.start", sessionId="fake", copilotVersion="1.0.115", context={"cwd": str(pathlib.Path.cwd())})
+call("tool_search_tool", {"pattern": tool}, "Tool search for '%s': found %s-%s" % (tool, server, tool))
+if tool == "atlassianUserInfo":  # no arguments: the account the MCP server signs in with (state "me" overrides)
+    args = {}
+    raw = state.get("me", {"account_id": "000000:bot", "email": "bot@example.invalid", "name": "Bot"})
+else:
+    arg = lambda name: re.search(name + r' "([^"]*)"', prompt).group(1)
+    args = {"cloudId": arg("cloudId"), "issueIdOrKey": arg("issueIdOrKey")}
+    key = args["issueIdOrKey"]
+    issue = state["issues"][key]
+body = prompt.split("\nBEGIN-BODY\n", 1)[1].rsplit("\nEND-BODY", 1)[0] if "\nBEGIN-BODY\n" in prompt else None
+if tool == "getJiraIssue":
+    args["fields"] = ["summary", "description", "labels", "status", "comment"]
+    raw = {"id": "10001", "key": key, "fields": {"summary": issue["summary"], "description": issue["description"],
+           "labels": issue["labels"], "status": {"name": issue["status"]}, "comment": {"comments": issue["comments"]}},
+           "comments": issue["comments"]}
+elif tool == "addCommentToJiraIssue":
+    sent = body + " (vom Modell ergänzt)" if mode == "altered-body" else body
+    args["commentBody"] = sent
+    stored = sent.replace("Frage", "Antwort") if mode == "altered-stored" else sent
+    cid = str(state["next_id"]); state["next_id"] += 1
+    c = {"id": cid, "body": md(stored) + "\n", "created": "2026-11-24T22:12:56.692+0100",
+         "updated": "2026-11-24T22:12:56.692+0100", "author": {"accountId": "000000:fake", "displayName": "Fake"}}
+    issue["comments"].append(c)
+    raw = {"self": "https://api.atlassian.com/ex/jira/fake/rest/api/3/issue/10001/comment/" + cid, **c}
+elif tool == "editJiraIssue":
+    args["fields"] = {"description": body}
+    issue["description"] = md(body + " extra" if mode == "altered-stored" else body)
+    raw = {"id": "10001", "key": key}
+call("%s-%s" % (server, tool), args, json.dumps(raw, ensure_ascii=False))
+if mode == "extra-call":
+    call("%s-getAccessibleAtlassianResources" % server, {}, "[]")
+state_file.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+ev("assistant.message", content="done")
+pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 4000000000}))
+'''
+
+
 class E2E:
     """main() in a throwaway git repository with a fake copilot (a Python script). A mixin for the test classes."""
     CLEAN_ENV = ("BITBUCKET_PIPELINE_UUID", "COPILOT_GITHUB_TOKEN", "JIRA_BASE_URL", "JIRA_API_TOKEN", "JIRA_EMAIL",

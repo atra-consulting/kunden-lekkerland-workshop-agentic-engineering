@@ -243,12 +243,12 @@ def clarify_pause_of(run, req, state):
     return pause
 
 
-def proposal_trust(state, me=None):
+def proposal_trust(state, me=None, route=None):
     """Stops unless the proposal can be trusted. Anyone may comment, so a comment that merely starts with the marker
     proves nothing: every proposal comment after the last round must have that round's author (the script's account;
     --apply sets the last one), the proposal must not have been edited (created and updated differ; a route that
-    doesn't send updated skips this), and with me, the token's own account (GET /myself, api route only), that
-    account must have written them."""
+    doesn't send updated skips this), and with me, the account running this script (api: GET /myself; mcp:
+    atlassianUserInfo), that account must have written them. route: "mcp" words that stop for the MCP route."""
     c, n = state["proposal"], state["rounds"]
     theirs = (state["last_round"] or {}).get("author") or ""
     foreign = [p["id"] for p in state["proposals"] if (p.get("author") or "") != theirs]
@@ -259,6 +259,8 @@ def proposal_trust(state, me=None):
         why, kind = f"another account wrote it than round {n}", "foreign"
     elif foreign:
         why, kind = f"another account than round {n}'s wrote the proposal in comment {', '.join(foreign)}", "foreign"
+    elif me is not None and theirs != me and route == "mcp":
+        why, kind = "it wasn't posted by the account running this script", "account"
     elif me is not None and theirs != me:
         why = f"it and round {n} were written by another account than the one this run uses"
     elif c.get("created") and c.get("updated") and c["created"] != c["updated"]:
@@ -268,6 +270,9 @@ def proposal_trust(state, me=None):
         if kind == "foreign":  # the foreign comment stays after a [Mensch] answer, so a new proposal can't help
             raise config.Stop(head + f"delete comment{'s' if len(foreign) > 1 else ''} {', '.join(foreign)} in Jira, "
                               "or set the description by hand")
+        if kind == "account":
+            raise config.Stop(head + "run --apply as the account that posted the proposal, or set the description by "
+                              "hand")
         raise config.Stop(head + "answer it with a [Mensch] comment to get a new proposal"
                           + (f"; if round {n} came from another account than the one running now (say, the round was "
                              "posted locally and this run is in the pipeline), set the description by hand"
@@ -275,10 +280,10 @@ def proposal_trust(state, me=None):
 
 
 def proposal_description(state, summary, route, me=None):
-    """(comment id, text) of the unanswered proposal: trusted (proposal_trust, with me on the api route), its text as
-    proposal_text reads it on this route, checked as the clarify result's description is (length, scans, links,
-    FACTORY-)."""
-    proposal_trust(state, me)
+    """(comment id, text) of the unanswered proposal: trusted (proposal_trust, with me, the running account, when the
+    run has a Jira layer), its text as proposal_text reads it on this route, checked as the clarify result's
+    description is (length, scans, links, FACTORY-)."""
+    proposal_trust(state, me, route)
     c = state["proposal"]
     text = clarify.proposal_text(c["body"], route, c["id"])
     checks.clarify_text(text, "description", copied.MAX_CHARS - len(summary), f"the proposal in comment {c['id']}")

@@ -64,19 +64,29 @@ CLARIFY_STATUSES = ("questions", "confirm", "ready")
 
 
 # Model text that Jira would show as a live link or image: Markdown [x](url) and ![](url) (the MCP route sends
-# Markdown), Jira wiki [x|http…] and !http…! (als_wiki, the Data Center description, doesn't escape). Inside a fenced
-# block it stays code.
-LIVE_LINK = re.compile(r"\]\(|!\[|[|!][ \t]*http", re.I)
+# Markdown), Jira wiki [x|http…] and !http…! (als_wiki, the Data Center description, doesn't escape), and the wiki
+# forms with any other scheme or none: [x|ftp:…], [x|//…], [x|mailto:…], !ftp:…!. Inside a fenced block it stays code.
+# The other schemes count after "|" only inside "[", and right after "!" (an image starts without a space), so text
+# such as "| Hinweis: x |" or "Wichtig! Hinweis: x" stays plain text. The link text may hold escapes such as \] or \|;
+# an escaped "[" ends the scan there, and the match starts again at that "[", so the scan stays linear. live_link also
+# checks the text with every whitespace run made one space: a line break inside a link doesn't hide it.
+URI_START = r"(?:[a-z][a-z0-9+.-]*:|//)"
+WIKI_LINK_TEXT = r"\[(?:\\[^\[]|[^\[\]|\\])*\|"
+LIVE_LINK = re.compile(r"\]\(|!\[|[|!][ \t]*http|" + WIKI_LINK_TEXT + r"[ \t]*" + URI_START + "|!" + URI_START, re.I)
+
+
+def live_link(text):
+    return bool(LIVE_LINK.search(text) or LIVE_LINK.search(" ".join(text.split())))
 
 
 def link_findings(text):
-    return ["would become a link or image in Jira"] if LIVE_LINK.search(text) else []
+    return ["would become a link or image in Jira"] if live_link(text) else []
 
 
 def post_findings(text, limit):
     """Why a comment must not be posted. Empty list: it may be."""
     out = copied.token_findings(text) + copied.invisible_findings(text)  # invisible_findings also covers HTML comments, link definitions
-    if any(LIVE_LINK.search(t) for kind, t in jira_rest.segments(text) if kind == "p"):
+    if any(live_link(t) for kind, t in jira_rest.segments(text) if kind == "p"):
         out.append("link or image outside a code block")
     if len(text) > limit:
         out.append(f"longer than {limit} characters")

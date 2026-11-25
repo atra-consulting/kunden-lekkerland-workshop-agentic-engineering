@@ -4,6 +4,7 @@ contract.
 import json
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -139,6 +140,32 @@ class Scans(unittest.TestCase):
                                       f"=== a.md ===\nSiehe {bad}\n")
                 self.assertEqual(checks.post_findings(spec, 30000), [])  # inside the fence: code, never a link
                 self.assertEqual(checks.post_findings(clarify.render_spec_questions("LL-1", bad), 30000), [])
+
+    # Task 16: wiki links and images with other schemes, and forms split by a line break
+    OTHER_LINKS = ("[x|ftp://e/x]", "[x|//e/x]", "[x|mailto:a@b]", "!ftp://e/x.png!", "[Doku|\nhttp://e/x]",
+                   "![\nbild](http://e/x)", "[x| \n ftp://e/x]", "[x|FTP://e/x]", "!//e/x.png!", "[x|file:///etc]",
+                   "[x\\]y|ftp://e]", "[x\\[y|ftp://e]", "[x\\|y|ftp://e]", "[\\\\|ftp://e]")
+    PLAIN_TEXT = ("A | B", "Hinweis: x", "!wichtig", "a|b", "Version 1.0!", "Wichtig! Hinweis: x",
+                  "Fertig!\nHinweis: x", "| Feld | Hinweis: x |", "a |\nb: c", "[x] Ausruf! Ziel: y", "Zeit 10:30")
+
+    def test_link_findings_other_schemes_and_line_breaks(self):
+        for bad in self.OTHER_LINKS:
+            with self.subTest(bad=bad):
+                self.assertEqual(checks.link_findings("Siehe " + bad), ["would become a link or image in Jira"])
+                self.assertEqual(checks.post_findings(f"[KI] Grund x: siehe {bad}", 1000),
+                                 ["link or image outside a code block"])
+
+    def test_link_findings_leave_plain_text_alone(self):
+        for ok in self.PLAIN_TEXT:
+            with self.subTest(ok=ok):
+                self.assertEqual(checks.link_findings(ok), [])
+                self.assertEqual(checks.post_findings("[KI] " + ok, 1000), [])
+
+    def test_link_findings_linear_on_many_brackets(self):
+        t0 = time.monotonic()
+        for text in ("[" * 30000 + "|", "[" + "\\[" * 15000 + "|", "[" + "\\]" * 15000, "[" + "\\" * 30000):
+            self.assertEqual(checks.link_findings(text), [])
+        self.assertLess(time.monotonic() - t0, 2)
 
     def test_post_findings_collects_scan_findings(self):
         f = checks.post_findings("[KI] a\u200b <!-- x --> ghp_" + "c" * 30, 1000)

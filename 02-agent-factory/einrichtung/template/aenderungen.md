@@ -61,6 +61,8 @@ Diese Seite sagt, was sich an `agentic-factory.py` gegenüber `local.py` und der
 | `protected_paths` mit Pfaden von Symfony und PHP | Nur allgemeine Pfade. `init` schlägt Pfade für euren Stack vor |
 | – | `read_tools`: lesende Befehle wie `ls`, `cat` und `grep` für jeden Aufruf von `spec` und `build` |
 | – | Neue Blöcke: `clarify`, `init`, und je Framework `revise_prompt` und `amend_prompt` |
+| `spec_rules` und `build_rules` nennen `AGENTS.md` nicht | Beide enden mit „Read and follow AGENTS.md in the repository root if it exists.“ |
+| `readiness.md` mit Beispielen aus der Symfony-Demo, Status „Klärung nötig“ und Image | Dieselben Kriterien und IDs, Beispiele ohne Stack, ohne Status und ohne Image |
 
 ### Sicherheit
 
@@ -71,7 +73,9 @@ Diese Seite sagt, was sich an `agentic-factory.py` gegenüber `local.py` und der
 | Das Urteil der Bereitschaftsprüfung prüft das Skript auf seine Form | Dazu auf Länge, Anzahl und unsichtbare Zeichen, wie `assess.py` der Pipeline |
 | – | Vor dem Posten prüft das Skript jeden Kommentar: Tokens, unsichtbare Zeichen, Links außerhalb von Code-Blöcken, Länge, `FACTORY-` und den Anfang `[KI]` |
 | – | `test_command` und `read_tools` prüft das Skript vor dem ersten Aufruf. Trifft sie ein Eintrag in `deny_tools`, stoppt es |
-| – | `init` darf nur lesen. Seine Vorschläge dürfen nur hinzufügen oder verschärfen. Das Skript prüft jeden |
+| – | `init` darf nur lesen. Seine Vorschläge dürfen nur hinzufügen oder verschärfen. Das Skript prüft jeden. `init --apply` schreibt das gespeicherte Ergebnis des letzten Laufs, ohne neuen Aufruf |
+| `git status` nach jedem Aufruf mit der Konfiguration des Repos | Jeder `git`-Aufruf des Skripts läuft ohne fsmonitor, Hooks, externen Diff und Pager. Ändert ein Arbeitsaufruf `.git/config`, die Hooks oder eingebundene Dateien, stoppt das Skript vor dem nächsten `git`-Befehl |
+| – | Vor jedem Lauf nennt das Skript Nummer und Konto der `[Mensch]`-Kommentare, die es liest. `blocked.jsonl` schwärzt bekannte Tokens. Sehen die Ereignisse von Copilot anders aus als bei 1.0.115, warnt das Skript |
 
 ### Feedback
 
@@ -84,11 +88,12 @@ Neu. `[Mensch]`-Kommentare im Ticket und Änderungen von Hand an den Spec-Dateie
 | Ein Ordner pro Lauf, `~/.factory-local/<repo>/<zeit>-<modus>-<key>/`, mit Ereignissen und Verbrauch jedes Aufrufs | Wie vorher, dazu `io/` mit `in/` und `out/` |
 | Abgelehnte Aufrufe stehen nur in der Ausgabe, als `DENIED` | Dazu sammelt [`blocked.jsonl`](README.md#blockierte-aufrufe-blockedjsonl) sie für alle Läufe, in `~/.factory-local/<repo>/`. Jeder Lauf mit Copilot-Aufrufen endet mit einer Zeile dazu |
 | – | Unter `~/.factory-local/<repo>/specs/` eine Kopie der Spec nach jedem Lauf von `spec` und `build`. Gegen sie rechnet das Skript den Diff eurer Änderungen von Hand |
+| – | `init-result.json` im Ordner eines `init`-Laufs: das geprüfte Ergebnis für `init --apply` |
 
 ### Was gleich geblieben ist
 
-- **Prompts und Flags** baut das Skript wie `agent.py` von factory-base. Tests vergleichen beides, mit einer Konfiguration wie der des Labs, siehe [Tests](README.md#tests). Die `config.json` der Vorlage weicht an diesen Stellen ab: der Plan-Prompt von Spec Kit, `{test_command}` in `build_rules`, der Satz zu `AGENTS.md` am Ende von `spec_rules` und `build_rules`, die Freigabe für den Testbefehl, `read_tools`, `deny_tools` und die geschützten Pfade, die der Prompt der Bereitschaftsprüfung nennt. Neu sind die Prompts von `clarify`, `init`, `revise_prompt` und `amend_prompt`. `--deny-tool=shell` und `--disable-mcp-server` hängt das Skript nur hinten an.
-- **Unverändert aus factory-base:** der Prompt der Bereitschaftsprüfung, `spec_rules` bis auf den Satz zu `AGENTS.md`, `readiness.md`, `forbidden_flags` und `forbidden_env`. Das Modell `claude-sonnet-5.5`, 150 Credits pro Aufruf, 40 für die Bereitschaftsprüfung, 1200 Sekunden pro Aufruf.
+- **Prompts und Flags** baut das Skript wie `agent.py` von factory-base. Tests vergleichen beides, mit einer Konfiguration wie der des Labs, siehe [Tests](README.md#tests). Die `config.json` der Vorlage weicht an diesen Stellen ab: der Plan-Prompt von Spec Kit, `{test_command}` in `build_rules`, der Satz zu `AGENTS.md` am Ende von `spec_rules` und `build_rules`, die Freigabe für den Testbefehl, `read_tools`, `deny_tools`, die geschützten Pfade, die der Prompt der Bereitschaftsprüfung nennt, und die Wörter für Teile des Codes in diesem Prompt und in `readiness.md`: „modules, entry points, user interface, data model“ statt Begriffe aus Symfony. Neu sind die Prompts von `clarify`, `init`, `revise_prompt` und `amend_prompt`. `--deny-tool=shell` und `--disable-mcp-server` hängt das Skript nur hinten an.
+- **Unverändert aus factory-base:** der Prompt der Bereitschaftsprüfung und `readiness.md` bis auf die Wörter oben (die IDs der Kriterien sind gleich), `spec_rules` bis auf den Satz zu `AGENTS.md`, `forbidden_flags` und `forbidden_env`. Das Modell `claude-sonnet-5.5`, 150 Credits pro Aufruf, 40 für die Bereitschaftsprüfung, 1200 Sekunden pro Aufruf.
 - **Das Framework:** erst `--framework`, dann genau ein Label `sdd-*`, dann `default_framework`. Fehlt sein Ordner im Projekt, stoppt das Skript.
 - **Die Bereitschaftsprüfung** läuft vor `spec`, wenn `assess.enabled` gilt. `--no-assess` überspringt sie.
 - **Die Umgebung:** Copilot bekommt eure Umgebungsvariablen ohne die drei Jira-Variablen, dazu dieselben Sicherheits-Variablen.
@@ -127,7 +132,7 @@ Ihr habt `local.py` mit `config.json`, `readiness.md` und vielleicht `local.json
    cp <dieser Ordner>/{agentic-factory.py,config.json,local.example.json} factory/
    ```
 
-   `config.json` ersetzt ihr damit. `readiness.md` behaltet ihr: Die Vorlage hat denselben Text wie factory-base. Die Tests der Vorlage kopiert ihr nicht nach `factory/tests/`, wenn dort schon die Tests von factory-base liegen: `test_readiness.py` gibt es in beiden.
+   `config.json` ersetzt ihr damit. `readiness.md` hat in der Vorlage dieselben Kriterien und IDs wie in factory-base, nur mit Beispielen ohne Symfony. Habt ihr eure Datei nicht geändert, kopiert die neue: `cp <dieser Ordner>/readiness.md factory/`. Sonst behaltet eure. Die Tests der Vorlage kopiert ihr nicht nach `factory/tests/`, wenn dort schon die Tests von factory-base liegen: `test_readiness.py` gibt es in beiden.
 4. Startet das Skript einmal ohne Copilot-Aufruf: `python3 -I factory/agentic-factory.py init --print-only`. Steht in `local.json` noch `test_command` oder `stack_hint`, stoppt es mit Exit-Code 2 und sagt, wohin der Wert gehört, etwa so:
 
    ```text
@@ -145,10 +150,12 @@ Ihr habt `local.py` mit `config.json`, `readiness.md` und vielleicht `local.json
    ```
 
    Tragt eure Jira-Cloud-Adresse in `factory/local.json` ein, etwa `"jira_site": "https://example.atlassian.net"`. Bei Jira Data Center nehmt ihr `--jira api`, mit denselben Variablen wie bei `local.py`.
-9. Prüft ohne Jira. Erst `python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only`: Das zeigt die Copilot-Befehle und kostet nichts. Dann derselbe Befehl ohne `--print-only`: Das kostet Credits. Das Skript fragt Jira nicht und postet nichts. Den Kommentar schreibt es in eine Datei, die letzte Zeile nennt sie. Die Spec liegt danach uncommittet im Projekt. Verwerft sie, wenn ihr sie nicht braucht.
+
+   Habt ihr den Server in Übung 1 mit einer Werkzeug-Liste angelegt (`"tools": [...]` in `~/.copilot/mcp-config.json`), fehlen dort Werkzeuge, die das Skript braucht: `addCommentToJiraIssue` zum Posten, `editJiraIssue` für `clarify --apply` und `atlassianUserInfo` für `clarify --apply` und jeden weiteren Lauf von `spec` und `build`. Ergänzt sie, oder legt den Server mit `copilot mcp remove atlassian` und dem Befehl oben neu an. Sonst kostet der erste Lauf Credits und stoppt erst beim Posten.
+9. Prüft ohne Jira. Das Projekt braucht den Ordner des Frameworks, das das Label der Ticket-Datei nennt, hier `openspec/`. Sonst gebt ihr `--framework` an. Erst `python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only`: Das zeigt die Copilot-Befehle und kostet nichts. Dann derselbe Befehl ohne `--print-only`: Das kostet Credits. Das Skript fragt Jira nicht und postet nichts. Den Kommentar schreibt es in eine Datei, die letzte Zeile nennt sie. Die Spec liegt danach uncommittet im Projekt. Verwerft sie, wenn ihr sie nicht braucht.
 10. Committet `factory/` und `AGENTS.md`.
 
-Läuft in eurem Repo die Pipeline von factory-base aus demselben Ordner `factory/`, ersetzt `config.json` nicht. Die Pipeline nimmt die Datei in ihr Image auf und braucht ihre Schlüssel, etwa `project_key`, `bitbucket` und `test_command` als Liste. Mit dieser Liste stoppen `build` und `init` von `agentic-factory.py` aber vor dem ersten Copilot-Aufruf mit `config.json: test_command must be a string such as "make test"; an old config has a list — write it as one string`. Legt die Vorlage dann in einen eigenen Ordner. Der Skill [`schreibe-ticket`](../../werkzeuge/schreibe-ticket/README.md) sucht sie allerdings in `factory/`.
+Läuft in eurem Repo die Pipeline von factory-base aus demselben Ordner `factory/`, dann ersetzt ihr `config.json` nicht. Die Pipeline nimmt die Datei in ihr Image auf und braucht ihre Schlüssel, etwa `project_key`, `bitbucket` und `test_command` als Liste. Mit dieser Liste stoppen `build` und `init` von `agentic-factory.py` aber vor dem ersten Copilot-Aufruf mit `config.json: test_command must be a string such as "make test"; an old config has a list — write it as one string`. Legt die Vorlage dann in einen eigenen Ordner. Der Skill [`schreibe-ticket`](../../werkzeuge/schreibe-ticket/README.md) sucht sie allerdings in `factory/`.
 
 | Alter Schlüssel | Neuer Ort |
 |---|---|
@@ -166,11 +173,12 @@ Läuft in eurem Repo die Pipeline von factory-base aus demselben Ordner `factory
 | `shell(npm:*)` in `deny_tools` | `shell(npm install:*)`, `shell(npm i:*)`, `shell(npm ci:*)`, `shell(npm exec:*)` |
 | `project_key`, `jira.approver_account_ids`, `jira.factory_account_id`, `jira.status`, `jira.transition`, `bitbucket`, `composer_install`, `workspace_exclude`, `max_patch_bytes`, `run2_editable_re` je Framework | Entfallen. `local.py` las sie nie, `agentic-factory.py` auch nicht. Nur die Pipeline von factory-base braucht sie |
 | – | Neu in `config.json`: `read_tools`, die Blöcke `clarify` und `init`, je Framework `revise_prompt` und `amend_prompt` |
-| `readiness.md` | Bleibt, unverändert |
+| `readiness.md` | Bleibt. Die Vorlage hat dieselben Kriterien, mit Beispielen ohne Stack |
 
 Die Pfade von Symfony und PHP, wie factory-base sie hatte, zum Einfügen in `protected_paths`:
 
 ```json
+"^bin/",
 "^phpunit(\\.dist)?\\.xml(\\.dist)?$",
 "^phpstan[^/]*\\.neon$",
 "^\\.php-cs-fixer[^/]*$",
@@ -191,6 +199,8 @@ Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test
 2. Schreibt auf, was ihr übernehmt: `test_command` und `stack_hint` aus `factory/local.json`, den Text der Dateien in `factory/regeln/`, dazu eure Änderungen an `factory/config.json`. Die frühere Vorlage zeigt `git show 414cf25:02-agent-factory/einrichtung/template/config.json` im Workshop-Repo. Speichert sie, etwa als `config-alt.json`, und vergleicht: `diff config-alt.json factory/config.json`.
 3. Entfernt den alten Code und die Regeln, dann kopiert die Vorlage:
 
+   Löscht `agentic_factory/` vorher, sonst bleibt das alte `rules.py` liegen. Die Befehle tun das:
+
    ```bash
    rm -rf factory/agentic_factory factory/regeln factory/tests
    cp -R <dieser Ordner>/{agentic_factory,agentic-factory-plugin} factory/
@@ -198,7 +208,7 @@ Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test
    cp -R <dieser Ordner>/tests factory/     # optional
    ```
 
-   Löscht `agentic_factory/` vorher, sonst bleibt das alte `rules.py` liegen. `config.json` ersetzt ihr. `readiness.md` behaltet ihr: Die Vorlage hat den Text nicht geändert.
+   `config.json` ersetzt ihr. Für `readiness.md` gilt dasselbe wie in A, Schritt 3.
 4. Startet das Skript einmal ohne Copilot-Aufruf: `python3 -I factory/agentic-factory.py init --print-only`. Mit der alten `local.json` stoppt es mit Exit-Code 2, etwa so:
 
    ```text
@@ -225,13 +235,13 @@ Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test
 | Die Pfade von Symfony und PHP in `protected_paths`, `shell(composer:*)` und `shell(npm:*)` in `deny_tools` | Wie in A |
 | `project_key`, `jira.approver_account_ids`, `jira.factory_account_id`, `jira.status`, `jira.transition`, `bitbucket`, `composer_install`, `workspace_exclude`, `max_patch_bytes`, `run2_editable_re` je Framework | Entfallen. Die frühere Vorlage las sie nie |
 | – | Neu in `config.json`: `read_tools`, der Block `init`, je Framework `revise_prompt` und `amend_prompt` |
-| `readiness.md` | Bleibt, unverändert |
+| `readiness.md` | Bleibt. Die Vorlage hat dieselben Kriterien, mit Beispielen ohne Stack |
 
 ### Was danach anders läuft
 
 - **Das Skript postet (A).** Jeder Lauf mit einem Ticket aus Jira liest das Ticket mit allen Kommentaren. `spec`, `build` und `clarify` posten ihr Ergebnis als `[KI]`-Kommentar unter eurem Konto, `assess` nur bei „nicht bereit“. Wollt ihr nur lesen, nehmt `--no-post`. Ganz ohne Jira geht es mit `--ticket-file`.
 - **Der Standardweg ist der Jira-MCP (A).** Wollt ihr REST wie bei `local.py`, gebt `--jira api` an.
-- **Ein neuer Lauf überarbeitet.** Startet ihr `spec` oder `build` noch einmal, nimmt das Skript die neuen `[Mensch]`-Kommentare und eure Änderungen an der Spec. Gibt es beides nicht, stoppt es mit `nothing new since comment …`, postet nichts und endet mit Exit-Code 0. Ganz neu anfangen: `--fresh`.
+- **Ein neuer Lauf überarbeitet.** Startet ihr `spec` oder `build` noch einmal, nimmt das Skript die neuen `[Mensch]`-Kommentare und eure Änderungen an der Spec. Gibt es beides nicht, meldet es `nothing new since comment …`, postet nichts und endet mit Exit-Code 0. Ganz neu anfangen: `--fresh`.
 - **`spec` lehnt nach einem Build ab:** `a build exists for LL-123 (comment …); give feedback through build, or run spec --fresh`.
 - **Tickets aus der früheren Vorlage (B).** Ein Spec-Kommentar von damals hat keine `Spec-Prüfsumme`. Eine Überarbeitung klappt trotzdem. Änderungen von Hand erkennt das Skript dann aber nicht: `note: comment … has no Spec-Prüfsumme, so hand edits since then can't be told`. Die Kopie der Spec fehlt auch, der Kommentar zeigt die ganze Spec ohne Diff. Ein Build-Kommentar von damals hat keinen `Start-Commit`. Ein neuer `build` stoppt deshalb: `the build comment … names no Start-Commit, so the first build can't be found; run build --fresh`.
 - **Alte Schlüssel stoppen.** `test_command` oder `stack_hint` in `local.json` stoppen jeden Lauf, wie in Schritt 4. Ein Block `rules` in `config.json` auch (B).

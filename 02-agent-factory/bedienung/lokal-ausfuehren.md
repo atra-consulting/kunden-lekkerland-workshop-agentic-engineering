@@ -8,7 +8,7 @@ Stand: 25. November 2026, Copilot CLI 1.0.115. Die Schritte `assess`, `spec` und
 
 ## Was der manuelle Modus ist
 
-- Dieselben Copilot-Aufrufe wie `factory/agent.py`: dieselben Prompts, Werkzeug-Freigaben und -Verbote, dasselbe Modell, dasselbe Credit-Limit je Aufruf. Prompts, Werkzeuge und Modell kommen aus `config.json`, die Kriterien der Bereitschaft aus `readiness.md`. Mit einer Konfiguration wie der des Labs vergleicht ein Test, dass beide Seiten dieselben Befehle bauen.
+- Im Kern dieselben Copilot-Aufrufe wie `factory/agent.py`: dieselben Prompts, Werkzeug-Freigaben und -Verbote, dasselbe Modell, dasselbe Credit-Limit je Aufruf. Prompts, Werkzeuge und Modell kommen aus `config.json`, die Kriterien der Bereitschaft aus `readiness.md`. Mit einer Konfiguration wie der des Labs vergleicht ein Test, dass beide Seiten dieselben Befehle bauen.
 - Die `config.json` der Vorlage ist allgemeiner als die des Labs: kein Symfony und kein `./bin/phpunit`, dazu lesende Befehle wie `ls` und `grep` für `spec` und `build` (`read_tools`), und von `npm` sind nur die installierenden Befehle verboten. Die Unterschiede zeigen die [Prompt-Beispiele](../einrichtung/prompt-beispiele/README.md).
 - Dieselbe Reihenfolge: Ist in `config.json` die Bereitschaftsprüfung an (`assess.enabled`), beginnt `spec` wie die Factory mit ihr. Lautet das Urteil „nicht bereit“, startet keine Spec. Mehr dazu in [Ticket-Bereitschaft](ticket-bereitschaft.md).
 - Dasselbe Ticket-Format im Prompt: Der Ticket-Text steht zwischen `<<<TICKET` und `TICKET>>>`, als Daten, nicht als Anweisung.
@@ -21,16 +21,23 @@ Stand: 25. November 2026, Copilot CLI 1.0.115. Die Schritte `assess`, `spec` und
 
 - **Copilot läuft als du,** mit deinen Dateirechten. Kein eigener Benutzer, kein Container. Der Agent sieht alles, was du siehst.
 - **Keine Prüfung danach** (`check.py`). Nichts lehnt Änderungen an geschützten Pfaden ab, und nichts sucht nach Secrets oder unsichtbaren Zeichen im Diff. Das Skript warnt nur, wenn geschützte Pfade aus `config.json` geändert wurden. Lies jeden Diff mit `git diff`.
-- **Keine Freigabe zwischen Spec und Bau.** Du bist das Gate: Lies die Spec, bevor du `build` startest. Ein `[KI]`-Kommentar ist nie eine Freigabe.
+- **Keine Freigabe zwischen Spec und Bau.** Du bist das Gate: Lies die Spec, bevor du `build` startest. Ein `[KI]`-Kommentar ist nie eine Freigabe. Die Freigabe des Codes bleibt der Review im Pull Request, wie bei Code von Hand. Siehe [Nach dem Build](../einrichtung/template/README.md#nach-dem-build-branch-pull-request-review).
 - **Keine Status-Übergänge, keine Labels, keine Branches, keine Pull Requests.** Das Ticket bekommt nur Kommentare.
 
 Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen und dorthin wechseln. Im Lab hat der Agent es nicht aufgerufen und direkt in `specs/001-…/` geschrieben. BMad darf beim Bauen eigene Commits machen. In der Factory passiert beides in einer Wegwerf-Kopie. Lokal passiert es in deinem Repo. Starte deshalb auf einem eigenen Branch.
+
+## Datenschutz
+
+- **Was an GitHub Copilot geht:** Titel und Beschreibung des Tickets, die `[KI]`- und `[Mensch]`-Kommentare und der Code, den der Agent in deinem Projekt liest. GitHub gibt das an den Anbieter des Modells aus `config.json` weiter. Über den Jira-MCP sieht dazu jeder Lese-Aufruf das ganze Ticket, mit allen Kommentaren und ihren Autoren.
+- **Keine Personen- oder Kundendaten, keine Zugangsdaten** in Tickets, die du durchschickst. Voraussetzung ist die Bestätigung eures Datenschutzbeauftragten, dass eure Erlaubnis für Copilot auch Copilot CLI und die Factory abdeckt (siehe [Checkliste](../../01-erstworkshop/vorbereitung/checkliste.md)).
+- **Was auf deinem Rechner bleibt:** Unter `~/.factory-local/<Projekt>/` liegen Ticket-Text, Kommentare mit Konto-IDs, die Ereignisse jedes Aufrufs mit Befehlen und Antworten des Modells, Kopien der Spec und `blocked.jsonl`. Das Skript löscht nichts davon. Ist ein Ticket fertig, lösch seine Läufe und Kopien: `rm -rf ~/.factory-local/<Projekt>/*-<KEY>/ ~/.factory-local/<Projekt>/specs/<KEY>/`.
+- **Bevor du `blocked.jsonl` weitergibst,** lies die Datei und lösch Namen, Kundendaten und Secrets daraus. Bekannte Token-Formate schwärzt das Skript schon selbst.
 
 ## Voraussetzungen
 
 | | Mac | Windows (nicht getestet) |
 |---|---|---|
-| Python 3 | `python3 --version` | `py -3 --version` |
+| Python 3.9 oder neuer | `python3 --version` | `py -3 --version` |
 | Git | `git --version` | Git for Windows |
 | Copilot CLI ab 1.0.114, angemeldet | `copilot --version`, einmal `copilot` starten und `/login` | Als `copilot.exe` installieren, etwa per WinGet. Eine `copilot.cmd` von npm lehnt das Skript ab (siehe [Windows](#windows)) |
 | Jira | Jira Cloud: der Jira-MCP-Server in Copilot CLI. Jira Data Center: ein persönliches Zugriffstoken. Ohne Jira: eine Ticket-Datei | dasselbe |
@@ -108,7 +115,7 @@ Einmal pro Rechner:
    copilot mcp list        # zeigt atlassian
    ```
 
-   Nicht in `.mcp.json` oder `.github/` des Projekts: Die Jira-Aufrufe laufen außerhalb des Projekts und sähen ihn dort nicht. Hast du den Server mit einer Werkzeug-Liste angelegt (`"tools": [...]`), muss sie `getJiraIssue` und `addCommentToJiraIssue` enthalten, für `clarify --apply` auch `editJiraIssue` und `atlassianUserInfo`.
+   Nicht in `.mcp.json` oder `.github/` des Projekts: Die Jira-Aufrufe laufen außerhalb des Projekts und sähen ihn dort nicht. Hast du den Server mit einer Werkzeug-Liste angelegt (`"tools": [...]`), muss sie `getJiraIssue` und `addCommentToJiraIssue` enthalten, für `clarify --apply` auch `editJiraIssue`, und `atlassianUserInfo` für `clarify --apply` und für jeden weiteren Lauf von `spec` und `build`. Fehlt ein Werkzeug, ergänz die Liste oder leg den Server mit `copilot mcp remove atlassian` neu an.
 2. Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Prüf in `/mcp`, dass `atlassian` als verbunden angezeigt wird, dann `/exit`. Ein Aufruf mit `-p` kann keine Browser-Anmeldung abschließen. Er übernimmt die Anmeldung aus der interaktiven Sitzung.
 3. In `factory/local.json` die Adresse deiner Site eintragen, etwa `"jira_site": "https://example.atlassian.net"`. Der MCP-Server nimmt sie als `cloudId`. Fehlt `jira_site`, nimmt das Skript `JIRA_BASE_URL`. Eine Gateway-Adresse wie `https://api.atlassian.com/ex/jira/<Cloud-ID>` geht hier nicht, denn sie hat einen Pfad.
 4. Heißt dein Server nicht `atlassian`, trag den Namen unter `jira_mcp_server` ein.
@@ -117,13 +124,13 @@ Atlassian meldet `/v1/mcp` als veraltet. Ab 1. März 2027 gilt nur noch `https:/
 
 So arbeitet der Weg:
 
-- **Jeder Jira-Zugriff ist ein eigener Copilot-Aufruf.** Lesen ruft `getJiraIssue` auf, Kommentieren `addCommentToJiraIssue`, die Beschreibung setzen `editJiraIssue`. `clarify --apply` auf einen Vorschlag fragt mit `atlassianUserInfo` dein Konto ab. Jeder Aufruf hat nur dieses eine Werkzeug frei. Alle anderen MCP-Server sind aus, Lesen und Schreiben von Dateien auch. Er läuft in einem eigenen Ordner unter `~/.factory-local/`, außerhalb des Projekts, damit Copilot dessen `.github/` nicht lädt.
+- **Jeder Jira-Zugriff ist ein eigener Copilot-Aufruf.** Lesen ruft `getJiraIssue` auf, Kommentieren `addCommentToJiraIssue`, die Beschreibung setzen `editJiraIssue`. `clarify --apply` auf einen Vorschlag fragt mit `atlassianUserInfo` dein Konto ab, ebenso jeder weitere Lauf von `spec` und `build`, sobald das Ticket ein Ergebnis oder Antworten hat. Jeder Aufruf hat nur dieses eine Werkzeug frei. Alle anderen MCP-Server sind aus, Lesen und Schreiben von Dateien auch. Er läuft in einem eigenen Ordner unter `~/.factory-local/`, außerhalb des Projekts, damit Copilot dessen `.github/` nicht lädt.
 - **Shell-Befehle sind ausdrücklich verboten.** Copilot 1.0.115 führt Shell-Befehle aus, die es für nur lesend hält, auch wenn sie nicht freigegeben sind. Deshalb verbietet das Skript `shell` in jedem Aufruf ohne Shell-Werkzeuge (`--deny-tool=shell`). Lief trotzdem ein anderes Werkzeug, stoppt die [Prüfung danach](#hook-und-rücklesen). Der Befehl ist dann aber schon gelaufen.
 - **Vor dem ersten Aufruf prüft das Skript,** dass `agentic-factory-plugin/` neben dem Skript liegt und dass `copilot mcp list` den Server zeigt. Sonst stoppt es, bevor etwas passiert.
 - **Die Daten kommen aus den Ereignissen,** nicht aus einer Datei, die das Modell schreibt: Das Skript nimmt das Ergebnis des Werkzeugs aus der JSON-Ausgabe von Copilot.
 - **Der Server schickt Beschreibung und Kommentare als Markdown.** Aus `[KI]` wird dabei `\[KI\]`. Das Skript entfernt diese Escapes, bevor es die Tags liest.
 - **Ab 50 Kommentaren** warnt das Skript: Der Server liefert vielleicht nicht alle.
-- **Kosten:** Ein Lesen kostete im Test etwa 4 bis 9 Credits, ein Kommentar etwa 4, die Abfrage deines Kontos bei `clarify --apply` etwa 7 bis 8 (live gemessen 7,5). Jeder Aufruf hat die Obergrenze 30 Credits, das Minimum von `--max-ai-credits`.
+- **Kosten:** Ein Lesen kostete im Test etwa 4 bis 9 Credits, ein Kommentar etwa 4, die Abfrage deines Kontos bei `clarify --apply` und bei jedem weiteren Lauf von `spec` und `build` etwa 7 bis 8 (live gemessen 7,5). Jeder Aufruf hat die Obergrenze 30 Credits, das Minimum von `--max-ai-credits`.
 - **Lange `spec`-Kommentare sind über den MCP nicht live geprüft.** Das Modell muss den Text Zeichen für Zeichen abschreiben, bei einer Spec bis zu 30.000 Zeichen. Weicht er ab, stoppt das Skript und nennt den Kommentar, den du von Hand löschst. Für lange Specs nimm `--no-post` oder `--jira api`.
 
 Wie das Skript jeden Aufruf danach prüft, steht unter [Hook und Rücklesen](#hook-und-rücklesen).
@@ -199,7 +206,7 @@ py -3 -I factory\agentic-factory.py spec --ticket-file "$HOME\factory-tickets\LL
 
 - **Jeder Kommentar des Skripts beginnt mit `[KI]`.** Die erste Zeile ist ein Marker, etwa `[KI] agentic-factory klärung runde=2 key=LL-123`. Er sieht nie aus wie die Marker der Pipeline (`FACTORY-…`). Der Guard der Pipeline übergeht diese Kommentare. Kommt `FACTORY-` im Text des Modells vor, schreibt das Skript `FACTORY_`.
 - **Menschen beginnen ihre Antworten mit `[Mensch]`.** Nur diese Antworten lesen `clarify`, `spec` und `build`.
-- **Nur `[KI]`- und `[Mensch]`-Kommentare erreichen ein Modell,** als Daten zwischen `<<<COMMENTS` und `COMMENTS>>>`, ohne Autor. Alle anderen Kommentare übergeht das Skript und nennt ihre Zahl, etwa `2 comment(s) without a tag since round 1 were skipped (5 in total)`.
+- **Nur `[KI]`- und `[Mensch]`-Kommentare erreichen die Arbeitsaufrufe** (`clarify`, `spec`, `build`), als Daten zwischen `<<<COMMENTS` und `COMMENTS>>>`, ohne Autor. Über `--jira mcp` sieht aber der Lese-Aufruf davor das ganze Ticket, mit allen Kommentaren und ihren Autoren. Alle anderen Kommentare übergeht das Skript und nennt ihre Zahl, etwa `2 comment(s) without a tag since round 1 were skipped (5 in total)`.
 - **Der Zustand steht nur in den Kommentaren.** Die Runde steht im Marker. So kann eine andere Person oder die Pipeline die Klärung fortsetzen.
 - **Vor jedem Post prüft das Skript den Text,** auf beiden Wegen: Token-Muster, unsichtbare Zeichen, HTML-Kommentare, Link-Definitionen, höchstens 30.000 Zeichen (`jira.max_comment_chars`) und `[KI]` am Anfang. Findet es etwas, postet es nichts und stoppt.
 
@@ -335,6 +342,7 @@ Bauen mit dem Testbefehl `make test`, damals in `local.json`. Heute steht er in 
 
 Ein zweiter Lauf von `spec` oder `build` für dasselbe Ticket liest, was seit dem letzten `[KI]`-Ergebnis passiert ist: neue `[Mensch]`-Kommentare und deine Änderungen an den Spec-Dateien.
 
+- **Vor jedem Lauf** nennt das Skript Nummer und Konto jedes `[Mensch]`-Kommentars, den es bearbeitet.
 - **Vor dem ersten Build** überarbeitet `spec` die Spec. Hast du nur von Hand geändert, postet `spec` die Spec, wie sie jetzt ist, mit Diff, ohne Copilot-Aufruf.
 - **Nach dem ersten Build** lehnt `spec` ab: `a build exists for LL-123 (comment …); give feedback through build, or run spec --fresh`. `build` macht aus neuen Kommentaren erst neue, offene Aufgaben in der Spec und baut sie dann. Hast du die Spec von Hand geändert, bekommt der Build-Prompt den Diff dazu.
 - **Nichts Neues:** Der Lauf endet vor jedem Aufruf mit `nothing new since comment …`, Exit-Code 0, ohne Credits.
@@ -570,7 +578,7 @@ Am 23. November auf dem Mac, Modell `claude-sonnet-5.5`, mit drei Kopien der Sym
 - Die Spec-Läufe liefen ohne Bereitschaftsprüfung, denn die gab es da noch nicht. Mit ihr kommen etwa 6 Credits dazu.
 - BMad hat beim Bauen selbst committet. Das Skript zeigt solche Commits und ihre Dateien.
 - Spec Kit hat `create-new-feature.sh` nicht aufgerufen und keinen Branch angelegt.
-- Über den Jira-MCP kommen je Lauf ein Lesen (etwa 4 bis 9 Credits) und ein Kommentar (etwa 4 Credits) dazu. Gemessen am 24. und 25. November mit Copilot CLI 1.0.115.
+- Über den Jira-MCP kommen je Lauf ein Lesen (etwa 4 bis 9 Credits) und ein Kommentar (etwa 4 Credits) dazu, bei jedem weiteren Lauf von `spec` und `build` noch die Abfrage deines Kontos (etwa 7 bis 8). Gemessen am 24. und 25. November mit Copilot CLI 1.0.115.
 
 ## Windows
 

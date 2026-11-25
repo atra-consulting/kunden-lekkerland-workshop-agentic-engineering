@@ -121,7 +121,7 @@ Added at the user's request after runs where `ls`, `find`, or `grep` were denied
 - `assess`, `clarify`, and `init` don't get them: they have no shell, and any shell tool would switch off the
   backstop that stops a run when Copilot ran a shell command anyway.
 - Every `read_tools` entry must be `shell(...)` and must not match `deny_tools`; the script stops otherwise.
-  `init` may add entries but never removes any.
+  `init` can't change `read_tools`; people edit it by hand.
 - Risk, stated in the README's safety section: `cat` and `grep` can read files outside the project, which Copilot's
   own read tool can't. The token scan before posting is the only backstop for text copied into a spec.
 - Parity: the lab fixture `LAB_CFG` sets `read_tools` to `[]`.
@@ -339,18 +339,26 @@ of its normal one (`frameworks.<fw>.rebuild_prompt`), and the design is updated 
 ### Spike results (2026-11-25)
 
 Run offline in a fresh factory-lab clone (`factory-base`) with ticket FLAB-41, template at `0b0b0fb`, about 346 credits
-in total, no call over 74 credits or 3 minutes, all test runs green. Details:
+in total, no call over 74 credits or 3 minutes, all test runs green. Caveats: one run per framework, one ticket, the PHP
+lab project; the hand edit was one renamed word; the spec-diff block was added to the prompt by hand (a helper script),
+before the shipped build-revision prompt existed; the new OpenSpec task was deliberately outside the spec. Details:
 `.superpowers/sdd/2026-11-25-agentic-factory-template/task-7-spike.md` (local, not committed).
 
 | Framework | Second build picks up a new unchecked task | Follows a hand-edited spec (diff block) |
 |---|---|---|
-| OpenSpec | Partly: skips done tasks, but refuses a new task that proposal, spec and design don't mention, and asks to update the spec first. A task the spec covers is implemented and checked off. | Yes |
-| Spec Kit | Yes: implements only the new task, checks it off, redoes nothing. | Yes |
-| BMad | Yes: implements only the new item in `SPEC.md`; it doesn't refuse its own `done` status. | Yes (44 credits for a one-word change) |
+| OpenSpec | Partly: skips done tasks, but refuses a new task that proposal, spec and design don't mention, and asks to update the spec first. A task the spec covers is implemented and checked off. | Yes, checked once (one renamed word) |
+| Spec Kit | Yes: implements only the new task, checks it off, redoes nothing. | Yes, checked once (one renamed word) |
+| BMad | Yes: implements only the new item in `SPEC.md`; it doesn't refuse its own `done` status. | Yes, checked once (one renamed word) |
+
+Credits per step (spec / build 1 / build 2 / spec-diff build / total): OpenSpec 20.5 / 17.7 / 7.9 / 5.8 / 64.6 (with an
+extra in-spec build of 12.7); Spec Kit 47.2 / 19.8 / 12.1 / 5.3 / 84.4; BMad 30.9 / 73.9 / 47.5 / 44.3 / 196.6.
 
 Decision: for OpenSpec, the amend call may change every file of the change folder (`proposal.md`, `specs/`,
 `design.md`, `tasks.md`) and its prompt tells it to update the spec documents as well as add tasks. Spec Kit and BMad
-keep the task-file-only amend. No `rebuild_prompt` is needed.
+keep the task-file-only amend; for them the feedback lands in the tasks only, and spec and plan may lag behind the
+code. The wider OpenSpec amend scope is a precaution: that OpenSpec builds such a task once the spec documents cover it
+was not tested. No `rebuild_prompt` for now: in one run per framework, each re-entered or followed the diff. If a
+framework stops re-entering, add `frameworks.<fw>.rebuild_prompt` (R24).
 
 The 13 denied calls in `blocked.jsonl` were `rm` of the agents' own temp files, compound or redirected `git diff`
 commands and `cd <abs> && …` chains (mostly BMad), and shell edits (`sed -i`, a Python heredoc, `xmllint`). The agents

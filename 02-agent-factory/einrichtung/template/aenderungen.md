@@ -135,7 +135,7 @@ Ihr habt `local.py` mit `config.json`, `readiness.md` und vielleicht `local.json
 
 5. Tragt die Werte um, wie die Tabelle unten sagt. `test_command` kommt als Text in `config.json`, etwa `"test_command": "make test"`. Den Text von `stack_hint` schreibt ihr in `AGENTS.md`. Dann löscht ihr beide Schlüssel aus `local.json`. Eure Änderungen an `config.json` übertragt ihr von Hand in die neue Datei.
 6. Startet `python3 -I factory/agentic-factory.py init --print-only` noch einmal. Jetzt zeigt es den Copilot-Befehl und endet mit Exit-Code 0.
-7. Startet `init` ohne `--print-only` und lest den Bericht. Passt er, startet `init --apply`. Das schreibt die Vorschläge in `config.json` und `readiness.md`. Jeder Lauf kostet bis zu 40 Credits. `--apply` startet einen neuen Aufruf, lest also auch dessen Bericht. Dann `git diff factory/`. Mehr steht unter [Erste Einrichtung mit `init`](README.md#erste-einrichtung-mit-init).
+7. Startet `init` ohne `--print-only` und lest den Bericht. Passt er, startet `init --apply`. Das schreibt genau diese Vorschläge in `config.json` und `readiness.md`, ohne neuen Aufruf. Der Lauf ohne `--apply` kostet bis zu 40 Credits, `--apply` kostet nichts. Dann `git diff factory/`. Mehr steht unter [Erste Einrichtung mit `init`](README.md#erste-einrichtung-mit-init).
 8. Richtet den Jira-MCP ein, einmal pro Rechner. Das ist neu für euch, `local.py` kannte nur REST:
 
    ```bash

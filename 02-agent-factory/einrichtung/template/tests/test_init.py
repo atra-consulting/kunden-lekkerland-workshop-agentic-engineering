@@ -443,8 +443,25 @@ class InitMode(E2E, unittest.TestCase):
             self.run_main("init", mode="init", cfg={**INIT_CFG, "test_command": ["./bin/phpunit"]})
         self.assertEqual(self.calls(), [])
 
+    def apply(self, *args):
+        return self.run_main("init", "--apply", *args, mode="init", cfg=INIT_CFG)
+
+    def test_init_saves_the_checked_result(self):
+        rc, out = self.init(self.SUGGESTIONS)
+        self.assertEqual(rc, 0, out)
+        (saved,) = (self.d / ".factory-local" / "proj").glob("*-init-INIT/init-result.json")
+        self.assertIn(f"saved the checked result to {saved}", out)
+        d = json.loads(saved.read_text(encoding="utf-8"))
+        self.assertEqual(d["suggestions"], self.SUGGESTIONS)
+        self.assertEqual(sorted(d), ["config", "config_sha256", "installed", "readiness", "readiness_sha256",
+                                     "suggestions"])
+
     def test_init_apply_writes_both(self):
-        rc, out = self.init(self.SUGGESTIONS, "--apply")
+        self.init(self.SUGGESTIONS)
+        (self.repo / "fake-init.json").write_text(json.dumps({"test_command": s("make other")}), encoding="utf-8")
+        rc, out = self.apply()
+        self.assertEqual(len(self.calls()), 1, "--apply makes no Copilot call")
+        self.assertIn("no Copilot call", out)
         self.assertEqual(rc, 0, out)
         text = self.cfgp.read_text(encoding="utf-8")
         self.assertTrue(text.startswith('{\n  "comment"'), text[:40])
@@ -460,12 +477,53 @@ class InitMode(E2E, unittest.TestCase):
         self.assertIn("written", out)
 
     def test_init_apply_writes_nothing_refused(self):
-        rc, out = self.init({"add_tools": {"openspec": {"spec": [s("shell(bash:*)")]}}, "add_deny_tools": [s("shell(curl:*)x")]},
-                            "--apply")
+        rc, out = self.init({"add_tools": {"openspec": {"spec": [s("shell(bash:*)")]}},
+                             "add_deny_tools": [s("shell(curl:*)x")]})
+        self.assertEqual(list((self.d / ".factory-local" / "proj").glob("*-init-INIT/init-result.json")), [])
+        with self.assertRaisesRegex(config.Stop, "no saved init result"):
+            self.apply()
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
         self.assertEqual(self.rd.read_text(encoding="utf-8"), READINESS)
         self.assertIn("refused", out)
+
+    def test_init_apply_without_a_saved_result_stops(self):
+        with self.assertRaisesRegex(config.Stop, "no saved init result.*run init first"):
+            self.apply()
+        self.assertEqual(self.calls(), [])
+
+    def test_init_apply_after_a_change_stops(self):
+        for name in ("config.json", "readiness.md"):
+            with self.subTest(name=name):
+                self.init(self.SUGGESTIONS)
+                path = self.cfgp if name == "config.json" else self.rd
+                old = path.read_bytes()
+                if name == "config.json":
+                    self.cfgp.write_text(json.dumps({**INIT_CFG, "model": "other"}), encoding="utf-8")
+                    with self.assertRaisesRegex(config.Stop, "config.json or readiness.md changed since .*; run init "
+                                                             "again"):
+                        self.run_main("init", "--apply", mode="init", cfg={**INIT_CFG, "model": "other"})
+                else:
+                    self.rd.write_text(READINESS + "\n### `extra`\n", encoding="utf-8")
+                    with self.assertRaisesRegex(config.Stop, "run init again"):
+                        self.apply()
+                path.write_bytes(old)
+        self.assertEqual(json.loads(self.cfgp.read_text(encoding="utf-8")), INIT_CFG)
+
+    def test_init_apply_takes_only_the_newest_run(self):
+        self.init(self.SUGGESTIONS)
+        older = next((self.d / ".factory-local" / "proj").glob("*-init-INIT"))
+        older.rename(older.with_name("20000101-000000-init-INIT"))
+        self.init({})  # the newest run had nothing to write
+        with self.assertRaisesRegex(config.Stop, "no saved init result"):
+            self.apply()
+        self.assertEqual(json.loads(self.cfgp.read_text(encoding="utf-8")), INIT_CFG)
+
+    def test_init_print_only_with_apply_makes_no_call(self):
+        rc, out = self.init(self.SUGGESTIONS, "--apply", "--print-only")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.calls(), [])
+        self.assertIn("init --apply makes no Copilot call", out)
 
     def test_init_refused_in_pipeline(self):
         with self.assertRaisesRegex(config.Stop, "init"):
@@ -495,13 +553,13 @@ class InitMode(E2E, unittest.TestCase):
                           ("a string", '"x"'), ("empty", ""), ("not JSON", "no suggestions"),
                           ("unclosed fence", "```json\n" + json.dumps(s1))):
             with self.subTest(name), self.assertRaisesRegex(config.Stop, "the init call returned no JSON object"):
-                self.init(None, "--apply", raw=raw)
+                self.init(None, raw=raw)
         self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
 
     def test_init_call_writing_other_files_stops(self):
         (self.repo / "fake-init.json").write_text("{}", encoding="utf-8")
         with self.assertRaisesRegex(config.Stop, "README.md"):
-            self.run_main("init", "--apply", mode="tamper", cfg=INIT_CFG)
+            self.run_main("init", mode="tamper", cfg=INIT_CFG)
         self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
         self.assertEqual(self.rd.read_text(encoding="utf-8"), READINESS)
 
@@ -554,7 +612,8 @@ class InitMode(E2E, unittest.TestCase):
     def test_init_uses_readiness_option(self):
         other = self.d / "other.md"
         other.write_text("# C\n\n### `only_one`\n", encoding="utf-8")
-        rc, out = self.init({"readiness_md": s("# C\n\n### `only_one`\n\n### `two`\n")}, "--readiness", str(other), "--apply")
+        self.init({"readiness_md": s("# C\n\n### `only_one`\n\n### `two`\n")}, "--readiness", str(other))
+        rc, out = self.apply("--readiness", str(other))
         self.assertEqual(rc, 0, out)
         self.assertIn("### `two`", other.read_text(encoding="utf-8"))
         self.assertEqual(self.rd.read_text(encoding="utf-8"), READINESS)

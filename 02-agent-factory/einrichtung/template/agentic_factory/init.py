@@ -4,6 +4,7 @@ deny_tools, protected_paths, forbidden_flags, or forbidden_env. The checks are p
 written. run_init (at the end) is the mode: one Copilot call, the checks, the report, and with --apply the two files."""
 import copy
 import difflib
+import hashlib
 import json
 import re
 import shlex
@@ -439,15 +440,38 @@ def dump_config(old_text, new):
     return json.dumps(new, ensure_ascii=False, indent=m.group(1) if m else 2) + "\n"
 
 
+RESULT = "init-result.json"  # in the init run's log folder: what init checked, for init --apply
+
+
+def _sha256(path):
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError as e:
+        raise config.Stop(f"can't read {path}: {e.strerror or e}")
+
+
+def latest_result(repo):
+    """The result the newest init run of this project saved, or None when it saved none (nothing to change) or there
+    is no init run: ~/.factory-local/<repo>/<stamp>-init-INIT/init-result.json. An older run's result never counts."""
+    runs = sorted(p for p in (Path.home() / ".factory-local" / Path(repo).name).glob(f"*-init-{KEY}") if p.is_dir())
+    return runs[-1] / RESULT if runs and (runs[-1] / RESULT).is_file() else None
+
+
 def run_init(run, apply, print_only):
     """agentic-factory.py init: one Copilot call that reads the project's docs and answers with the suggestions as JSON, the checks of
-    check_suggestions, the report and the diffs; with apply, config.json and readiness.md are written, nothing else.
-    No ticket and no Jira. Returns the exit code."""
+    check_suggestions, the report and the diffs, and the checked result saved to the log folder. With apply: no Copilot
+    call; the latest saved result is checked again and written to config.json and readiness.md, if both files are
+    unchanged since. No ticket and no Jira. Returns the exit code."""
     cfg, repo, a = run.cfg, run.repo, run.a
     if not isinstance(cfg.get("init"), dict):
         raise config.Stop("init is not available in this config: config.json has no \"init\" block")
     crit_path = Path(a.readiness) if a.readiness else Path(a.config).resolve().parent / run.A.get("criteria_file", "readiness.md")
     readiness_text, _ = run.criteria()
+    if apply:
+        if print_only:
+            print("# init --apply makes no Copilot call: it writes the checked result of the last init run")
+            return 0
+        return _apply_saved(run, crit_path, readiness_text)
     installed = installed_frameworks(repo, cfg)
     prompt, tools, cap = init_call(cfg, readiness_text, installed, blocked_summary(blocked.log_path(repo)))
     logdir = run.log(KEY)
@@ -460,12 +484,12 @@ def run_init(run, apply, print_only):
     run.set_io(logdir / "io")  # outside the project, so the work call's snapshots need no exception
     work = agent.Work(run, KEY, {}, {"mode": "init", "framework": None, "key": KEY, "run": logdir.name})
     try:  # the blocked-calls line ends every run, a stopped one too
-        return _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path, apply)
+        return _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path)
     finally:
         work.report()
 
 
-def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path, write):
+def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path):
     cfg, repo, a = run.cfg, run.repo, run.a
     before = work.snap()
     head = ticket_mod.head_commit(repo)
@@ -478,15 +502,36 @@ def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, cri
         raise config.Stop(f"the init call changed files although it may only read: {changed[:10]}; nothing is suggested "
                           "or written")
     d = parse_reply(final)
-    result = check_suggestions(d, cfg, readiness_text, installed)
     config.say(f"done: credits {work.total:.2f}, {int(time.time() - t0)} s, logs in {work.logdir}")
+    changes = _report(cfg, d, readiness_text, installed, Path(a.config), crit_path)
+    if changes:
+        saved = work.logdir / RESULT
+        _write_result(saved, {"config": str(Path(a.config).resolve()), "config_sha256": _sha256(a.config),
+                              "readiness": str(crit_path.resolve()), "readiness_sha256": _sha256(crit_path),
+                              "installed": installed, "suggestions": d})
+        config.say(f"saved the checked result to {saved}")
+        config.say("nothing was changed. Run init again with --apply to write config.json and readiness.md as shown "
+                   "above (no Copilot call).")
+    return 0
+
+
+def _write_result(path, obj):
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((json.dumps(obj, ensure_ascii=False, indent=1) + "\n").encode("utf-8"))
+    except OSError as e:
+        raise config.Stop(f"can't write {path}: {e.strerror or e}")
+
+
+def _report(cfg, d, readiness_text, installed, cfg_path, crit_path):
+    """The checks of d, the report, and the diffs. Returns [(path, new text, name)] of the files that would change."""
+    result = check_suggestions(d, cfg, readiness_text, installed)
     if not (result["accepted"] or result["refused"]):
         config.say("keine Vorschläge: nothing to change.")
-        return 0
+        return []
     print(render_report(result))
     new = apply(cfg, result["accepted"])
     new_readiness = readiness_of(result["accepted"])
-    cfg_path = Path(a.config)
     old_text = cfg_path.read_text(encoding="utf-8")
     new_text = dump_config(old_text, new) if new != cfg else old_text
     changes = []
@@ -498,12 +543,33 @@ def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, cri
         print("\n" + diff(readiness_text if name == "readiness.md" else old_text, text, name))
     if not changes:
         config.say("no change to config.json or readiness.md")
-    elif not write:
-        config.say("nothing was changed. Run init again with --apply to write config.json and readiness.md.")
     else:
         config.check_config(new)  # the checks again on what is about to be written
-        for path, text, name in changes:
-            path.write_bytes(text.encode("utf-8"))
-            config.say(f"written: {path}")
+    return changes
+
+
+def _apply_saved(run, crit_path, readiness_text):
+    """init --apply: the latest saved result, checked again against the unchanged files, written. No Copilot call."""
+    cfg, repo, a = run.cfg, run.repo, run.a
+    saved = latest_result(repo)
+    if saved is None:
+        raise config.Stop("no saved init result for this project (the last init run had nothing to write, or there was "
+                          "none): run init first, review its report, then init --apply")
+    d = config.read_json(saved)
+    keys = ("config", "config_sha256", "readiness", "readiness_sha256", "installed", "suggestions")
+    if not isinstance(d, dict) or sorted(d) != sorted(keys) or not isinstance(d["suggestions"], dict) \
+            or not isinstance(d["installed"], list):
+        raise config.Stop(f"{saved} is not an init result; run init again")
+    same = (d["config"] == str(Path(a.config).resolve()) and d["config_sha256"] == _sha256(a.config)
+            and d["readiness"] == str(crit_path.resolve()) and d["readiness_sha256"] == _sha256(crit_path))
+    if not same:
+        raise config.Stop(f"config.json or readiness.md changed since the init run in {saved.parent} (or this run uses "
+                          "other files); run init again")
+    config.say(f"init --apply: no Copilot call; writing the checked result of {saved}")
+    changes = _report(cfg, d["suggestions"], readiness_text, [str(x) for x in d["installed"]], Path(a.config), crit_path)
+    for path, text, name in changes:
+        path.write_bytes(text.encode("utf-8"))
+        config.say(f"written: {path}")
+    if changes:
         config.say("review the diff, then commit config.json and readiness.md by hand")
     return 0

@@ -10,7 +10,7 @@ Usage (from anywhere inside the project's git repository):
                                                            --fresh starts over as a first spec
   python3 agentic-factory.py spec    --key LL-123 --print-only  read the ticket, print the work calls, run none of them
   python3 agentic-factory.py init    [--apply]             suggest config.json and readiness.md changes from the project's docs
-                                                           (local only; no --key, no Jira; --apply writes the checked ones)
+                                                           (local only; no --key, no Jira; --apply writes the last checked result)
 
 Options:
   --jira mcp|api         how to reach Jira. mcp: your Copilot's Atlassian MCP server (local.json jira_mcp_server,
@@ -62,7 +62,7 @@ def parse(argv):
     ap.add_argument("--fresh", action="store_true", help="spec and build: ignore the earlier [KI] results of the mode and "
                     "run as a first run (after a discarded build, a deleted spec folder, or an untrusted comment)")
     ap.add_argument("--no-post", action="store_true", help="write the comments to out/comment-<n>.txt, post nothing")
-    ap.add_argument("--apply", action="store_true", help="clarify: set the clarified description; init: write the checked suggestions to config.json and readiness.md")
+    ap.add_argument("--apply", action="store_true", help="clarify: set the clarified description; init: write the last init run's checked result to config.json and readiness.md, without a Copilot call")
     ap.add_argument("--print-only", action="store_true",
                     help="read the ticket (over MCP: one Jira call), print the copilot commands of the work calls, "
                     "run none of them and set or post nothing")

@@ -226,9 +226,13 @@ The docs go into the prompt and may carry a prompt injection, so the script chec
 ### Output
 
 - Without `--apply`: a readable report in the terminal (each suggestion, reason, source, flags) and a unified diff of
-  `config.json` and `readiness.md`. Nothing changes. Exit 0.
-- With `--apply`: the same report, then the script writes `config.json` (keys in their order, two-space indent as
-  today) and `readiness.md`. It never writes anything else.
+  `config.json` and `readiness.md`. Nothing changes in the project. Exit 0. The script saves the checked result
+  (the suggestions, the installed frameworks, and sha256 of `config.json` and `readiness.md`) as `init-result.json` in
+  the run's log folder and prints its path.
+- With `--apply` (changed in the fix wave, po-stand-in B3): no Copilot call. The script takes the result the newest
+  init run saved, stops ("run init again") when `config.json` or `readiness.md` changed since or that run saved none,
+  checks the suggestions again, shows the same report, and writes `config.json` (keys in their order, two-space
+  indent as today) and `readiness.md`. It never writes anything else. So `--apply` writes what the person reviewed.
 - `init` can run any time; it suggests against the current files.
 
 ## Part 4: human feedback for `spec` and `build`

@@ -101,7 +101,7 @@ Regeln eures Teams, etwa „minimale Änderungen, kein Refactoring nebenbei“, 
 
 ```bash
 python3 -I factory/agentic-factory.py init               # Bericht und Diff zeigen, nichts ändern
-python3 -I factory/agentic-factory.py init --apply       # dasselbe, dann config.json und readiness.md schreiben
+python3 -I factory/agentic-factory.py init --apply       # das geprüfte Ergebnis des letzten Laufs schreiben, kein Aufruf
 python3 -I factory/agentic-factory.py init --print-only  # nur den Copilot-Befehl zeigen, kein Aufruf
 ```
 
@@ -138,7 +138,9 @@ python3 -I factory/agentic-factory.py init --print-only  # nur den Copilot-Befeh
 
 Abgelehnte Vorschläge zeigt der Bericht mit Grund. Er lässt sie nicht still weg. Breite Werkzeuge markiert er, etwa `shell(make:*)` mit „allows every Make target“.
 
-**Was ihr seht.** Ohne `--apply`: den Bericht, dann einen Diff von `config.json` und `readiness.md`. Nichts ändert sich, Exit-Code 0. Mit `--apply` schreibt das Skript danach `config.json` und `readiness.md`, sonst nichts. Achtung: `--apply` startet einen neuen Aufruf. Seine Vorschläge können von denen des Laufs davor abweichen. Lest also den Bericht des Laufs mit `--apply`, dann `git diff`, und committet von Hand.
+**Was ihr seht.** Ohne `--apply`: den Bericht, dann einen Diff von `config.json` und `readiness.md`. Nichts ändert sich, Exit-Code 0. Das Skript speichert das geprüfte Ergebnis im Log-Ordner des Laufs, als `init-result.json`, und nennt den Pfad. Dazu kommen Prüfsummen von `config.json` und `readiness.md`.
+
+**Was `--apply` tut.** `init --apply` startet keinen Copilot-Aufruf und kostet keine Credits. Es nimmt das gespeicherte Ergebnis des letzten `init`-Laufs, prüft es noch einmal und schreibt genau den Diff, den ihr gelesen habt, in `config.json` und `readiness.md`, sonst nichts. Hat sich eine der beiden Dateien seitdem geändert, stoppt es: Startet dann `init` noch einmal. Hatte der letzte Lauf nichts zu schreiben, stoppt es auch. Danach lest ihr `git diff` und committet von Hand.
 
 `init` läuft jederzeit wieder, etwa nachdem sich `blocked.jsonl` gefüllt hat. Es vergleicht immer mit den aktuellen Dateien.
 

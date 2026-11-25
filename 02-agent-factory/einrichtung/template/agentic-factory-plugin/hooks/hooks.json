@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "python3 -I \"$AF_GUARD_ROOT/hooks/guard.py\"",
+        "env": {
+          "AF_GUARD_ROOT": "${PLUGIN_ROOT}"
+        },
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

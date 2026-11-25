@@ -1,6 +1,6 @@
 # Bauen mit BMad
 
-Ticket [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md), Ausgabe von `local.py --print-only`. Die Flags erklärt die [README](README.md#die-parameter-für-copilot). Die rohe Ausgabe: [`roh/build-bmad.txt`](roh/build-bmad.txt).
+Ticket [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md), Ausgabe von `local.py --print-only` (heute `agentic-factory.py`). Die Flags erklärt die [README](README.md#die-parameter-für-copilot). Die rohe Ausgabe: [`roh/build-bmad.txt`](roh/build-bmad.txt).
 
 ```text
 [local] FLAB-41: mode build, framework bmad (from --framework), project <projekt>

@@ -140,6 +140,35 @@ class ArbeitsstandTest(unittest.TestCase):
         self.lauf("merken")
         self.assertEqual(self.status(), "")
 
+    def stand_datei(self, name):
+        return os.path.join(self.root, ".git", name)
+
+    def test_stand_heisst_schreibe_ticket_stand(self):
+        self.lauf("merken")
+        self.assertTrue(os.path.exists(self.stand_datei("schreibe-ticket-stand.json")))
+        self.assertFalse(os.path.exists(self.stand_datei("ticket-schreiben-stand.json")))
+
+    def test_alter_stand_wird_gelesen_und_aufgeraeumt(self):
+        self.lauf("merken")
+        os.rename(self.stand_datei("schreibe-ticket-stand.json"), self.stand_datei("ticket-schreiben-stand.json"))
+        schreibe(self.root, "specs/001/spec.md")
+        code, out = self.lauf("zeigen")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Löschen: specs/001/spec.md", out)
+        code, out = self.lauf("aufraeumen", "--ja")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.status(), "")
+        self.assertFalse(os.path.exists(self.stand_datei("ticket-schreiben-stand.json")))
+        self.assertEqual(self.lauf("zeigen")[0], 2, "kein Stand mehr")
+
+    def test_neuer_stand_gewinnt_und_alter_stand_bleibt_nicht_liegen(self):
+        with open(self.stand_datei("ticket-schreiben-stand.json"), "w", encoding="utf-8") as f:
+            f.write("kaputt")
+        self.lauf("merken")
+        self.assertFalse(os.path.exists(self.stand_datei("ticket-schreiben-stand.json")))
+        self.assertEqual(self.lauf("aufraeumen", "--ja")[0], 0)
+        self.assertEqual(self.lauf("zeigen")[0], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

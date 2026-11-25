@@ -1,5 +1,5 @@
 {
-  "comment": "Copy to local.json next to local.py and adjust. Every key is optional; leave one out to keep config.json's value.",
+  "comment": "Copy to local.json next to agentic-factory.py and adjust. Every key is optional; leave one out to keep config.json's value (or the default named below).",
   "comment_test_command": "Replaces ./bin/phpunit in the build rules, and shell(./bin/phpunit:*) with shell(<first word>:*) in the allowed tools. shell(make:*) allows every Makefile target.",
   "test_command": "make test",
   "comment_stack_hint": "Replaces 'Use the existing Symfony 7 / PHP stack and PHPUnit' in the Spec Kit plan prompt. Other frameworks have no stack hint.",
@@ -7,5 +7,9 @@
   "comment_model": "Copilot model. Leave it out to use config.json's model.",
   "model": "claude-sonnet-5.5",
   "comment_copilot": "The command that starts Copilot CLI, as a list. Leave it out to use copilot from PATH. On Windows it must not be a .cmd or .bat file.",
-  "comment_jira": "Jira credentials come from the environment, never from this file: JIRA_BASE_URL, JIRA_API_TOKEN, and JIRA_EMAIL for Jira Cloud only (Basic auth). Without JIRA_EMAIL, the token goes out as a Bearer token (Jira Data Center personal access token)."
+  "comment_jira_mcp_server": "The --jira mcp route (the default outside a pipeline): the name of your Atlassian MCP server in `copilot mcp list`. Default atlassian. Add it at user level (~/.copilot/mcp-config.json), with `copilot mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp`, never in the project's .mcp.json or .github/: the Jira calls run outside the project. Log in once interactively: copilot, /mcp, atlassian, Authenticate.",
+  "jira_mcp_server": "atlassian",
+  "comment_jira_site": "The --jira mcp route: your Jira Cloud address, with no path. It is not a secret. Without it, the script takes JIRA_BASE_URL. Jira Data Center has no MCP route; use --jira api.",
+  "jira_site": "https://example.atlassian.net",
+  "comment_jira": "The --jira api route (the default in a pipeline): credentials come from the environment, never from this file: JIRA_BASE_URL, JIRA_API_TOKEN, and JIRA_EMAIL for Jira Cloud only (Basic auth). Without JIRA_EMAIL, the token goes out as a Bearer token (Jira Data Center personal access token)."
 }

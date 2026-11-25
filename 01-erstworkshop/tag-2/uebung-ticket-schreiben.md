@@ -1,6 +1,6 @@
 # Übung 3: Tickets mit dem Skill schreiben
 
-Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Bereitschaftsprüfung der Factory bestehen. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
+Der Copilot-Skill `schreibe-ticket` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Bereitschaftsprüfung der Factory bestehen. Ihr gebt eine echte Absicht aus eurem Backlog ein und seht zu: Code-Erkundung, Fragen des Frameworks, Prüfung jedes Entwurfs, euer Ja, das Ticket in Jira. Die Referenz: [Tickets mit dem Skill schreiben](../../02-agent-factory/bedienung/ticket-skill.md).
 
 - **Ihr braucht** den Framework-Branch mit `factory/` aus [Übung 1](uebung-factory-lokal.md) und eurem Kriterium aus [Übung 2](uebung-bereitschaft.md), dazu den Jira-MCP-Server `atlassian` aus Übung 1.
 - **Nur Absichten, die ihr an Copilot schicken dürft.** Keine Personendaten, keine vertraulichen Kundendaten.
@@ -10,20 +10,20 @@ Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Ji
 
 ## 1. Skill ins Projekt kopieren
 
-`<workshop-repo>` ist der Ordner, in dem euer Klon dieses Workshop-Repos liegt, etwa `~/workshop-agentic-engineering` aus [Übung 1, Schritt 2](uebung-factory-lokal.md#2-localpy-einrichten). Holt vorher mit `git pull` den neuesten Stand.
+`<workshop-repo>` ist der Ordner, in dem euer Klon dieses Workshop-Repos liegt, etwa `~/workshop-agentic-engineering` aus [Übung 1, Schritt 2](uebung-factory-lokal.md#2-agentic-factorypy-einrichten). Holt vorher mit `git pull` den neuesten Stand.
 
 ```bash
 git switch <framework-branch>
 mkdir -p .github/skills
-cp -R <workshop-repo>/02-agent-factory/werkzeuge/ticket-schreiben .github/skills/
-rm -rf .github/skills/ticket-schreiben/tests
+cp -R <workshop-repo>/02-agent-factory/werkzeuge/schreibe-ticket .github/skills/
+rm -rf .github/skills/schreibe-ticket/tests
 ```
 
-**Das seht ihr:** `.github/skills/ticket-schreiben/` mit `SKILL.md`, `README.md`, `jira_ticket.py`, `arbeitsstand.py` und `ticket-schreiben.example.json`.
+**Das seht ihr:** `.github/skills/schreibe-ticket/` mit `SKILL.md`, `README.md`, `jira_ticket.py`, `arbeitsstand.py` und `schreibe-ticket.example.json`.
 
 ## 2. Konfiguration schreiben
 
-Legt `.github/ticket-schreiben.json` an:
+Legt `.github/schreibe-ticket.json` an:
 
 ```json
 {
@@ -46,13 +46,13 @@ Legt `.github/ticket-schreiben.json` an:
 ## 3. Committen und prüfen
 
 ```bash
-git add .github/skills/ticket-schreiben .github/ticket-schreiben.json
-git commit -m "Skill ticket-schreiben"
+git add .github/skills/schreibe-ticket .github/schreibe-ticket.json
+git commit -m "Skill schreibe-ticket"
 copilot skill list
 git status --short
 ```
 
-**Das seht ihr:** `copilot skill list` zeigt `ticket-schreiben`. `git status --short` zeigt nichts. Das braucht der Skill: Er merkt sich den Stand und stellt ihn am Ende wieder her.
+**Das seht ihr:** `copilot skill list` zeigt `schreibe-ticket`. `git status --short` zeigt nichts. Das braucht der Skill: Er merkt sich den Stand und stellt ihn am Ende wieder her.
 
 ## 4. Skill starten
 
@@ -63,14 +63,14 @@ copilot
 ```
 
 ```text
-/ticket-schreiben <eure Absicht in einem Satz>
+/schreibe-ticket <eure Absicht in einem Satz>
 ```
 
 Im Lab lautete eine Absicht: „Leser sollen sehen, wie lange sie für einen Artikel brauchen.“
 
 Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ändert keinen Produktcode und committet nichts. Will Copilot in Produktcode oder Tests schreiben, lehnt ab.
 
-**Das seht ihr:** Der Skill liest die Konfiguration, merkt sich den Stand des Repos (`arbeitsstand.py merken`) und sucht `factory/local.py`.
+**Das seht ihr:** Der Skill liest die Konfiguration, merkt sich den Stand des Repos (`arbeitsstand.py merken`) und sucht `factory/agentic-factory.py`.
 
 ## 5. Zusehen: Code, Fragen, Prüfung
 
@@ -79,7 +79,7 @@ Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ände
 | Code-Erkundung | Der Skill liest Code, Tests und eure Modul-Doku. Gibt es die Funktion schon oder widerspricht sie dem Code, sagt er es sofort, mit Datei und Zeile. Im Lab fand er den RSS-Feed, bevor das Framework die erste Frage stellte ([FLAB-29](https://betterprojectsfaster.atlassian.net/browse/FLAB-29)). |
 | Fragen des Frameworks | Spec Kit: `speckit-specify`, dann `speckit-clarify` mit wenigen Fragen und einem Antwortvorschlag. OpenSpec: `openspec-explore` stellt Optionen zur Wahl. Danach nennt der Skill die Annahmen des Frameworks. Ihr bestätigt oder korrigiert sie. |
 | Reife-Check des Skills | Eine Tabelle mit allen Kriterien, je „erfüllt“ oder „offen“. Der Skill liest `factory/readiness.md`, also auch euer `missing_domain`. Ist die Absicht `too_big`, schlägt er ein Epic mit mehreren Tickets vor. |
-| Prüfung der Factory | Für jeden Entwurf `jira_ticket.py pruefdatei`, dann `python3 -I factory/local.py assess --ticket-file ticket-entwurf-1.json`. Exit-Code 0 heißt „ready“, 4 heißt „not_ready“ mit Gründen und Fragen. |
+| Prüfung der Factory | Für jeden Entwurf `jira_ticket.py pruefdatei`, dann `python3 -I factory/agentic-factory.py assess --ticket-file ticket-entwurf-1.json`. Exit-Code 0 heißt „ready“, 4 heißt „not_ready“ mit Gründen und Fragen. |
 
 `pruefdatei` schreibt den Entwurf im selben Format wie die Ticket-Dateien aus Übung 1 und 2. Der Schlüssel ist ein Platzhalter, `<PROJEKT>-0`. Das Label `sdd-<framework>` kommt aus eurer Konfiguration. Beispiel:
 
@@ -92,18 +92,18 @@ Copilot fragt vor jedem Befehl. Lest die Befehle, dann `1. Yes`. Der Skill ände
 }
 ```
 
-- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
+- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `agentic-factory.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
 
 **Der Schalter `--framework`:**
 
 - `--framework openspec`, `--framework speckit` oder `--framework bmad` wählt das Framework für `spec` und `build`.
-- Er hat Vorrang vor dem Label. `local.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
+- Er hat Vorrang vor dem Label. `agentic-factory.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
 - Ihr braucht ihn, wenn das Ticket kein oder zwei `sdd-`-Labels hat, oder wenn ihr dasselbe Ticket mit einem anderen Framework schreibt ([Übung 1, Schritt 11](uebung-factory-lokal.md#11-dasselbe-ticket-mit-einem-zweiten-framework)).
 - Gebt bei `build` dasselbe Framework an wie bei `spec`.
 - Die Ausgabe nennt die Quelle: `framework speckit (from --framework)` oder `framework openspec (from label)`.
 - `assess` wählt kein Framework und übergeht `--framework`. Die Ausgabe zeigt `assess, no framework`.
 - Ein Tippfehler stoppt mit `--framework 'foo' is not one of ['openspec', 'speckit', 'bmad']`. Fehlt der Ordner des Frameworks im Projekt, stoppt es mit `framework speckit is not installed in this project`.
-- Der Skill startet nur `assess`. Das Framework für seine Fragen kommt aus `framework` in `.github/ticket-schreiben.json`, und `pruefdatei` setzt das passende `sdd-`-Label. Wollt ihr das Ticket danach mit einem anderen Framework schreiben, hängt ihr an `spec` `--framework` an.
+- Der Skill startet nur `assess`. Das Framework für seine Fragen kommt aus `framework` in `.github/schreibe-ticket.json`, und `pruefdatei` setzt das passende `sdd-`-Label. Wollt ihr das Ticket danach mit einem anderen Framework schreiben, hängt ihr an `spec` `--framework` an.
 
 ## 6. Bestätigen
 
@@ -121,7 +121,7 @@ Der Skill legt das Ticket über den Jira-MCP an. Copilot fragt vor dem Aufruf vo
 
 Über den Jira-MCP ist nur das Anlegen eines einzelnen Tickets getestet ([FLAB-36](https://betterprojectsfaster.atlassian.net/browse/FLAB-36)), nicht ein ganzer Lauf und kein Epic mit Tickets darunter.
 
-**Dürft ihr in Jira nicht anlegen,** lehnt bei der Rückfrage zu `createJiraIssue` ab. Kopiert vorher den Text aus Schritt 6. Bittet Copilot, mit `python3 -I .github/skills/ticket-schreiben/jira_ticket.py anlegen --entwurf ticket-entwurf-1.md --dry-run` die Anfrage an Jira zu zeigen. Bei einem einzelnen Ticket heißt der Entwurf `ticket-entwurf.md`. Der Probelauf legt nichts an. Niemand hat diesen Weg im Skill getestet. Die Referenz beschreibt den zweiten Zugang mit API-Token unter [Weg B](../../02-agent-factory/bedienung/ticket-skill.md#weg-b-api-token-und-jira_ticketpy).
+**Dürft ihr in Jira nicht anlegen,** lehnt bei der Rückfrage zu `createJiraIssue` ab. Kopiert vorher den Text aus Schritt 6. Bittet Copilot, mit `python3 -I .github/skills/schreibe-ticket/jira_ticket.py anlegen --entwurf ticket-entwurf-1.md --dry-run` die Anfrage an Jira zu zeigen. Bei einem einzelnen Ticket heißt der Entwurf `ticket-entwurf.md`. Der Probelauf legt nichts an. Niemand hat diesen Weg im Skill getestet. Die Referenz beschreibt den zweiten Zugang mit API-Token unter [Weg B](../../02-agent-factory/bedienung/ticket-skill.md#weg-b-api-token-und-jira_ticketpy).
 
 ## Wenn es hakt
 
@@ -129,7 +129,7 @@ Der Skill legt das Ticket über den Jira-MCP an. Copilot fragt vor dem Aufruf vo
 - **Der Skill zeigt Annahmen oder einen Entwurf, ohne dass `openspec-explore` oder `speckit-specify` lief:** Sagt „Frag bitte erst mit dem Framework nach.“ Im Lab hat der Skill diesen Schritt einmal übersprungen.
 - **`arbeitsstand.py merken` endet mit Exit-Code 3:** Es gab schon Änderungen. Beendet den Skill, committet oder sichert mit `git stash`, startet neu.
 - **Tabelle und Ticket-Text fehlen vor der Frage „Soll ich … anlegen?“:** Bittet Copilot, sie ins Frageformular zu schreiben. Im Lab standen sie dann vollständig dort.
-- **Der Skill meldet, dass `factory/local.py` fehlt oder `local.py` mit einem Fehler endet:** Dann gilt nur sein eigener Reife-Check. Prüft, ob `factory/local.py` auf eurem Branch liegt.
+- **Der Skill meldet, dass `factory/agentic-factory.py` fehlt oder `agentic-factory.py` mit einem Fehler endet:** Dann gilt nur sein eigener Reife-Check. Prüft, ob `factory/agentic-factory.py` auf eurem Branch liegt.
 
 ## Ergebnis
 

@@ -1,11 +1,11 @@
 # Tickets mit dem Skill schreiben
 
-Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Factory ohne Rückfrage umsetzen kann. Du startest ihn lokal in Copilot CLI, in deinem Projekt.
+Der Copilot-Skill `schreibe-ticket` macht aus einer Absicht ein oder mehrere Jira-Tickets, die die Factory ohne Rückfrage umsetzen kann. Du startest ihn lokal in Copilot CLI, in deinem Projekt.
 
 - Er liest zuerst selbst den Code: Gibt es das schon? Widerspricht es dem heutigen Verhalten? Was würde es berühren? Gibt es Doku zur fachlichen Domäne, liest er sie mit.
 - Dann fragt er mit dem SDD-Framework deines Projekts nach: Spec Kit, OpenSpec oder BMad.
 - Ist es zu groß für einen Pull Request, schlägt er ein Epic mit mehreren Tickets vor.
-- Er prüft jeden Entwurf mit der Prüfung der Factory selbst (`factory/local.py assess`), so wie später der Spec-Lauf.
+- Er prüft jeden Entwurf mit der Prüfung der Factory selbst (`factory/agentic-factory.py assess`), so wie später der Spec-Lauf.
 - Er zeigt dir alle Texte, legt die Tickets nach deinem einen Ja in Jira an und räumt danach auf. Dein Repository ist danach wie vorher.
 - Nach Jira kommt er über den Jira-MCP-Server mit Anmeldung im Browser, ohne Token. Wer ein API-Token hat, kann stattdessen das Skript `jira_ticket.py` nehmen.
 
@@ -17,33 +17,33 @@ Der Skill ist **optional** und kein Teil der Factory. Er läuft auf deinem Rechn
 - Python 3, nur die Standardbibliothek. macOS: `python3`. Windows: `py -3`.
 - Git und ein Projekt, in dem schon ein SDD-Framework installiert ist, wie am ersten Tag.
 - Einen Jira-Zugang, der im Projekt Tickets anlegen darf: über den Atlassian-MCP-Server (Anmeldung im Browser) oder mit einem API-Token.
-- Für die Prüfung der Factory: den Ordner `factory/` im Projekt, mit `local.py`. Ohne ihn prüft der Skill nur selbst.
+- Für die Prüfung der Factory: den Ordner `factory/` im Projekt, mit `agentic-factory.py`. Ohne ihn prüft der Skill nur selbst.
 
 ## Einrichten
 
 ### 1. Skill ins Projekt kopieren
 
-Kopiere den Ordner `02-agent-factory/werkzeuge/ticket-schreiben/` nach `.github/skills/ticket-schreiben/` in deinem Projekt. Den Unterordner `tests/` brauchst du dort nicht.
+Kopiere den Ordner `02-agent-factory/werkzeuge/schreibe-ticket/` nach `.github/skills/schreibe-ticket/` in deinem Projekt. Den Unterordner `tests/` brauchst du dort nicht.
 
 macOS und Linux:
 
 ```sh
 mkdir -p .github/skills
-cp -R <workshop-repo>/02-agent-factory/werkzeuge/ticket-schreiben .github/skills/
-rm -rf .github/skills/ticket-schreiben/tests
+cp -R <workshop-repo>/02-agent-factory/werkzeuge/schreibe-ticket .github/skills/
+rm -rf .github/skills/schreibe-ticket/tests
 ```
 
 Windows (PowerShell, nicht getestet):
 
 ```powershell
 New-Item -ItemType Directory -Force .github\skills | Out-Null
-Copy-Item -Recurse <workshop-repo>\02-agent-factory\werkzeuge\ticket-schreiben .github\skills\
-Remove-Item -Recurse .github\skills\ticket-schreiben\tests
+Copy-Item -Recurse <workshop-repo>\02-agent-factory\werkzeuge\schreibe-ticket .github\skills\
+Remove-Item -Recurse .github\skills\schreibe-ticket\tests
 ```
 
 ### 2. Konfiguration schreiben
 
-Leg `.github/ticket-schreiben.json` an. Vorlage: `ticket-schreiben.example.json` im Skill-Ordner.
+Leg `.github/schreibe-ticket.json` an. Vorlage: `schreibe-ticket.example.json` im Skill-Ordner. Eine ältere Datei `.github/ticket-schreiben.json` liest das Skript weiter und weist mit einem Hinweis auf den neuen Namen hin.
 
 ```json
 {
@@ -72,9 +72,9 @@ Fehlt die Datei, fragt der Skill einmal nach den Werten und bietet an, sie zu sc
 Committe Skill und Konfiguration. Dann startet jeder Lauf mit einem sauberen `git status`, und das Aufräumen ist eindeutig.
 
 ```sh
-git add .github/skills/ticket-schreiben .github/ticket-schreiben.json
-git commit -m "Skill ticket-schreiben"
-copilot skill list        # zeigt ticket-schreiben
+git add .github/skills/schreibe-ticket .github/schreibe-ticket.json
+git commit -m "Skill schreibe-ticket"
+copilot skill list        # zeigt schreibe-ticket
 ```
 
 ### 4. Jira-Zugang
@@ -137,7 +137,7 @@ $env:JIRA_API_TOKEN = Read-Host -MaskInput 'Token'
 Prüf den Zugang:
 
 ```sh
-python3 -I .github/skills/ticket-schreiben/jira_ticket.py pruefen
+python3 -I .github/skills/schreibe-ticket/jira_ticket.py pruefen
 ```
 
 Die Ausgabe nennt Jira-Adresse, deinen Namen, Projekt, Vorgangstyp und Labels, nie das Token. Am Ende steht `OK`.
@@ -147,18 +147,18 @@ Die Ausgabe nennt Jira-Adresse, deinen Namen, Projekt, Vorgangstyp und Labels, n
 Starte `copilot` im Projekt und gib die Absicht direkt hinter dem Befehl ein:
 
 ```text
-/ticket-schreiben Leser sollen sehen, wie lange sie für einen Artikel brauchen.
+/schreibe-ticket Leser sollen sehen, wie lange sie für einen Artikel brauchen.
 ```
 
 | Schritt | Was passiert |
 |---|---|
-| 1. Konfiguration und Arbeitsstand | Der Skill liest die Konfiguration, merkt sich den Stand des Repositorys (`arbeitsstand.py merken`), wählt den Weg nach Jira und schaut, ob es `factory/local.py` gibt. |
+| 1. Konfiguration und Arbeitsstand | Der Skill liest die Konfiguration, merkt sich den Stand des Repositorys (`arbeitsstand.py merken`), wählt den Weg nach Jira und schaut, ob es `factory/agentic-factory.py` gibt. |
 | 2. Absicht | Er nimmt deine Worte auf, noch ohne sie zu verbessern. |
 | 3. Code-Erkundung | Er liest Routen, Controller, Templates, Entities und Tests, dazu Modul-Doku und Confluence, falls eingerichtet. Gibt es das schon oder widerspricht es dem Code, sagt er es sofort, mit Datei und Zeile. |
 | 4. Nachfragen mit dem Framework | Das Framework stellt die Fragen. Danach nennt der Skill die Annahmen, die das Framework ohne Frage getroffen hat, und lässt sie dich bestätigen. |
 | 5. Reife-Check | Eine Tabelle mit allen Kriterien, je „erfüllt“ oder „offen“. Bei `too_big` schlägt er ein Epic mit mehreren Tickets vor. |
 | 6. Ticket-Texte | Je Ticket: Ziel, Akzeptanzkriterien, Nicht Teil des Tickets, Hinweise. Bei einer Aufteilung dazu ein kurzes Epic. |
-| 7. Prüfung durch die Factory | `factory/local.py assess` bewertet jeden Entwurf. Du siehst alle Texte und Urteile und sagst einmal Ja oder änderst sie. |
+| 7. Prüfung durch die Factory | `factory/agentic-factory.py assess` bewertet jeden Entwurf. Du siehst alle Texte und Urteile und sagst einmal Ja oder änderst sie. |
 | 8. In Jira anlegen | Über Jira-MCP oder `jira_ticket.py`. Erst das Epic, dann die Tickets darunter. Alles startet in „Definition“. Das startet noch keinen Lauf. |
 | 9. Aufräumen | `arbeitsstand.py aufraeumen --ja` entfernt die Dateien des Frameworks, die Entwürfe und die Prüfdateien. `git status` ist wie vorher. |
 
@@ -234,7 +234,7 @@ Ein Test pro Framework, mit einem Menschen, der wie ein Product Owner antwortet.
 
 Ein erster Spec-Kit-Lauf mit einer älteren Fassung des Skills übersprang das Framework und kostete bis zum Abbruch 25,99 Credits. Seitdem ist Schritt 4 Pflicht.
 
-Spätere Läufe mit der aktuellen Fassung, im Lab-Repo mit `factory/local.py`:
+Spätere Läufe mit der aktuellen Fassung, im Lab-Repo mit `factory/local.py` (heute `agentic-factory.py`):
 
 | Lauf | Tickets | AI Credits | Ergebnis |
 |---|---|---|---|
@@ -264,8 +264,8 @@ Ist eine Absicht `too_big`, ist das kein Fehler. Der Skill schlägt eine Aufteil
 Mit `jira_ticket.py` sehen die Befehle so aus:
 
 ```sh
-python3 -I .github/skills/ticket-schreiben/jira_ticket.py anlegen --entwurf ticket-entwurf-epic.md --typ Epic --ohne-sdd-label
-python3 -I .github/skills/ticket-schreiben/jira_ticket.py anlegen --entwurf ticket-entwurf-1.md --parent FLAB-32
+python3 -I .github/skills/schreibe-ticket/jira_ticket.py anlegen --entwurf ticket-entwurf-epic.md --typ Epic --ohne-sdd-label
+python3 -I .github/skills/schreibe-ticket/jira_ticket.py anlegen --entwurf ticket-entwurf-1.md --parent FLAB-32
 ```
 
 Im Lab, mit der Absicht „Die Artikelseite soll Lesern mehr bieten: Lesezeit anzeigen, Links zum vorherigen und nächsten Artikel, und eine Liste ähnlicher Artikel mit gleichen Tags.“ fragte `speckit-clarify` nach Sortierung und Obergrenze der ähnlichen Artikel. Dann schlug der Skill vor:
@@ -278,17 +278,17 @@ Ergebnis: Epic FLAB-32 mit FLAB-33 (Lesezeit), FLAB-34 (vorheriger und nächster
 
 ## Die Prüfung der Factory vor dem Anlegen
 
-Gibt es `factory/local.py` im Projekt, lässt der Skill jeden Ticket-Entwurf von der Prüfung der Factory bewerten, bevor er etwas anlegt. Es ist derselbe Copilot-Aufruf mit demselben Prompt und denselben Kriterien wie im Spec-Lauf. Mehr zu `local.py` steht in [Lokal ausführen](lokal-ausfuehren.md).
+Gibt es `factory/agentic-factory.py` im Projekt, lässt der Skill jeden Ticket-Entwurf von der Prüfung der Factory bewerten, bevor er etwas anlegt. Es ist derselbe Copilot-Aufruf mit demselben Prompt und denselben Kriterien wie im Spec-Lauf. Mehr zu `agentic-factory.py` steht in [Lokal ausführen](lokal-ausfuehren.md).
 
 ```sh
-python3 -I .github/skills/ticket-schreiben/jira_ticket.py pruefdatei --entwurf ticket-entwurf-1.md
-python3 -I factory/local.py assess --ticket-file ticket-entwurf-1.json
+python3 -I .github/skills/schreibe-ticket/jira_ticket.py pruefdatei --entwurf ticket-entwurf-1.md
+python3 -I factory/agentic-factory.py assess --ticket-file ticket-entwurf-1.json
 ```
 
 - `pruefdatei` schreibt den Entwurf so als JSON, wie die Factory ihn später aus Jira liest. Der Schlüssel ist ein Platzhalter, etwa `FLAB-0`.
 - Exit-Code 0 heißt „ready“, Exit-Code 4 heißt „not_ready“ mit Gründen und Fragen.
 - Ein Ticket mit „not_ready“ legt der Skill nur an, wenn du ausdrücklich „trotzdem anlegen“ sagst. Dann schreibt er die Gründe unter „Offene Punkte“.
-- Ohne `factory/local.py` gilt der eigene Reife-Check des Skills.
+- Ohne `factory/agentic-factory.py` gilt der eigene Reife-Check des Skills.
 
 Im Lab kostete eine Prüfung 6 bis 13 Credits und 8 bis 13 Sekunden API-Zeit.
 
@@ -304,7 +304,7 @@ Im Lab kostete eine Prüfung 6 bis 13 Credits und 8 bis 13 Sekunden API-Zeit.
 | `arbeitsstand.py merken` endet mit Exit-Code 3 | Es gab schon Änderungen. Sie bleiben unberührt. Besser: vorher committen oder mit `git stash` sichern. |
 | `OAuth callback timeout` bei `atlassian` | Die Anmeldung im Browser kam zu spät an. In `/mcp` bei `atlassian` noch einmal „Authenticate“ wählen. |
 | `MCP server 'atlassian' requires authentication` | Copilot ist noch nicht angemeldet. `/mcp`, dann `atlassian`, dann „Authenticate“. |
-| `local.py` endet mit einem Exit-Code außer 0 und 4 | Ein Fehler, kein Urteil. Der Skill sagt das und nutzt seinen eigenen Reife-Check. |
+| `agentic-factory.py` endet mit einem Exit-Code außer 0 und 4 | Ein Fehler, kein Urteil. Der Skill sagt das und nutzt seinen eigenen Reife-Check. |
 
 ## Was nicht getestet ist
 

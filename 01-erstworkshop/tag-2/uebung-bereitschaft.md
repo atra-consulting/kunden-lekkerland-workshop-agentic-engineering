@@ -34,20 +34,20 @@ Legt mit dem Editor die Datei `~/factory-tickets/LL-0.json` an. Wählt eine Funk
 ## 2. Prüfen lassen
 
 ```bash
-python3 factory/local.py assess --ticket-file ~/factory-tickets/LL-0.json
+python3 -I factory/agentic-factory.py assess --ticket-file ~/factory-tickets/LL-0.json
 ```
 
 **Das seht ihr:**
 
 ```text
-[local] LL-0: readiness check, project …
+[agentic-factory] LL-0: readiness check, project …
 …
-[local] copilot readiness check: tools ['read', 'write']
+[agentic-factory] copilot readiness check: tools ['read', 'write']
 …
   verdict: not_ready
   - missing_detail: …
   ? …
-[local] not ready: no spec calls. Credits …. The verdict is in FACTORY-ASSESSMENT.json; don't commit it
+[agentic-factory] not ready: no spec calls. Credits …. The verdict is in FACTORY-ASSESSMENT.json; don't commit it
 ```
 
 Exit-Code 4. Im Lab lehnte die Prüfung „Suche verbessern“ mit `missing_detail` und `untestable` ab und nannte die drei Stellen im Code, an denen gesucht wird: [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31).
@@ -76,12 +76,12 @@ So sieht ein vollständiges Ticket in diesem Format aus:
 }
 ```
 
-- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
+- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `agentic-factory.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
 
 **Der Schalter `--framework`:**
 
 - `--framework openspec`, `--framework speckit` oder `--framework bmad` wählt das Framework für `spec` und `build`.
-- Er hat Vorrang vor dem Label. `local.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
+- Er hat Vorrang vor dem Label. `agentic-factory.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
 - Ihr braucht ihn, wenn das Ticket kein oder zwei `sdd-`-Labels hat, oder wenn ihr dasselbe Ticket mit einem anderen Framework schreibt ([Übung 1, Schritt 11](uebung-factory-lokal.md#11-dasselbe-ticket-mit-einem-zweiten-framework)).
 - Gebt bei `build` dasselbe Framework an wie bei `spec`.
 - Die Ausgabe nennt die Quelle: `framework speckit (from --framework)` oder `framework openspec (from label)`.
@@ -93,10 +93,10 @@ So sieht ein vollständiges Ticket in diesem Format aus:
 
 ```text
   verdict: ready
-[local] ready. Credits …, … s, logs in …
+[agentic-factory] ready. Credits …, … s, logs in …
 ```
 
-Exit-Code 0. Nach „ready“ löscht `local.py` die Datei `FACTORY-ASSESSMENT.json` selbst. Im Lab brauchte [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31) drei Fassungen: Die zweite widersprach einem bestehenden Test (`contradicts_code`).
+Exit-Code 0. Nach „ready“ löscht `agentic-factory.py` die Datei `FACTORY-ASSESSMENT.json` selbst. Im Lab brauchte [FLAB-31](https://betterprojectsfaster.atlassian.net/browse/FLAB-31) drei Fassungen: Die zweite widersprach einem bestehenden Test (`contradicts_code`).
 
 ## 5. Ein eigenes Kriterium ergänzen
 
@@ -146,7 +146,7 @@ Eure Änderung wirkt nur lokal. In der Pipeline stecken die Kriterien im Factory
 
 ## Wenn es hakt
 
-- **`readiness.md not found`:** `readiness.md` gehört neben `local.py`, also nach `factory/`.
+- **`readiness.md not found`:** `readiness.md` gehört neben `agentic-factory.py`, also nach `factory/`.
 - **`ticket key … does not match …`:** Der Schlüssel in der Datei sieht nicht wie ein Jira-Schlüssel aus. Nehmt `LL-0`.
 - **`… is not valid JSON`:** Meist ist das JSON fehlerhaft, etwa durch einen echten Zeilenumbruch in `description`. Schreibt `\n`.
 - **Das Urteil wirkt falsch:** Im Lab lief jeder Fall nur zweimal. Ein konkretes Beispiel in `readiness.md` schärft das Urteil.

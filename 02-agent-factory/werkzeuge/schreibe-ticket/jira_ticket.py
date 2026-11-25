@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Legt ein Jira-Ticket aus einem Entwurf an. Teil des Skills ticket-schreiben.
+"""Legt ein Jira-Ticket aus einem Entwurf an. Teil des Skills schreibe-ticket.
 
 Nur Python-Standardbibliothek. Aufruf immer mit `python3 -I` (Windows: `py -3 -I`).
 
-    python3 -I jira_ticket.py pruefen --config .github/ticket-schreiben.json
-    python3 -I jira_ticket.py anlegen --config .github/ticket-schreiben.json --entwurf ticket-entwurf.md [--dry-run]
+    python3 -I jira_ticket.py pruefen --config .github/schreibe-ticket.json
+    python3 -I jira_ticket.py anlegen --config .github/schreibe-ticket.json --entwurf ticket-entwurf.md [--dry-run]
 
 Zugangsdaten kommen nur aus Umgebungsvariablen:
 
@@ -32,6 +32,9 @@ KEY_RE = re.compile(r"[A-Z][A-Z0-9]+")
 ISSUE_KEY_RE = re.compile(r"[A-Z][A-Z0-9]+-[0-9]+")
 LABEL_RE = re.compile(r"[^\s]{1,255}")
 SUMMARY_MAX = 255
+CONFIG_NAME = "schreibe-ticket.json"
+ALTE_CONFIG_NAME = "ticket-schreiben.json"  # Name vor der Umbenennung des Skills
+STANDARD_CONFIG = ".github/" + CONFIG_NAME
 
 
 class Fehler(Exception):
@@ -45,6 +48,11 @@ class Fehler(Exception):
 # --- Konfiguration und Umgebung ------------------------------------------------
 
 def lade_config(pfad):
+    if not os.path.exists(pfad) and pfad.endswith(CONFIG_NAME):
+        alt = pfad[:-len(CONFIG_NAME)] + ALTE_CONFIG_NAME
+        if os.path.exists(alt):
+            print(f"Hinweis: {alt} gefunden, bitte in {CONFIG_NAME} umbenennen", file=sys.stderr)
+            pfad = alt
     try:
         with open(pfad, encoding="utf-8") as f:
             cfg = json.load(f)
@@ -346,7 +354,7 @@ def cmd_anlegen(args, env=None):
 
 
 def cmd_pruefdatei(args, env=None):
-    """Schreibt den Entwurf als JSON für `factory/local.py assess --ticket-file`. Braucht kein Jira."""
+    """Schreibt den Entwurf als JSON für `factory/agentic-factory.py assess --ticket-file`. Braucht kein Jira."""
     cfg = lade_config(args.config)
     summary, beschreibung = lese_entwurf(args.entwurf)
     daten = {
@@ -366,17 +374,17 @@ def parser():
     p = argparse.ArgumentParser(prog="jira_ticket.py", description="Legt ein Ticket für die Agent Factory in Jira an.")
     sub = p.add_subparsers(dest="befehl", required=True)
     pr = sub.add_parser("pruefen", help="Zugang, Projekt und Vorgangstyp prüfen")
-    pr.add_argument("--config", default=".github/ticket-schreiben.json")
+    pr.add_argument("--config", default=STANDARD_CONFIG)
     an = sub.add_parser("anlegen", help="Ticket aus dem Entwurf anlegen")
-    an.add_argument("--config", default=".github/ticket-schreiben.json")
+    an.add_argument("--config", default=STANDARD_CONFIG)
     an.add_argument("--entwurf", default="ticket-entwurf.md")
     an.add_argument("--label", action="append", default=[], help="weiteres Label, mehrfach möglich")
     an.add_argument("--typ", help="Vorgangstyp statt dem aus der Konfiguration, z. B. Epic")
     an.add_argument("--parent", help="übergeordnetes Ticket, z. B. das Epic")
     an.add_argument("--ohne-sdd-label", action="store_true", help="kein sdd-Label, etwa für ein Epic")
     an.add_argument("--dry-run", action="store_true", help="nur die Anfrage zeigen, nichts anlegen")
-    pd = sub.add_parser("pruefdatei", help="Entwurf als JSON für factory/local.py assess --ticket-file")
-    pd.add_argument("--config", default=".github/ticket-schreiben.json")
+    pd = sub.add_parser("pruefdatei", help="Entwurf als JSON für factory/agentic-factory.py assess --ticket-file")
+    pd.add_argument("--config", default=STANDARD_CONFIG)
     pd.add_argument("--entwurf", default="ticket-entwurf.md")
     pd.add_argument("--label", action="append", default=[])
     pd.add_argument("--out", help="Zieldatei, Standard: Entwurf mit .json")

@@ -1,6 +1,6 @@
 # Übung 1: Ein Ticket lokal durch die Factory-Schritte
 
-Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `local.py`. Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
+Eure Gruppe schickt ein echtes Ticket aus eurem Jira durch dieselben Copilot-Aufrufe wie die Factory: Bereitschaft prüfen, Spec schreiben, bauen. Alles läuft im Terminal, in eurem Repo, mit `agentic-factory.py` (früher `local.py`). Die Referenz mit allen Details: [Factory-Schritte lokal ausführen](../../02-agent-factory/bedienung/lokal-ausfuehren.md).
 
 Die Übung hat zwei Teile:
 
@@ -20,7 +20,7 @@ Die Übung hat zwei Teile:
 
 Aus dem Test dieser Übung am Morgen des 24. November:
 
-1. **Testbefehl vor dem Commit eintragen ([Schritt 2](#2-localpy-einrichten)).** In `factory/local.json` steht `make test`. Lasst ihn nur stehen, wenn euer Makefile dieses Ziel hat.
+1. **Testbefehl vor dem Commit eintragen ([Schritt 2](#2-agentic-factorypy-einrichten)).** In `factory/local.json` steht `make test`. Lasst ihn nur stehen, wenn euer Makefile dieses Ziel hat.
 2. **Anmeldung beim Jira-MCP prüfen ([Schritt 3](#3-jira-mcp-in-copilot-cli-prüfen)).** Nach „Authenticate“ muss `/mcp` den Server `atlassian` als verbunden zeigen. Ohne Anmeldung scheitert Schritt 4 still: Copilot meldet, die Werkzeuge seien nicht verfügbar, und schreibt keine Datei. Das kostet trotzdem etwa 7 Credits.
 3. **Klappt die Anmeldung nicht ([Schritt 4](#4-ticket-über-den-jira-mcp-holen)):** Legt die Ticket-Datei von Hand an, im Format aus [Übung 2, Schritt 1](uebung-bereitschaft.md#1-ein-vages-ticket-schreiben). Dann geht es mit Schritt 5 weiter.
 4. **Beim Bauen `--change <name>` angeben ([Schritt 9](#9-bauen)).** `<name>` ist der Spec-Ordner aus Schritt 7. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
@@ -40,30 +40,35 @@ git merge <doku-branch>
 
 **Das seht ihr:** Die Doku-Dateien liegen jetzt in eurem Arbeitsverzeichnis.
 
-## 2. `local.py` einrichten
+## 2. `agentic-factory.py` einrichten
 
-Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien aus der [Vorlage](../../02-agent-factory/einrichtung/template/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
+Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien und die Ordner `agentic_factory/`, `agentic-factory-plugin/` und `regeln/` aus der [Vorlage](../../02-agent-factory/einrichtung/template/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
 
 ```bash
 git clone https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering.git ~/workshop-agentic-engineering
 mkdir -p factory
-cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{local.py,config.json,readiness.md,local.example.json} factory/
+cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic_factory,agentic-factory-plugin,regeln} factory/
+cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic-factory.py,config.json,readiness.md,local.example.json} factory/
 cp factory/local.example.json factory/local.json
 ```
 
-`local.py` braucht nur die Python-Standardbibliothek und importiert keine anderen Dateien der Factory. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
+`agentic-factory.py` braucht nur die Python-Standardbibliothek. Aus der Factory importiert es nur sein eigenes Paket, den Ordner `agentic_factory/` daneben. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
 
 | Datei | Nötig? | Ohne sie |
 |---|---|---|
-| `config.json` | Ja | Prompts, Werkzeug-Freigaben, Modell und Credit-Grenzen fehlen. `local.py` läuft nicht. |
+| `agentic_factory/` | Ja | Stopp mit `can't load agentic_factory/`. |
+| `config.json` | Ja | Prompts, Werkzeug-Freigaben, Modell und Credit-Grenzen fehlen. Das Skript läuft nicht. |
 | `readiness.md` | Für `assess` und für `spec` mit Bereitschaftsprüfung | Stopp mit `readiness.md not found`. `spec --no-assess` und `build` laufen ohne sie. |
+| `regeln/` | Solange `config.json` die Dateien im Block `rules` nennt | Stopp mit `team rules: regeln/stil.md not found`. |
 | `local.json` | Nein | Keine Anpassungen. Es gelten die Werte aus `config.json`, auch der Testbefehl `./bin/phpunit`. |
+| `agentic-factory-plugin/` | Nur, wenn das Skript selbst Jira über MCP ruft. In dieser Übung nicht | Nichts. Mit `--ticket-file` ruft das Skript Jira nie |
 
-Die Vorlage ist eine Kopie aus dem Lab-Repo, Branch `factory-base`. Die anderen Dateien dort, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
+Die Vorlage ist aus `local.py` im Lab-Repo entstanden, Branch `factory-base`. Die anderen Dateien dort, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
 
 Lest vor dem ersten Lauf den Abschnitt [Sicherheit](../../02-agent-factory/einrichtung/template/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage: Der Agent läuft als ihr, mit eurer Umgebung, ohne Container.
 
-- Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `local.py` und `readiness.md`.
+- Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `agentic-factory.py` und `readiness.md`.
+- Diese Übung nimmt das Ticket immer mit `--ticket-file`. Dann fragt das Skript Jira nie und schreibt keine Kommentare ins Ticket. Wie es Jira selbst liest und kommentiert, steht in der [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#zwei-wege-zu-jira---jira).
 - Öffnet `factory/local.json`. Dort steht `"test_command": "make test"`. Tragt euren echten Testbefehl ein, bevor ihr committet. `make test` lasst ihr nur stehen, wenn euer Makefile dieses Ziel hat. Sonst laufen beim Bauen keine Tests.
 - Achtung: Aus `make test` wird die Erlaubnis `shell(make:*)`, allgemein `shell(<erstes Wort eures Testbefehls>:*)`. Damit darf der Agent **jedes** Make-Ziel starten, nicht nur `make test`. Über Make kann er beliebige Befehle ausführen, als ihr und mit eurer Umgebung.
 - In `local.json` steht auch `stack_hint`. Spec Kit nutzt ihn im Plan-Prompt. Passt ihn an euren Stack an.
@@ -73,7 +78,7 @@ git add factory
 git commit -m "Factory-Schritte lokal"
 ```
 
-**Das seht ihr:** Copilot CLI 1.0.114 oder neuer. Im Ordner `factory/` liegen `local.py`, `config.json`, `readiness.md` und `local.json`.
+**Das seht ihr:** Copilot CLI 1.0.114 oder neuer. Im Ordner `factory/` liegen `agentic-factory.py`, `config.json`, `readiness.md`, `local.json` und die Ordner `agentic_factory/`, `agentic-factory-plugin/` und `regeln/`.
 
 ## 3. Jira-MCP in Copilot CLI prüfen
 
@@ -91,7 +96,7 @@ copilot mcp list
 
 - Habt ihr ihn früher mit `--tools getJiraIssue` angelegt: `copilot mcp remove atlassian`, dann neu wie oben. Der Abruf braucht auch `getAccessibleAtlassianResources`, der Skill in Übung 3 auch `getVisibleJiraProjects` und `createJiraIssue`. Fehlt beim Anlegen ein Label, braucht der Skill zusätzlich das Werkzeug zum Bearbeiten. Ohne Liste dürfte Copilot über den Server auch Tickets ändern und Status setzen.
 - Getestet ist der Abruf im Lab mit `https://mcp.atlassian.com/v1/mcp`. Atlassian schaltet v1 am 1. März 2027 ab. Der Nachfolger `/v2/mcp` ist noch nicht getestet.
-- Die [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#ticket-über-den-jira-mcp-holen) zeigt `"tools": ["*"]`. Die Liste oben gibt nur die Werkzeuge frei, die die Übungen brauchen.
+- Die [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#jira-über-den-mcp-server) legt den Server ohne Liste an, mit `copilot mcp add`. Die Liste oben gibt nur die Werkzeuge frei, die die Übungen brauchen.
 - Einmal interaktiv anmelden: `copilot` starten, `/mcp` öffnen, `atlassian` wählen, „Authenticate“. Der Browser öffnet die Anmeldung von Atlassian. Prüft danach in `/mcp`, dass `atlassian` als verbunden angezeigt wird. Erst dann `/exit`. Ein Aufruf mit `-p` kann die Anmeldung im Browser nicht abschließen.
 
 ## 4. Ticket über den Jira-MCP holen
@@ -111,7 +116,7 @@ cat ~/factory-tickets/LL-123.json
 **Das seht ihr:** ein JSON-Objekt mit `key`, `summary`, `description` und `labels`. Im Lab kostete der Abruf 10,8 Credits.
 
 - Vergleicht die Datei mit dem Ticket in Jira, auch die Labels. Ein Sprachmodell schreibt die Datei. Es kann Text weglassen oder umformulieren.
-- `local.py` wählt das Framework über genau ein Label, `sdd-speckit` oder `sdd-openspec`, oder über `--framework`. Mehr dazu unter dem Beispiel.
+- `agentic-factory.py` wählt das Framework über genau ein Label, `sdd-speckit` oder `sdd-openspec`, oder über `--framework`. Mehr dazu unter dem Beispiel.
 - Klappt die Anmeldung beim Jira-MCP nicht, legt die Datei von Hand an, wie im Beispiel unten. Dann geht es mit Schritt 5 weiter.
 
 **Beispiel für eine Ticket-Datei** `~/factory-tickets/LL-123.json`:
@@ -125,13 +130,13 @@ cat ~/factory-tickets/LL-123.json
 }
 ```
 
-- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt `local.py` Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
+- `"labels": ["sdd-openspec"]` wählt das Framework: OpenSpec. Mit `["sdd-speckit"]` nimmt das Skript Spec Kit. Das Modell wählt das Label nicht. Es kommt aus `config.json` oder aus `model` in `local.json`.
 - `key` sieht aus wie ein Jira-Schlüssel, etwa `LL-123`. Zeilenumbrüche in `description` schreibt ihr als `\n`. Speichert die Datei als UTF-8.
 
 **Der Schalter `--framework`:**
 
 - `--framework openspec`, `--framework speckit` oder `--framework bmad` wählt das Framework für `spec` und `build`.
-- Er hat Vorrang vor dem Label. `local.py` nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
+- Er hat Vorrang vor dem Label. Das Skript nimmt zuerst `--framework`, sonst genau ein `sdd-`-Label am Ticket. Gibt es keins von beiden, stoppt es mit `no framework chosen`.
 - Ihr braucht ihn, wenn das Ticket kein oder zwei `sdd-`-Labels hat, oder wenn ihr dasselbe Ticket mit einem anderen Framework schreibt ([Schritt 11](#11-dasselbe-ticket-mit-einem-zweiten-framework)).
 - Gebt bei `build` dasselbe Framework an wie bei `spec`.
 - Die Ausgabe nennt die Quelle: `framework speckit (from --framework)` oder `framework openspec (from label)`.
@@ -151,25 +156,25 @@ Spec Kit darf beim Spec-Schritt einen Branch anlegen. Lokal passiert das in eure
 ## 6. Die Befehle ansehen
 
 ```bash
-python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only
+python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only
 ```
 
-`--print-only` startet nichts und kostet nichts. Es zeigt die Copilot-Befehle so, wie `local.py` sie starten würde. Ein echter Lauf schaltet zusätzlich eure MCP-Server ab. Die Befehle sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines.
+`--print-only` startet nichts und kostet nichts. Es zeigt die Copilot-Befehle so, wie das Skript sie starten würde. Ein echter Lauf schaltet zusätzlich eure MCP-Server ab. Die Befehle sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines.
 
 **Das seht ihr:** `# 2 copilot call(s), spec, openspec, …` bei OpenSpec, 4 Aufrufe bei Spec Kit. Aufruf 1 ist immer `# call 1/… (readiness check)`.
 
 ## 7. Spec schreiben
 
 ```bash
-python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json
+python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json
 ```
 
 Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“ startet der Spec-Schritt.
 
-**Das seht ihr:** `[local] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Am Ende `[local] done: … credits …` und `[local] uncommitted changes`.
+**Das seht ihr:** `[agentic-factory] Jira route: offline (offline input)`, `[agentic-factory] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Mit den Regeln des Teams aus `config.json` kann die Prüfung auch `not_ready` mit dem Grund `team_rules` melden, etwa bei mehr als 10 Akzeptanzkriterien. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Am Ende `[agentic-factory] done: … credits …`, `[agentic-factory] uncommitted changes` und `comment not posted (offline input)`: Den Kommentar für Jira schreibt das Skript nur in eine Datei.
 
 - **`not ready: no spec calls`, Exit-Code 4:** Gründe und Fragen stehen in der Ausgabe. Verbessert die Beschreibung in Jira und holt das Ticket neu (Schritt 4). Genau das übt ihr in Übung 2.
-- **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe. Löscht `FACTORY-QUESTIONS.md`, bevor ihr `spec` neu startet. Sonst stoppt `local.py`.
+- **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe. Löscht `FACTORY-QUESTIONS.md`, bevor ihr `spec` neu startet. Sonst stoppt das Skript.
 - Im Lab liefen Bereitschaftsprüfung und Spec-Schritt einzeln mit echtem Copilot. Nur ein automatischer Test hat beide nacheinander in einem Lauf geprüft.
 
 **Zwischen Teil 1 und Teil 2:** Läuft der Spec-Schritt noch, lasst ihn laufen.
@@ -196,12 +201,12 @@ git status --short
 ## 9. Bauen
 
 ```bash
-python3 factory/local.py build --ticket-file ~/factory-tickets/LL-123.json --change <name>
+python3 -I factory/agentic-factory.py build --ticket-file ~/factory-tickets/LL-123.json --change <name>
 ```
 
 `<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
 
-**Das seht ihr:** `[local] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(<erstes Wort eures Testbefehls>:*)`, etwa `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[local] next: review `git diff`, run the tests yourself, and commit by hand``.
+**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste `shell(<erstes Wort eures Testbefehls>:*)`, etwa `shell(make:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
 
 ## 10. Freigabe 2: Ihr lest den Diff
 
@@ -235,7 +240,7 @@ git switch <anderer-framework-branch>
 git switch -c <kurzer-name>-2
 git merge <doku-branch>
 git checkout <kurzer-name> -- factory
-python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --framework <anderes-framework>
+python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json --framework <anderes-framework>
 ```
 
 - Gibt es den anderen Framework-Branch bei euch nicht, lasst Schritt 11 weg.
@@ -243,7 +248,7 @@ python3 factory/local.py spec --ticket-file ~/factory-tickets/LL-123.json --fram
 - Habt ihr auch einen Branch mit BMad angelegt, geht `bmad` genauso. BMad ist im Lab am teuersten, vor allem beim Bauen. BMad darf über `uv` beliebigen Python-Code starten.
 - Bauen ist freiwillig. Wichtiger ist der Vergleich.
 
-**Das seht ihr:** dieselben Zeilen wie in Schritt 7, mit dem anderen Framework. Am Ende `[local] done: … credits …`.
+**Das seht ihr:** dieselben Zeilen wie in Schritt 7, mit dem anderen Framework. Am Ende `[agentic-factory] done: … credits …`.
 
 Vergleicht als Gruppe:
 
@@ -282,7 +287,7 @@ Für die ganze Übung, mit dem zweiten Framework aus Schritt 11, rechnet ihr mit
 
 Eure Gruppe hat:
 
-- `factory/` mit `local.py` und eurem Testbefehl auf dem Framework-Branch, dazu die Modul-Doku,
+- `factory/` mit `agentic-factory.py` und eurem Testbefehl auf dem Framework-Branch, dazu die Modul-Doku,
 - einen Ticket-Branch mit Spec und Code, beides von euch gelesen und committet, und grüne Tests,
 - die Ausgabe von `--print-only`: die Copilot-Befehle als Vorlage für den Agent-Schritt in der Pipeline,
 - eine zweite Spec desselben Tickets mit dem anderen Framework, und eure Vergleichstabelle.

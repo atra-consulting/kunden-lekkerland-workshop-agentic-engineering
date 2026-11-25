@@ -15,7 +15,7 @@ Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereit
 | 09:00 | Rückblick und Fragen | Plan für den Tag |
 | 09:15 | Demo: die Factory im Lab, die Bereitschaftsprüfung, lokal ausführen | Ihr habt gesehen, wie aus einem Ticket Spec und Pull Request werden |
 | 10:00 | Pause | |
-| 10:15 | [Übung 1, Teil 1](uebung-factory-lokal.md): einrichten, die erste Spec mit eurem Framework | `local.py` läuft, eine Spec |
+| 10:15 | [Übung 1, Teil 1](uebung-factory-lokal.md): einrichten, die erste Spec mit eurem Framework | `agentic-factory.py` läuft, eine Spec |
 | 11:00 | Pause | |
 | 11:15 | [Übung 1, Teil 2](uebung-factory-lokal.md#teil-2-bauen-und-ein-zweites-framework): bauen, dann dasselbe Ticket mit dem anderen Framework | Ein Ticket mit Spec und Code, ein Vergleich von Spec Kit und OpenSpec |
 | 12:00 | Mittag | |
@@ -28,7 +28,7 @@ Dieser Ablauf ersetzt den Dienstag aus der [Kurzfassung der Agenda](../vorbereit
 
 **Ergebnis je Gruppe:** ein Ticket mit Spec und Code, ein abgelehntes Ticket und eure Kriterien in `factory/readiness.md`. Als Branch und Pull Request in eurem Repo, in eurem Review.
 
-**Nach dem Workshop, für euer DevOps-Team:** die Schritte in Bitbucket Pipelines übernehmen. Die Vorlage ist die Ausgabe von `local.py --print-only`. Was dazugehört, steht im [Walkthrough unter „Für eure eigene Factory“](walkthrough-agent-factory.md#für-eure-eigene-factory).
+**Nach dem Workshop, für euer DevOps-Team:** die Schritte in Bitbucket Pipelines übernehmen. Die Vorlage ist die Ausgabe von `agentic-factory.py --print-only`. Was dazugehört, steht im [Walkthrough unter „Für eure eigene Factory“](walkthrough-agent-factory.md#für-eure-eigene-factory).
 
 ## Walkthrough
 

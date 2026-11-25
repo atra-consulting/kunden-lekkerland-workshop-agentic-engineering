@@ -1,6 +1,6 @@
 """Tests für jira_ticket.py gegen einen lokalen Fake-Jira-Server. Kein Netz nötig.
 
-    python3 -I -m unittest discover -s tests      # im Ordner ticket-schreiben
+    python3 -I -m unittest discover -s tests      # im Ordner schreibe-ticket
 """
 
 import base64
@@ -77,7 +77,7 @@ class Basis(unittest.TestCase):
         FakeJira.antworten = {}
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.config = os.path.join(self.tmp.name, "ticket-schreiben.json")
+        self.config = os.path.join(self.tmp.name, "schreibe-ticket.json")
         self.schreibe_config({"framework": "speckit", "jira_project": "FLAB", "issue_type": "Task",
                               "labels": ["test-nacht"]})
         self.entwurf = os.path.join(self.tmp.name, "ticket-entwurf.md")
@@ -276,6 +276,66 @@ class PruefenTest(Basis):
         code, _, err = self.run_main(["pruefen", "--config", self.config], self.env())
         self.assertEqual(code, 2)
         self.assertIn("Vorhanden: Task", err)
+
+
+class ConfigNameTest(Basis):
+    """Standardname `.github/schreibe-ticket.json`; der alte Name `ticket-schreiben.json` gilt als Rückfall."""
+
+    CFG = {"framework": "speckit", "jira_project": "FLAB", "issue_type": "Task"}
+
+    def setUp(self):
+        super().setUp()
+        self.github = os.path.join(self.tmp.name, ".github")
+        os.makedirs(self.github)
+        self.alt_cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        self.addCleanup(os.chdir, self.alt_cwd)
+
+    def lege(self, name, cfg):
+        with open(os.path.join(self.github, name), "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+
+    def pruefdatei(self):
+        out = os.path.join(self.tmp.name, "pd.json")
+        code, stdout, err = self.run_main(["pruefdatei", "--entwurf", self.entwurf, "--out", out], {})
+        return code, stdout, err, out
+
+    def test_standard_ist_schreibe_ticket_json(self):
+        self.assertEqual(jt.STANDARD_CONFIG, ".github/schreibe-ticket.json")
+        self.lege("schreibe-ticket.json", self.CFG)
+        code, _, err, out = self.pruefdatei()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(err, "")
+        with open(out, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["key"], "FLAB-0")
+
+    def test_alter_name_wird_gelesen_mit_hinweis(self):
+        self.lege("ticket-schreiben.json", self.CFG)
+        code, _, err, out = self.pruefdatei()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(err.strip(), "Hinweis: .github/ticket-schreiben.json gefunden, bitte in schreibe-ticket.json umbenennen")
+        with open(out, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["key"], "FLAB-0")
+
+    def test_neuer_name_gewinnt_ohne_hinweis(self):
+        self.lege("ticket-schreiben.json", dict(self.CFG, jira_project="ALT"))
+        self.lege("schreibe-ticket.json", dict(self.CFG, jira_project="NEU"))
+        code, _, err, out = self.pruefdatei()
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("Hinweis", err)
+        with open(out, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["key"], "NEU-0")
+
+    def test_keine_der_beiden_dateien(self):
+        code, _, err, _ = self.pruefdatei()
+        self.assertEqual(code, 2)
+        self.assertIn("Konfiguration fehlt: .github/schreibe-ticket.json", err)
+
+    def test_anderer_expliziter_name_ohne_rueckfall(self):
+        self.lege("ticket-schreiben.json", self.CFG)
+        code, _, err = self.run_main(["pruefdatei", "--config", ".github/egal.json", "--entwurf", self.entwurf], {})
+        self.assertEqual(code, 2)
+        self.assertIn("Konfiguration fehlt", err)
 
 
 if __name__ == "__main__":

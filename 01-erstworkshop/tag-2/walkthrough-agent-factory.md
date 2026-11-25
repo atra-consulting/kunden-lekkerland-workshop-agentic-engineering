@@ -204,18 +204,19 @@ Hinweise
 
 ### Lokal, ohne Pipeline
 
-Dieselben Copilot-Aufrufe wie die Factory startet ihr auch im Terminal, in eurem eigenen Repository: mit `local.py`. Prompts, Werkzeuge und Optionen kommen aus derselben `factory/config.json`, die Kriterien aus derselben `readiness.md`. Ein Test stellt sicher, dass beide Wege dieselben Aufrufe machen.
+Dieselben Copilot-Aufrufe wie die Factory startet ihr auch im Terminal, in eurem eigenen Repository: mit `agentic-factory.py`. Prompts, Werkzeuge und Optionen kommen aus derselben `factory/config.json`, die Kriterien aus derselben `readiness.md`. Ein Test stellt sicher, dass beide Wege dieselben Aufrufe machen.
 
 ```bash
-python3 factory/local.py assess --ticket-file ~/factory-tickets/LL-123.json               # nur die Bereitschaftsprüfung
-python3 factory/local.py spec   --ticket-file ~/factory-tickets/LL-123.json --print-only  # nur die Copilot-Befehle zeigen
-python3 factory/local.py spec   --ticket-file ~/factory-tickets/LL-123.json               # Prüfung, dann Spec
-python3 factory/local.py build  --ticket-file ~/factory-tickets/LL-123.json               # Code nach der Spec, mit euren Tests
+python3 -I factory/agentic-factory.py assess --ticket-file ~/factory-tickets/LL-123.json               # nur die Bereitschaftsprüfung
+python3 -I factory/agentic-factory.py spec   --ticket-file ~/factory-tickets/LL-123.json --print-only  # nur die Copilot-Befehle zeigen
+python3 -I factory/agentic-factory.py spec   --ticket-file ~/factory-tickets/LL-123.json               # Prüfung, dann Spec
+python3 -I factory/agentic-factory.py build  --ticket-file ~/factory-tickets/LL-123.json               # Code nach der Spec, mit euren Tests
+python3 -I factory/agentic-factory.py clarify --key LL-123                                              # ein Ticket in Runden von Kommentaren klären
 ```
 
-- **Das Ticket** holt ein eigener Copilot-Aufruf über euren Jira-MCP-Server in eine Datei. Ein API-Token braucht ihr dafür nicht.
+- **Das Ticket** liest das Skript mit `--key` selbst, über euren Jira-MCP-Server. Mit `--ticket-file` liest es eine Datei. Ein API-Token braucht ihr nicht.
 - **Euer Testbefehl,** etwa `make test`, kommt in `local.json` unter `test_command`.
-- **Anders als in der Factory:** kein Kommentar und kein Status in Jira, keine Freigabe zwischen Spec und Bau. Keine Prüfung der geänderten Dateien stoppt den Lauf. `local.py` warnt nur bei geschützten Pfaden und, beim Spec-Lauf, bei Dateien außerhalb des Spec-Ordners. Copilot läuft als ihr, mit euren Rechten und ohne Container. Den Diff prüft ihr selbst.
+- **Anders als in der Factory:** Mit `--ticket-file` schreibt das Skript nichts nach Jira. Mit `--key` postet es Kommentare, die mit `[KI]` beginnen, und setzt nie einen Status. Es gibt keine Freigabe zwischen Spec und Bau. Keine Prüfung der geänderten Dateien stoppt den Lauf. `agentic-factory.py` warnt nur bei geschützten Pfaden und, beim Spec-Lauf, bei Dateien außerhalb des Spec-Ordners. Copilot läuft als ihr, mit euren Rechten und ohne Container. Den Diff prüft ihr selbst.
 - **`--print-only`** zeigt die Copilot-Befehle. Diese Befehle sind die Vorlage für den Agent-Schritt in Bitbucket Pipelines. Guard, Prüfung und die getrennten Schritte der Factory kommen dazu.
 - **Im Lab** kostete OpenSpec etwa 27 Credits für die Spec und 17 für den Bau, je etwa eine Minute. Windows ist nicht getestet.
 
@@ -223,10 +224,10 @@ Einrichten und alle Befehle: [Factory-Schritte lokal ausführen](../../02-agent-
 
 ### Ein Ticket schreiben lassen
 
-Der Copilot-Skill `ticket-schreiben` macht aus einer Absicht ein oder mehrere Tickets:
+Der Copilot-Skill `schreibe-ticket` macht aus einer Absicht ein oder mehrere Tickets:
 
 ```text
-/ticket-schreiben Leser sollen sehen, wie lange sie für einen Artikel brauchen.
+/schreibe-ticket Leser sollen sehen, wie lange sie für einen Artikel brauchen.
 ```
 
 1. **Erst der Code:** Der Skill liest Code und Modul-Doku. Gibt es das schon? Widerspricht es dem Code? Auf Wunsch liest er auch eure Domänen in Confluence; das ist noch nicht getestet.

@@ -10,7 +10,7 @@ Mit diesen Dateien startet ihr die Copilot-Aufrufe der Factory im eigenen Projek
 | `spec` | Bereitschaft prüfen, dann die Spec schreiben. Noch einmal gestartet: die Spec nach Kommentaren und Änderungen von Hand überarbeiten |
 | `build` | Die Spec umsetzen. Noch einmal gestartet: den Code nach Kommentaren und Änderungen an der Spec nachbessern |
 
-Neu gegenüber `local.py`: Das Skript liest die Kommentare des Tickets und schreibt selbst Kommentare. Jeder beginnt mit `[KI]`. Lokal geht es über euren Jira-MCP-Server (`--jira mcp`), in einer Pipeline per API-Token (`--jira api`). Die Anleitung: [Factory-Schritte lokal ausführen](../../bedienung/lokal-ausfuehren.md) und [Übung 1](../../../01-erstworkshop/tag-2/uebung-factory-lokal.md). Was sich gegenüber `local.py` und der früheren Vorlage geändert hat und wie ihr umsteigt, steht in [`aenderungen.md`](aenderungen.md).
+Neu gegenüber `local.py`: Das Skript liest die Kommentare des Tickets und schreibt selbst Kommentare. Jeder beginnt mit `[KI]`. Lokal geht es über euren Jira-MCP-Server (`--jira mcp`), in einer Pipeline per API-Token (`--jira api`). Die Anleitung: [Factory-Schritte lokal ausführen](../../bedienung/lokal-ausfuehren.md) und [Übung 1](../../../01-erstworkshop/tag-2/uebung-factory-lokal.md). Was sich gegenüber `local.py` und der früheren Vorlage geändert hat und wie ihr umsteigt, steht in [`aenderungen.md`](aenderungen.md). Wie das Skript gebaut ist, welche Leitplanken es hat und welche Datei was tut, steht in [`aufbau.md`](aufbau.md).
 
 - **Quelle:** angepasst aus `local.py` im Lab-Repo [factory-lab](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/), Branch `factory-base`, Commit `a414237`, Ordner `factory/`. Es ist keine unveränderte Kopie mehr.
 - **Stand:** 25. November 2026, Copilot CLI 1.0.115, Modell `claude-sonnet-5.5`.
@@ -25,6 +25,8 @@ Neu gegenüber `local.py`: Das Skript liest die Kommentare des Tickets und schre
 | [`agentic-factory-plugin/`](agentic-factory-plugin/) | Der Hook für die Jira-Aufrufe über MCP: Er lässt nur den einen erwarteten Aufruf durch. Der Ordner muss **neben dem Skript** liegen. Das Skript lädt ihn von dort, nie aus `.github/` | Für `--jira mcp`. Copilot 1.0.115 führt ihn nicht aus, siehe [Sicherheit](#sicherheit-was-ihr-wissen-müsst) |
 | [`pipelines.example.yml`](pipelines.example.yml) | Beispiel für Bitbucket Pipelines: `agentic-clarify` und `agentic-assess`, je mit den Schritten `fetch`, `agent` und `post` | Nein. Nur für die Pipeline |
 | [`tests/`](tests/) | Die Tests, eine Datei pro Modul, siehe [Tests](#tests) | Nein |
+| [`aenderungen.md`](aenderungen.md) | Was sich gegenüber `local.py` und der früheren Vorlage geändert hat, und wie ihr umsteigt | Nein |
+| [`aufbau.md`](aufbau.md) | Ziel, Design, Leitplanken und Hooks der Vorlage, und welche Datei was tut | Nein |
 
 Außerhalb des Projekts legt das Skript an, in `~/.factory-local/<repo>/`:
 

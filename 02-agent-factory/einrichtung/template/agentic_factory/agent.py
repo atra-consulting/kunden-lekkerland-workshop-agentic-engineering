@@ -149,10 +149,15 @@ class Work:
         self.logdir.mkdir(parents=True, exist_ok=True)
         self.total = 0.0
         self.ctx, self.blocked = ctx, 0  # ctx: mode, framework, key, run; blocked: the calls logged to blocked.jsonl
+        self.unrecognized = False  # a call's events didn't look like the tested Copilot's (copilot.event_warnings)
 
     def report(self):
         """The run's last line about blocked calls."""
-        config.say(blocked.summary(self.blocked, blocked.log_path(self.repo)))
+        if self.unrecognized and not self.blocked:  # "no blocked calls" would claim more than the events show
+            config.say("WARNING: Copilot events not recognized: blocked calls may be missing from "
+                       f"{blocked.log_path(self.repo)}")
+        else:
+            config.say(blocked.summary(self.blocked, blocked.log_path(self.repo)))
 
     def snap(self):
         return {k: v for k, v in copilot.snapshot(self.repo).items() if not (self.prefix and k.startswith(self.prefix))}
@@ -178,7 +183,14 @@ class Work:
         config.say(f"copilot {label}: exit={rc} credits={cr} denied={denied} seconds={int(time.time() - t0)}")
         print("  final message: " + final[:1500].replace("\n", "\n    "))
         self.blocked += blocked.record(self.repo, {**self.ctx, "call": tag}, self.logdir / f"events-{tag}.jsonl", allowed)
+        events = self.logdir / f"events-{tag}.jsonl"
+        for w in copilot.event_warnings(events, rc):
+            config.say("WARNING: " + w)
+            self.unrecognized = True
         if rc != 0:
+            tail = copilot.non_json_tail(events)
+            if tail:
+                print("  Copilot's last lines:\n" + "\n".join("    " + x for x in tail), flush=True)
             raise config.Stop(f"copilot exited with {rc}; events: {self.logdir}")
         if fetch.folder_digest(self.io) != io_before:
             raise config.Stop(f"a work call changed the io folder {self.io}; nothing is posted")

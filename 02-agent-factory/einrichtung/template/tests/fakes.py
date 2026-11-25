@@ -176,6 +176,9 @@ usage = next(a.split("=", 1)[1] for a in argv if a.startswith("--usage-output-fi
 mode = pathlib.Path("fake-mode").read_text().strip() if pathlib.Path("fake-mode").exists() else "spec"
 final = "fertig: " + prompt.split()[0]
 def ev(t, **d): print(json.dumps({"type": t, "data": d}), flush=True)
+version = (here / "fake-version").read_text().strip() if (here / "fake-version").exists() else "1.0.115"
+if version != "none":  # "none": a Copilot whose events lack session.start
+    ev("session.start", sessionId="fake", copilotVersion=version)
 ev("tool.execution_start", toolName="write", arguments={"path": "x"})
 if (here / "fake-shell").exists():  # "<ran|denied> <tool name>": a shell call that ran, or one Copilot denied
     how, tool = (here / "fake-shell").read_text().split()
@@ -266,7 +269,8 @@ if not pathlib.Path("fake-denied").exists():  # with fake-denied the call's one 
     ev("tool.execution_complete", success=False, error={"code": "denied", "message": "shell(curl) denied"})
 ev("assistant.message", content=final)
 pathlib.Path(usage).write_text(json.dumps({"totalNanoAiu": 2500000000}))
-if (here / "fake-exit").exists():  # the exit code Copilot ends with
+if (here / "fake-exit").exists():  # the exit code Copilot ends with, after an error line that isn't JSON
+    print("Error: the model is not available", file=sys.stderr, flush=True)
     sys.exit(int((here / "fake-exit").read_text()))
 '''
 

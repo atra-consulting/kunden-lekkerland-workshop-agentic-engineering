@@ -1,8 +1,11 @@
 """Tests for agentic_factory/agent.py: spec and build runs end to end, and the shell backstop."""
+import contextlib
+import io
 import json
 import os
 import subprocess
 import re
+import shutil
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -42,6 +45,33 @@ class EndToEnd(E2E, unittest.TestCase):
         with self.assertRaisesRegex(config.Stop, "has no key deny_tools"):
             self.run_main("spec", "--ticket-file", str(self.tf), cfg=cfg)
         self.assertFalse((self.d / "calls.jsonl").exists())
+
+    def test_unknown_event_format_warns(self):
+        for version, part in (("none", "Copilot events not recognized (no session.start)"),
+                              ("2.0.0", "Copilot 2.0.0 is not the tested 1.0.115")):
+            with self.subTest(version=version):
+                (self.d / "fake-version").write_text(version, encoding="utf-8")
+                shutil.rmtree(self.repo / "openspec/changes/lower-tags", ignore_errors=True)
+                rc, out = self.run_main("spec", "--ticket-file", str(self.tf))
+                self.assertEqual(rc, 0, out)
+                self.assertIn("WARNING: " + part, out)
+
+    def test_report_never_claims_no_blocked_calls_on_unknown_events(self):
+        from types import SimpleNamespace
+        from agentic_factory import agent
+        for unrecognized, blocked_n, part in ((True, 0, "WARNING: Copilot events not recognized: blocked calls may be "
+                                                         "missing"), (False, 0, "no blocked calls"),
+                                              (True, 2, "2 blocked call(s)")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                agent.Work.report(SimpleNamespace(unrecognized=unrecognized, blocked=blocked_n, repo=self.repo))
+            self.assertIn(part, out.getvalue())
+
+    def test_failed_call_shows_copilots_last_lines(self):
+        (self.d / "fake-exit").write_text("3", encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "copilot exited with 3"):
+            self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertIn("Copilot's last lines:\n    Error: the model is not available", self.last_out)
 
     def test_agent_commits_are_shown_and_checked(self):
         self.run_main("spec", "--ticket-file", str(self.tf))

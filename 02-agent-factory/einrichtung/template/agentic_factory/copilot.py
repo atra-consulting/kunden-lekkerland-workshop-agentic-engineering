@@ -393,6 +393,59 @@ def mcp_events(events_path):
     return {"version": version, "calls": calls}
 
 
+TESTED_VERSION = "1.0.115"  # the Copilot CLI whose events the script reads
+BLIND = ("; blocked.jsonl, the shell check and the test line may miss what this call did. Check the events in {} and "
+         "the agentic-factory.py version")
+
+
+def _event_lines(events_path):
+    try:
+        with open(events_path, "rb") as fh:
+            return fh.read().splitlines()
+    except OSError:
+        return []
+
+
+def event_warnings(events_path, rc):
+    """Warnings when a call's events don't look like the tested Copilot's: no session.start, a call that exited 0
+    without any tool or message event, or another copilotVersion (arbiter ruling 2). The blocked log, the shell
+    backstop and the test line read these events; a changed format would make them report nothing."""
+    version, seen, known = None, False, False
+    for raw in _event_lines(events_path):
+        try:
+            e = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(e, dict):
+            continue
+        t, d = e.get("type"), e.get("data") if isinstance(e.get("data"), dict) else {}
+        if t == "session.start":
+            seen, version = True, version or d.get("copilotVersion")
+        elif t in ("tool.execution_start", "tool.execution_complete", "assistant.message"):
+            known = True
+    blind = BLIND.format(events_path)
+    if not seen:
+        return ["Copilot events not recognized (no session.start)" + blind]
+    if rc == 0 and not known:
+        return [f"Copilot {version} events not recognized (no tool or message events)" + blind]
+    if version != TESTED_VERSION:
+        return [f"Copilot {version} is not the tested {TESTED_VERSION}; its events may differ" + blind]
+    return []
+
+
+def non_json_tail(events_path, n=5):
+    """The last n lines of a call's output that aren't JSON events: Copilot's own messages, such as an error."""
+    out = []
+    for raw in _event_lines(events_path):
+        try:
+            json.loads(raw)
+        except ValueError:
+            line = raw.decode("utf-8", errors="replace").strip()
+            if line:
+                out.append(line[:300])
+    return out[-n:]
+
+
 SHELL_TOOLS = ("bash", "shell", "powershell")
 
 

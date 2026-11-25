@@ -488,3 +488,42 @@ class Windows(unittest.TestCase):
 
     def test_copilot_override(self):
         self.assertEqual(copilot.resolve_copilot({"copilot": ["node", "c.js"]}), ["node", "c.js"])
+
+
+class EventCanary(unittest.TestCase):
+    """A WARNING when Copilot's events may have changed shape: the blocked log, the shell backstop and the test line
+    read them (arbiter ruling 2)."""
+
+    def events(self, *lines):
+        d = Path(tempfile.mkdtemp(prefix="canary-"))
+        self.addCleanup(shutil.rmtree, d, True)
+        p = d / "events.jsonl"
+        p.write_text("\n".join(x if isinstance(x, str) else json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+        return p
+
+    START = {"type": "session.start", "data": {"copilotVersion": "1.0.115"}}
+    TOOL = {"type": "tool.execution_start", "data": {"toolCallId": "1", "toolName": "write", "arguments": {}}}
+    MSG = {"type": "assistant.message", "data": {"content": "fertig"}}
+
+    def test_known_events_no_warning(self):
+        self.assertEqual(copilot.event_warnings(self.events(self.START, self.TOOL, self.MSG), 0), [])
+
+    def test_no_session_start(self):
+        (w,) = copilot.event_warnings(self.events(self.TOOL, self.MSG), 0)
+        self.assertIn("Copilot events not recognized (no session.start)", w)
+        self.assertIn("blocked.jsonl, the shell check and the test line may miss", w)
+
+    def test_exit_0_without_tool_or_message_events(self):
+        (w,) = copilot.event_warnings(self.events(self.START, {"type": "tool.run", "data": {}}), 0)
+        self.assertIn("Copilot 1.0.115 events not recognized (no tool or message events)", w)
+        self.assertEqual(copilot.event_warnings(self.events(self.START), 1), [])  # a failed call says so itself
+
+    def test_other_version(self):
+        start = {"type": "session.start", "data": {"copilotVersion": "1.0.200"}}
+        (w,) = copilot.event_warnings(self.events(start, self.TOOL, self.MSG), 0)
+        self.assertIn("Copilot 1.0.200 is not the tested 1.0.115", w)
+
+    def test_non_json_tail(self):
+        p = self.events(self.START, "Error: one", self.TOOL, "Error: two", "Error: three")
+        self.assertEqual(copilot.non_json_tail(p, 2), ["Error: two", "Error: three"])
+        self.assertEqual(copilot.non_json_tail(self.events(self.START), 5), [])

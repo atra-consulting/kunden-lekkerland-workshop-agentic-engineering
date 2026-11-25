@@ -80,7 +80,7 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertIn("the agent made 1 commit(s) on your branch, with 2 file(s)", out)
         self.assertIn("agent commit", out)
         self.assertIn("protected paths changed", out)
-        self.assertIn("bin/x", out)
+        self.assertIn(".github/x", out)
 
     def test_own_mcp_servers_switched_off(self):
         rc, out = self.run_main("spec", "--ticket-file", str(self.tf))

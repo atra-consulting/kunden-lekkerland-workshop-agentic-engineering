@@ -1,4 +1,4 @@
-"""`init`: the checks on the suggestions a read-only Copilot call writes to FACTORY-INIT.json. The project's docs go into
+"""`init`: the checks on the suggestions a read-only Copilot call returns as its final message. The project's docs go into
 that call's prompt and may carry a prompt injection, so a suggestion may only add or tighten: it never loosens
 deny_tools, protected_paths, forbidden_flags, or forbidden_env. The checks are pure functions: no Copilot call, no file
 written. run_init (at the end) is the mode: one Copilot call, the checks, the report, and with --apply the two files."""
@@ -156,7 +156,7 @@ def _deny_problem(entry, cfg, deny):
 
 
 def check_suggestions(d, cfg, readiness_text, installed):
-    """Checks the content of FACTORY-INIT.json against cfg (the current config.json), the current readiness.md text, and
+    """Checks the suggestions of the init call's final message against cfg (the current config.json), the current readiness.md text, and
     the installed frameworks. Returns {"accepted": [(key, path, suggestion)], "refused": [(key, path, suggestion,
     reason)], "notes": [str]}. path is "" except for add_tools ("<framework>.<mode>"). A refused suggestion is kept with
     its reason; nothing is dropped silently."""

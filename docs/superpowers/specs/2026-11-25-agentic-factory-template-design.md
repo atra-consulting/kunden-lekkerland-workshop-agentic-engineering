@@ -66,11 +66,12 @@ too. In the spec phase `spec` picks them up; after a build `build` picks them up
   `forbidden_env`, `jira.max_comment_chars`.
 - The `assess` and `clarify` blocks, and `readiness.md` as the Definition of Ready.
 - `frameworks.openspec|speckit|bmad` with every key the script reads (`spec_change_re`, `spec_required`,
-  `spec_required_glob`, `spec_tools`, `build_tools`, `spec_prompts`, `build_prompts`, `spec_rule_folder`, `spec_root`,
+  `spec_tools`, `build_tools`, `spec_prompts`, `build_prompts`, `spec_rule_folder`, `spec_root`,
   `spec_any_under`, `env_feature_dir`).
 - Generic `protected_paths`: `bitbucket-pipelines.yml`, `factory/`, `AGENTS.md`, `CLAUDE.md`, `.github/`, `.agents/`,
   `.specify/`, `_bmad/`, `openspec/config.yaml`, Dockerfiles, `.dockerignore`, `.gitattributes`, `.gitmodules`,
-  `.gitignore`, `.env*`, `.devcontainer/`, `.vscode/`, `bin/`, `FACTORY-QUESTIONS.md`.
+  `.gitignore`, `.env*`, `.devcontainer/`, `.vscode/`, `FACTORY-QUESTIONS.md`. (Fix wave: `bin/` and the unread
+  `spec_required_glob` removed; the assess and clarify prompts name code parts without Symfony words.)
 
 ### `config.json` loses
 

@@ -12,8 +12,10 @@ from .fakes import FULL_CFG, HERE
 class TemplateConfig(unittest.TestCase):
     def test_template_config_is_stack_neutral(self):
         text = json.dumps(FULL_CFG)
-        for word in ("phpunit", "Symfony", "composer", "symfony.lock"):
+        for word in ("phpunit", "Symfony", "composer", "symfony.lock", "controllers", "entities", "translations",
+                     "spec_required_glob"):
             self.assertNotIn(word, text)
+        self.assertNotIn("^bin/", FULL_CFG["protected_paths"])
         for key in ("project_key", "bitbucket", "composer_install", "workspace_exclude", "max_patch_bytes"):
             self.assertNotIn(key, FULL_CFG)
         self.assertEqual(list(FULL_CFG["jira"]), ["max_comment_chars"])
@@ -157,3 +159,20 @@ class RequiredKeys(unittest.TestCase):
     def test_not_an_object(self):
         with self.assertRaisesRegex(config.Stop, "must be a JSON object"):
             config.check_required([], "config.json")
+
+
+class Hygiene(unittest.TestCase):
+    def test_local_help_says_machine_settings(self):
+        import contextlib, io
+        from agentic_factory import main
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+            main.main(["spec", "-h"])
+        self.assertIn("this machine's settings", " ".join(out.getvalue().split()))
+        self.assertNotIn("project overrides", out.getvalue())
+
+    def test_init_docstrings_have_no_factory_init_file(self):
+        self.assertNotIn("FACTORY-INIT.json", (HERE / "agentic_factory" / "init.py").read_text(encoding="utf-8"))
+
+    def test_template_ignores_pycache(self):
+        self.assertIn("__pycache__/", (HERE / ".gitignore").read_text(encoding="utf-8").splitlines())

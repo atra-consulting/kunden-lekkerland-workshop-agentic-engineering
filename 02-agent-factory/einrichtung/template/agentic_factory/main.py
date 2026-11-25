@@ -71,7 +71,7 @@ def parse(argv):
     ap.add_argument("--io-dir", help=f"the hand-over folder with in/ and out/ (default: <log folder>/io for --step "
                     f"all, ./{fetch.IO_DEFAULT} for the other steps)")
     ap.add_argument("--config", default=str(config.HERE / "config.json"))
-    ap.add_argument("--local", default=str(config.HERE / "local.json"), help="project overrides (default: local.json here)")
+    ap.add_argument("--local", default=str(config.HERE / "local.json"), help="this machine's settings (default: local.json here)")
     ap.add_argument("--readiness", help="the criteria file for both assess and clarify (default: their "
                     "criteria_file next to config.json)")
     ap.add_argument("--repo", default=".", help="the project (default: the git repository around the current folder)")

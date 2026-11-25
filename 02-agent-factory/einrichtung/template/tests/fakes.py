@@ -73,7 +73,10 @@ LAB_DENY_TOOLS = [
 ]
 AGENTS_LINE = " Read and follow AGENTS.md in the repository root if it exists."  # the template's, not the lab's
 LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "read_tools": [],
-           "spec_rules": CFG["spec_rules"].replace(AGENTS_LINE, ""), "build_rules": CFG["build_rules"].replace(AGENTS_LINE, ""), "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
+           "spec_rules": CFG["spec_rules"].replace(AGENTS_LINE, ""), "build_rules": CFG["build_rules"].replace(AGENTS_LINE, ""),
+           "assess": {**CFG["assess"], "prompt": CFG["assess"]["prompt"].replace(  # the lab's Symfony words
+               "the modules, entry points, user interface, data model, and tests it concerns",
+               "the pages, routes, controllers, templates, entities, translations, and tests")}, "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
            "frameworks": {**CFG["frameworks"], "speckit": {**CFG["frameworks"]["speckit"], "spec_prompts": [
                *CFG["frameworks"]["speckit"]["spec_prompts"][:1],
                "/speckit-plan Use the existing Symfony 7 / PHP stack and PHPUnit; no new dependencies.\n\n{spec_rules}",
@@ -259,8 +262,8 @@ elif mode in ("build", "commit", "commit-io"):
                         "agent commit"], check=True)
     if mode == "commit":
         import subprocess
-        pathlib.Path("bin").mkdir(exist_ok=True); pathlib.Path("bin/x").write_text("x\n")
-        subprocess.run(["git", "add", "src/New.php", "bin/x"], check=True)
+        pathlib.Path(".github").mkdir(exist_ok=True); pathlib.Path(".github/x").write_text("x\n")
+        subprocess.run(["git", "add", "src/New.php", ".github/x"], check=True)
         subprocess.run(["git", "-c", "user.name=a", "-c", "user.email=a@example.invalid", "commit", "-q", "-m",
                         "agent commit"], check=True)
 else:

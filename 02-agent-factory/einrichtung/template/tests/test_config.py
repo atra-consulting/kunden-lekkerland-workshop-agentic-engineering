@@ -1,12 +1,13 @@
 """Tests for agentic_factory/config.py: the Jira route."""
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from agentic_factory import config
 
-from .fakes import FULL_CFG, HERE
+from .fakes import AGENTS_LINE, FULL_CFG, HERE
 
 
 class TemplateConfig(unittest.TestCase):
@@ -25,7 +26,32 @@ class TemplateConfig(unittest.TestCase):
     def test_rules_name_agents_md(self):
         """AGENTS.md carries the team's guidance, so the spec and build rules point the agent at it."""
         for k in ("spec_rules", "build_rules"):
-            self.assertTrue(FULL_CFG[k].endswith(" Read and follow AGENTS.md in the repository root if it exists."), k)
+            self.assertTrue(FULL_CFG[k].endswith(AGENTS_LINE), k)
+
+    def test_agents_md_in_every_work_prompt(self):
+        """Every call that runs in the project names AGENTS.md, the files it links to, and that the factory rules win
+        a conflict. init reads AGENTS.md as data instead."""
+        fws = FULL_CFG["frameworks"]
+        prompts = {"assess": FULL_CFG["assess"]["prompt"], "clarify": FULL_CFG["clarify"]["prompt"],
+                   **{f"{n}.amend_prompt": fw["amend_prompt"] for n, fw in fws.items()},
+                   **{f"{n}.revise_prompt": fw["revise_prompt"] for n, fw in fws.items()}}
+        for n, fw in fws.items():
+            for i, p in enumerate(fw["spec_prompts"]):
+                prompts[f"{n}.spec_prompts[{i}]"] = p
+            for i, p in enumerate(fw["build_prompts"]):
+                prompts[f"{n}.build_prompts[{i}]"] = p
+        for name, p in prompts.items():
+            text = p.replace("{spec_rules}", FULL_CFG["spec_rules"]).replace("{build_rules}", FULL_CFG["build_rules"])
+            self.assertIn(AGENTS_LINE, text, name)
+        self.assertIn("and the files it links to", AGENTS_LINE)
+        self.assertIn("these rules win", AGENTS_LINE)
+
+    def test_agents_md_protected_in_subfolders(self):
+        """A nested AGENTS.md or CLAUDE.md is protected, too."""
+        prot = [re.compile(p) for p in FULL_CFG["protected_paths"]]
+        for path in ("AGENTS.md", "src/AGENTS.md", "CLAUDE.md", "packages/a/CLAUDE.md"):
+            self.assertTrue(any(r.search(path) for r in prot), path)
+        self.assertFalse(any(r.search("docs/MY-AGENTS.md") for r in prot))
 
     def test_no_team_rules_left(self):
         self.assertNotIn("rules", FULL_CFG)

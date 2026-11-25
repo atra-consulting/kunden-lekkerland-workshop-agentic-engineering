@@ -146,6 +146,8 @@ class Work:
         self.mcp_off = copilot.mcp_servers(self.exe, self.repo, self.env)
         config.say(f"MCP servers switched off for this run: {self.mcp_off}" if self.mcp_off
             else "no MCP servers to switch off")
+        for line in copilot.instruction_notes(copilot.instruction_sources(self.exe, self.repo, self.env)):
+            config.say(line)
         self.logdir.mkdir(parents=True, exist_ok=True)
         self.total = 0.0
         self.ctx, self.blocked = ctx, 0  # ctx: mode, framework, key, run; blocked: the calls logged to blocked.jsonl
@@ -245,6 +247,29 @@ def _amend_done(repo, fb, at, now, head):
     return True
 
 
+def _commits_since(repo, head, prefix):
+    """The agent's commits since head: (their --oneline lines, git diff --name-status lines, the paths they touched
+    outside the io folder). Empty when HEAD didn't move."""
+    now = ticket_mod.head_commit(repo)
+    if not now or now == head:
+        return [], [], []
+    commits = ticket_mod.git(repo, "log", "--oneline", f"{head}..HEAD" if head else "HEAD").splitlines()
+    files = ticket_mod.git(repo, "diff", "--no-ext-diff", "--no-textconv", "--name-status", "--no-renames",
+                           head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
+    paths = [x for x in (l.split("\t", 1)[-1] for l in files) if not (prefix and x.startswith(prefix))]
+    return commits, files, paths
+
+
+def _stop_on_protected(cfg, repo, before, now, head, prefix, n, total):
+    """Stops before the next call when a call changed a protected path: the next call would load a changed AGENTS.md
+    or other instruction file, or build on a change the factory's check step refuses."""
+    paths = [l[3:] for l in copilot.changed_paths(before, now)] + _commits_since(repo, head, prefix)[2]
+    hit = copilot.protected_hits(cfg, paths)
+    if hit:
+        raise config.Stop(f"call {n}/{total} changed protected paths {hit[:20]}; the next call would load or build on "
+                          "them, so the run stops here and nothing is posted. Review `git diff`")
+
+
 def _run_calls(run, req, p, work):
     cfg, repo, io = run.cfg, run.repo, run.io
     mode, key, calls = req["mode"], req["key"], p["calls"]
@@ -287,6 +312,8 @@ def _run_calls(run, req, p, work):
             config.say(f"the agent wrote {config.QUESTIONS} instead of a spec. Answer the questions in the ticket, delete the file, "
                 f"run again. Credits {work.total:.2f}")
             return config.EXIT_QUESTIONS
+        if tag != "assess" and n < len(calls):
+            _stop_on_protected(cfg, repo, before, work.snap(), head, work.prefix, n, len(calls))
 
     changed = copilot.changed_paths(before, work.snap())
     config.say(f"done: {ran} call(s), credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
@@ -294,14 +321,12 @@ def _run_calls(run, req, p, work):
     for l in changed[:80]:
         print("    " + l)
     paths = [l[3:] for l in changed]
-    now = ticket_mod.head_commit(repo)
-    if now and now != head:
-        commits = ticket_mod.git(repo, "log", "--oneline", f"{head}..HEAD" if head else "HEAD").splitlines()
-        files = ticket_mod.git(repo, "diff", "--no-ext-diff", "--no-textconv", "--name-status", "--no-renames", head or ticket_mod.EMPTY_TREE, "HEAD").splitlines()
+    commits, files, committed = _commits_since(repo, head, work.prefix)
+    if commits:
         config.say(f"the agent made {len(commits)} commit(s) on your branch, with {len(files)} file(s):")
         for l in commits[:20] + files[:80]:
             print("    " + l)
-        paths += [x for x in (l.split("\t", 1)[-1] for l in files) if not (work.prefix and x.startswith(work.prefix))]
+        paths += committed
     for w in copilot.warnings_for(cfg, mode, p["fw"], paths):
         config.say("WARNING: " + w)
     if mode == "spec" and p["fb"]["kind"] == "revise":

@@ -61,7 +61,9 @@ Diese Seite sagt, was sich an `agentic-factory.py` gegenüber `local.py` und der
 | `protected_paths` mit Pfaden von Symfony und PHP | Nur allgemeine Pfade. `init` schlägt Pfade für euren Stack vor |
 | – | `read_tools`: lesende Befehle wie `ls`, `cat` und `grep` für jeden Aufruf von `spec` und `build` |
 | – | Neue Blöcke: `clarify`, `init`, und je Framework `revise_prompt` und `amend_prompt` |
-| `spec_rules` und `build_rules` nennen `AGENTS.md` nicht | Beide enden mit „Read and follow AGENTS.md in the repository root if it exists.“ |
+| `spec_rules` und `build_rules` nennen `AGENTS.md` nicht | Beide enden mit „Follow AGENTS.md in the repository root, if it exists, and the files it links to; where they conflict with these factory rules, these rules win.“ Die Regeln der Bereitschaftsprüfung, von `clarify` und der amend-Aufrufe auch. Fehlt `spec_rules` oder `build_rules` in `config.json`, stoppt das Skript, statt die Regeln des Labs mit `./bin/phpunit` zu nehmen |
+| `protected_paths`: `^AGENTS\.md$`, `^CLAUDE\.md$` | `(^\|/)AGENTS\.md$`, `(^\|/)CLAUDE\.md$`: auch in Unterordnern |
+| `forbidden_flags` ohne `--no-custom-instructions` | `--no-custom-instructions` ist verboten, auch wenn eine alte `config.json` es nicht nennt |
 | `readiness.md` mit Beispielen aus der Symfony-Demo, Status „Klärung nötig“ und Image | Dieselben Kriterien und IDs, Beispiele ohne Stack, ohne Status und ohne Image |
 
 ### Sicherheit
@@ -92,8 +94,8 @@ Neu. `[Mensch]`-Kommentare im Ticket und Änderungen von Hand an den Spec-Dateie
 
 ### Was gleich geblieben ist
 
-- **Prompts und Flags** baut das Skript wie `agent.py` von factory-base. Tests vergleichen beides, mit einer Konfiguration wie der des Labs, siehe [Tests](README.md#tests). Die `config.json` der Vorlage weicht an diesen Stellen ab: der Plan-Prompt von Spec Kit, `{test_command}` in `build_rules`, der Satz zu `AGENTS.md` am Ende von `spec_rules` und `build_rules`, die Freigabe für den Testbefehl, `read_tools`, `deny_tools`, die geschützten Pfade, die der Prompt der Bereitschaftsprüfung nennt, und die Wörter für Teile des Codes in diesem Prompt und in `readiness.md`: „modules, entry points, user interface, data model“ statt Begriffe aus Symfony. Neu sind die Prompts von `clarify`, `init`, `revise_prompt` und `amend_prompt`. `--deny-tool=shell` und `--disable-mcp-server` hängt das Skript nur hinten an.
-- **Unverändert aus factory-base:** der Prompt der Bereitschaftsprüfung und `readiness.md` bis auf die Wörter oben (die IDs der Kriterien sind gleich), `spec_rules` bis auf den Satz zu `AGENTS.md`, `forbidden_flags` und `forbidden_env`. Das Modell `claude-sonnet-5.5`, 150 Credits pro Aufruf, 40 für die Bereitschaftsprüfung, 1200 Sekunden pro Aufruf.
+- **Prompts und Flags** baut das Skript wie `agent.py` von factory-base. Tests vergleichen beides, mit einer Konfiguration wie der des Labs, siehe [Tests](README.md#tests). Die `config.json` der Vorlage weicht an diesen Stellen ab: der Plan-Prompt von Spec Kit, `{test_command}` in `build_rules`, der Satz zu `AGENTS.md` am Ende von `spec_rules`, `build_rules` und der Regeln der Bereitschaftsprüfung, die Freigabe für den Testbefehl, `read_tools`, `deny_tools`, die geschützten Pfade, die der Prompt der Bereitschaftsprüfung nennt, und die Wörter für Teile des Codes in diesem Prompt und in `readiness.md`: „modules, entry points, user interface, data model“ statt Begriffe aus Symfony. Neu sind die Prompts von `clarify`, `init`, `revise_prompt` und `amend_prompt`. `--deny-tool=shell` und `--disable-mcp-server` hängt das Skript nur hinten an.
+- **Unverändert aus factory-base:** der Prompt der Bereitschaftsprüfung und `readiness.md` bis auf die Wörter und den Satz zu `AGENTS.md` oben (die IDs der Kriterien sind gleich), `spec_rules` bis auf den Satz zu `AGENTS.md`, `forbidden_flags` bis auf `--no-custom-instructions`, und `forbidden_env`. Das Modell `claude-sonnet-5.5`, 150 Credits pro Aufruf, 40 für die Bereitschaftsprüfung, 1200 Sekunden pro Aufruf.
 - **Das Framework:** erst `--framework`, dann genau ein Label `sdd-*`, dann `default_framework`. Fehlt sein Ordner im Projekt, stoppt das Skript.
 - **Die Bereitschaftsprüfung** läuft vor `spec`, wenn `assess.enabled` gilt. `--no-assess` überspringt sie.
 - **Die Umgebung:** Copilot bekommt eure Umgebungsvariablen ohne die drei Jira-Variablen, dazu dieselben Sicherheits-Variablen.

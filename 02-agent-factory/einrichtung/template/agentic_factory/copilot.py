@@ -12,6 +12,8 @@ from . import copied, config
 from . import ticket as ticket_mod
 
 JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on to Copilot
+# Forbidden even when an old config.json doesn't list it: AGENTS.md carries the team's rules, and this flag drops it
+NO_INSTRUCTIONS = "--no-custom-instructions"
 
 
 # --- the calls --------------------------------------------------------------------------------------------------------
@@ -170,6 +172,15 @@ def fill(template, values, where):
         raise config.Stop(f"{where} uses the placeholder {{{e.args[0]}}}, which agentic-factory.py doesn't know")
 
 
+def rules_of(cfg, name):
+    """config.json's spec_rules or build_rules. No fallback: the copies in copied.py are the lab's, without the
+    AGENTS.md sentence and with the lab's PHP test command."""
+    rules = cfg.get(name)
+    if not isinstance(rules, str) or not rules:
+        raise config.Stop(f"config.json has no {name}: copy it from the template's config.json")
+    return rules
+
+
 def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers="", spec_changes=""):
     """The framework prompts, tools, and extra environment for one run, built the way factory/agent.py builds them.
     answers: spec after a `spec fragen` comment: the questions and their answers as a fenced block after the ticket.
@@ -178,14 +189,14 @@ def plan(cfg, mode, key, fw, ticket=None, change=None, spec_file=None, answers="
     F = cfg["frameworks"][fw]
     env_extra = {}
     if mode == "spec":
-        rules = cfg.get("spec_rules", copied.SPEC_RULES).format(folder=F["spec_rule_folder"])
+        rules = rules_of(cfg, "spec_rules").format(folder=F["spec_rule_folder"])
         vals = {"ticket_block": ticket_mod.ticket_block(ticket) + answers, "spec_rules": rules, "key": key,
                 "slug": key.lower()}
         prompts = [fill(p, vals, f"{fw} spec_prompts") for p in F["spec_prompts"]]
         tools = [*F["spec_tools"], *check_read_tools(cfg)]
     elif mode == "build":
         cmd = build_test_command(cfg)
-        rules = fill(cfg.get("build_rules", copied.BUILD_RULES), {"test_command": cmd}, "build_rules")
+        rules = fill(rules_of(cfg, "build_rules"), {"test_command": cmd}, "build_rules")
         tools = [*F["build_tools"], *check_read_tools(cfg), test_tool(cmd)]
         vals = {"change": change, "build_rules": rules, "key": key, "spec_file": spec_file}
         prompts = [fill(p, vals, f"{fw} build_prompts") + spec_changes for p in F["build_prompts"]]
@@ -204,7 +215,7 @@ def revise_plan(cfg, key, fw, ticket, change, comments_block):
         raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the template's config.json")
     root = F["spec_root"].format(change=change)
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
-            "spec_root": root, "spec_rules": cfg.get("spec_rules", copied.SPEC_RULES).format(folder=root), "key": key}
+            "spec_root": root, "spec_rules": rules_of(cfg, "spec_rules").format(folder=root), "key": key}
     prompt = fill(F["revise_prompt"], vals, f"{fw} revise_prompt")
     env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
     return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra
@@ -249,7 +260,7 @@ def copilot_argv(cfg, local, prompt, tools, usage_file, exe=("copilot",), cap=No
     argv += [f"--disable-mcp-server={x}" for x in mcp_off]
     argv += list(extra)
     for a in argv:  # including a local.json "copilot" prefix
-        for f in cfg["forbidden_flags"]:
+        for f in [*cfg["forbidden_flags"], NO_INSTRUCTIONS]:
             if a == f or a.startswith(f + "="):
                 raise config.Stop(f"forbidden flag {f}")
     return argv
@@ -284,6 +295,39 @@ def mcp_servers(exe, repo, env):
         raise config.Stop("can't list your MCP servers with `copilot mcp list --json`, so agentic-factory.py can't switch "
                    "them off; update GitHub Copilot CLI")
     return sorted(str(k) for k in servers)
+
+
+def instruction_sources(exe, repo, env):
+    """The instruction files Copilot would load in this project, as `copilot instruction list --json` lists them:
+    [(location, path)], location "repository", "working-directory", "User home", or a plugin's. None when Copilot
+    can't list them."""
+    try:
+        out = subprocess.run([*exe, "instruction", "list", "--json"], cwd=repo, env=env, capture_output=True, timeout=60)
+        items = json.loads(out.stdout.decode("utf-8")) if out.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        items = None
+    if not isinstance(items, list):
+        return None
+    return [(str(x.get("location", "")), str(x.get("sourcePath") or x.get("label") or ""))
+            for x in items if isinstance(x, dict) and not x.get("defaultDisabled")]
+
+
+def instruction_notes(sources):
+    """What to say about the instruction files of a run: which ones Copilot loads, a warning for files from outside
+    the project (the factory's container has none of them), and one when the project has no AGENTS.md."""
+    if sources is None:
+        return ["WARNING: can't list the instruction files with `copilot instruction list --json`, so "
+                "agentic-factory.py can't check that Copilot loads AGENTS.md and nothing from outside the project; "
+                "update GitHub Copilot CLI"]
+    inside = [p for loc, p in sources if loc in ("repository", "working-directory")]
+    outside = [p for loc, p in sources if loc not in ("repository", "working-directory")]
+    out = [f"instruction files Copilot loads: {inside}" if inside else "Copilot loads no instruction files"]
+    if "AGENTS.md" not in inside:
+        out.append("note: the project has no AGENTS.md, so the calls get no rules of your team")
+    if outside:
+        out.append(f"WARNING: Copilot also loads instruction files from outside the project, which the factory's "
+                   f"container doesn't have: {outside}. Move them away for a run like the factory's")
+    return out
 
 
 def resolve_copilot(local):
@@ -490,10 +534,15 @@ def changed_paths(before, after):
             if before.get(p) != after.get(p)]
 
 
+def protected_hits(cfg, paths):
+    """The paths that match protected_paths, without the factory's own files FACTORY-QUESTIONS.md and the verdict."""
+    prot = [re.compile(p) for p in cfg["protected_paths"]]
+    return [p for p in paths if any(r.search(p) for r in prot) and p not in (config.QUESTIONS, config.ASSESSMENT)]
+
+
 def warnings_for(cfg, mode, fw, paths):
     out = []
-    prot = [re.compile(p) for p in cfg["protected_paths"]]
-    hit = [p for p in paths if any(r.search(p) for r in prot) and p not in (config.QUESTIONS, config.ASSESSMENT)]
+    hit = protected_hits(cfg, paths)
     if hit:
         out.append(f"protected paths changed (the factory's check step would refuse): {hit[:20]}")
     if mode == "spec":

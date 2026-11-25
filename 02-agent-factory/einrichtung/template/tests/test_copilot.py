@@ -529,3 +529,51 @@ class EventCanary(unittest.TestCase):
         p = self.events(self.START, "Error: one", self.TOOL, "Error: two", "Error: three")
         self.assertEqual(copilot.non_json_tail(p, 2), ["Error: two", "Error: three"])
         self.assertEqual(copilot.non_json_tail(self.events(self.START), 5), [])
+
+
+class AgentsMd(unittest.TestCase):
+    """AGENTS.md reaches every work call: Copilot loads it, nothing switches that off, and the rules exist."""
+
+    def test_no_custom_instructions_is_forbidden_even_in_an_old_config(self):
+        old = {**FULL_CFG, "forbidden_flags": [f for f in FULL_CFG["forbidden_flags"] if f != copilot.NO_INSTRUCTIONS]}
+        self.assertIn(copilot.NO_INSTRUCTIONS, FULL_CFG["forbidden_flags"])
+        for cfg in (FULL_CFG, old):
+            with self.assertRaisesRegex(config.Stop, "forbidden flag --no-custom-instructions"):
+                copilot.copilot_argv(cfg, {}, "p", [], "/x/u.json", exe=("copilot", "--no-custom-instructions"))
+
+    def test_missing_rules_stop_instead_of_the_lab_copy(self):
+        for name, mode in (("spec_rules", "spec"), ("build_rules", "build")):
+            cfg = {k: v for k, v in FULL_CFG.items() if k != name}
+            cfg["test_command"] = "make test"
+            with self.subTest(name=name), self.assertRaisesRegex(config.Stop, f"config.json has no {name}"):
+                copilot.plan(cfg, mode, KEY, "openspec", dict(TICKET), "lower-tags", None)
+
+    def test_build_prompt_has_the_configured_test_command_and_agents_md(self):
+        cfg = {**FULL_CFG, "test_command": "make test"}
+        prompts, _, _ = copilot.plan(cfg, "build", KEY, "openspec", dict(TICKET), "lower-tags", None)
+        self.assertIn("Run the tests with exactly: make test.", prompts[0])
+        self.assertNotIn("phpunit", prompts[0])
+        self.assertTrue(prompts[0].endswith(AGENTS_LINE))
+
+    def test_instruction_notes(self):
+        self.assertEqual(copilot.instruction_notes([("repository", "AGENTS.md"), ("repository", "CLAUDE.md")]),
+                         ["instruction files Copilot loads: ['AGENTS.md', 'CLAUDE.md']"])
+        notes = copilot.instruction_notes([("repository", ".github/copilot-instructions.md")])
+        self.assertIn("note: the project has no AGENTS.md, so the calls get no rules of your team", notes)
+        notes = copilot.instruction_notes([("repository", "AGENTS.md"), ("User home", "/h/.copilot/copilot-instructions.md")])
+        self.assertTrue(notes[-1].startswith("WARNING: Copilot also loads instruction files from outside the project"))
+        self.assertIn("/h/.copilot/copilot-instructions.md", notes[-1])
+        self.assertTrue(copilot.instruction_notes(None)[0].startswith("WARNING: can't list the instruction files"))
+
+    def test_instruction_sources_reads_the_listing(self):
+        listing = [{"location": "repository", "sourcePath": "AGENTS.md"},
+                   {"location": "User home", "sourcePath": "/h/x.md"},
+                   {"location": "repository", "sourcePath": "off.md", "defaultDisabled": True}]
+        ok = subprocess.CompletedProcess([], 0, json.dumps(listing).encode(), b"")
+        with mock.patch.object(copilot.subprocess, "run", return_value=ok) as run:
+            self.assertEqual(copilot.instruction_sources(["copilot"], Path("/r"), {}),
+                             [("repository", "AGENTS.md"), ("User home", "/h/x.md")])
+        self.assertEqual(run.call_args.args[0], ["copilot", "instruction", "list", "--json"])
+        bad = subprocess.CompletedProcess([], 1, b"", b"error")
+        with mock.patch.object(copilot.subprocess, "run", return_value=bad):
+            self.assertIsNone(copilot.instruction_sources(["copilot"], Path("/r"), {}))

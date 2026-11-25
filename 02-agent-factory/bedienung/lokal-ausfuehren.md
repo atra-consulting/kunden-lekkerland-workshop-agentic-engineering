@@ -88,7 +88,7 @@ python3 -I factory/agentic-factory.py init --apply   # neuer Aufruf, dann config
 
 ## Regeln deines Teams: `AGENTS.md`
 
-Regeln deines Teams, etwa „minimale Änderungen, kein Refactoring nebenbei“, und die Beschreibung deines Stacks schreibst du in `AGENTS.md` im Wurzelordner des Projekts. Copilot lädt die Datei in jedem Arbeitsaufruf selbst. Einen Block `rules` in `config.json` gibt es nicht mehr. Hat deine `config.json` noch einen, stoppt das Skript mit `config.json has a rules block: team rules were removed; move them to AGENTS.md`.
+Regeln deines Teams, etwa „minimale Änderungen, kein Refactoring nebenbei“, und die Beschreibung deines Stacks schreibst du in `AGENTS.md` im Wurzelordner des Projekts. Copilot lädt die Datei in jedem Arbeitsaufruf selbst. Die Prompts sagen dem Agenten, dass er sie und die Dateien, auf die sie verlinkt, befolgen soll und dass bei einem Widerspruch die Regeln der Factory gewinnen. Vor jedem Lauf nennt das Skript die Dateien, die Copilot als Anweisungen lädt. Einen Block `rules` in `config.json` gibt es nicht mehr. Hat deine `config.json` noch einen, stoppt das Skript mit `config.json has a rules block: team rules were removed; move them to AGENTS.md`.
 
 ## Zwei Wege zu Jira (`--jira`)
 
@@ -648,6 +648,9 @@ Jeder Stopp beginnt mit `[agentic-factory] STOP:` und endet mit Exit-Code 2.
 | `--step fetch must not see COPILOT_GITHUB_TOKEN` | Das Copilot-Token gehört nur zu `agentic-agent` |
 | `the log folder … lies inside the project` | Das Projekt enthält deinen Home-Ordner, etwa weil dein Home-Ordner selbst ein Git-Repository ist. Die Protokolle unter `~/.factory-local/` müssen außerhalb des Projekts liegen |
 | `can't list your MCP servers` | `copilot mcp list --json` lief nicht. Copilot CLI aktualisieren, mindestens 1.0.114 |
+| `config.json has no spec_rules` (oder `build_rules`) | Die `config.json` ist alt. Den Schlüssel aus der Vorlage übernehmen |
+| `forbidden flag --no-custom-instructions` | Das Flag schaltet `AGENTS.md` ab. Aus `copilot` in `local.json` entfernen |
+| `call N/M changed protected paths […]` | Ein Aufruf hat etwa `AGENTS.md` geändert, und der nächste würde sie laden. `git diff` prüfen, zurücksetzen, neu starten |
 | `copilot exited with …` | Copilot ist abgebrochen. Die Ereignisse liegen im genannten Protokoll-Ordner |
 
 Keine Stopps, aber wichtig:
@@ -657,6 +660,8 @@ Keine Stopps, aber wichtig:
 | `not ready: no spec calls` | Die Bereitschaftsprüfung sagt „nicht bereit“. Gründe und Fragen stehen in der Ausgabe und im Kommentar. Exit-Code 4 |
 | `the agent wrote FACTORY-QUESTIONS.md instead of a spec` | Das Ticket war dem Agenten zu unklar. Die Fragen stehen in der Ausgabe und im Kommentar. Exit-Code 5 |
 | `WARNING: protected paths changed` | Der Agent hat Dateien geändert, die die Factory ablehnen würde. Prüfen und zurücksetzen |
+| `WARNING: Copilot also loads instruction files from outside the project` | Copilot lädt Anweisungen, die der Container der Factory nicht hat, etwa `~/.copilot/copilot-instructions.md`. Für einen Lauf wie in der Factory beiseitelegen |
+| `note: the project has no AGENTS.md` | Die Aufrufe bekommen keine Regeln deines Teams |
 | `WARNING: Copilot … ran no plugin hook for this Jira call` | Mit Copilot 1.0.115 erwartet. Das Skript hat den Aufruf danach geprüft |
 | `WARNING: LL-123 has 50 comments` | Der MCP-Server liefert vielleicht nicht alle Kommentare |
 | `nothing new since comment …` | Zweiter Lauf von `spec` oder `build` ohne neue `[Mensch]`-Kommentare und ohne Änderung an der Spec. Kein Aufruf, nichts gepostet. Exit-Code 0 |

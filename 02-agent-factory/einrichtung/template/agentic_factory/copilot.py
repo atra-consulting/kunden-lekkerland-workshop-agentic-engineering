@@ -21,8 +21,17 @@ JIRA_ENV = ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")  # never passed on 
 TEST_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%-]+")  # the first word; no quotes, "$", "=", ";", "&", "|", "<", ">"
 ARG_CHARS = re.compile(r"[A-Za-z0-9_./:@+,%=-]+")  # the other words: the same, plus "=" (--maxfail=1)
 INTERPRETERS = {"bash", "sh", "zsh", "dash", "python", "python3", "node", "ruby", "perl", "pwsh", "powershell"}
-INLINE_CODE_FLAGS = {"-c", "-e", "--eval", "-Command"}
-SHORT_FLAGS_FOR_CODE = re.compile(r"-[A-Za-z]*[ce]")  # a cluster such as -lc, -Sc, -pe
+INLINE_CODE_FLAGS = {"-c", "-e", "-E", "-p", "--print", "--eval", "-Command"}
+SHORT_FLAGS_FOR_CODE = re.compile(r"-[A-Za-z]*[ceEp]")  # a cluster such as -lc, -Sc, -pe, -ep
+POWERSHELL_CODE_FLAGS = ("-command", "-encodedcommand")  # PowerShell accepts any prefix of these, such as -Com or -enc
+
+
+def runs_inline_code(interpreter, word):
+    """Whether an argument of an interpreter looks like a flag that runs code from the command line."""
+    if word in INLINE_CODE_FLAGS or SHORT_FLAGS_FOR_CODE.fullmatch(word):
+        return True
+    return (interpreter in ("pwsh", "powershell") and len(word) >= 3 and word.startswith("-")
+            and any(f.startswith(word.lower()) for f in POWERSHELL_CODE_FLAGS))
 
 
 def check_test_command(cmd):
@@ -39,13 +48,12 @@ def check_test_command(cmd):
             raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % - "
                               "(and = after the first word); shell syntax and quotes aren't allowed, "
                               "put them in a script or a make target")
-    if os.path.basename(words[0]) in INTERPRETERS:
-        for w in words[1:]:
-            if not w.startswith("-"):
-                break  # the script or the first argument: later flags are the script's own
-            if w in INLINE_CODE_FLAGS or SHORT_FLAGS_FOR_CODE.fullmatch(w):
-                raise config.Stop(f"test_command {cmd!r}: {words[0]} {w} runs inline code; "
-                                  "use a script file or a make target")
+    interpreter = os.path.basename(words[0])
+    if interpreter in INTERPRETERS:
+        for w in words[1:]:  # every word: an option's value word must not hide a later flag
+            if runs_inline_code(interpreter, w):
+                raise config.Stop(f"test_command {cmd!r}: {words[0]} with {w} may run inline code, or this check can't "
+                                  "tell; wrap the command in a script file or a Make target and use that")
 
 
 def test_tool(cmd):

@@ -232,7 +232,11 @@ class TestCommand(unittest.TestCase):
 
     def test_inline_code_refused(self):
         for cmd in ("bash -c x", "sh -c x", "python3 -c 1", "node -e 1", "python3 -I -c 1", "python3 -u -c 1",
-                    "node --no-warnings -e 1", "bash -x -c x", "bash -lc x", "python3 -Sc 1", "node --eval 1"):
+                    "node --no-warnings -e 1", "bash -x -c x", "bash -lc x", "python3 -Sc 1", "node --eval 1",
+                    "python3 -W error -c 1", "bash -o pipefail -c x", "python3 -X importtime -c 1",
+                    "node --require x -e 1", "node -p 1", "node --print 1", "perl -E 1", "pwsh -e x", "pwsh -enc x",
+                    "powershell -ep x", "pwsh -Com x", "pwsh -COMMAND x", "python3 run.py -c x", "python3 -I run.py -e x",
+                    "bash test.sh -c", "bash -xe scripts/test.sh"):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
 
@@ -241,10 +245,14 @@ class TestCommand(unittest.TestCase):
             with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
 
-    def test_flags_after_the_script_are_the_scripts_own(self):
-        for cmd in ("python3 run.py -c x", "python3 -I run.py -e x", "bash test.sh -c"):
+    def test_interpreter_commands_without_inline_flags_pass(self):
+        for cmd in ("python3 -m pytest", "python3 run.py", "uv run pytest", "bash test.sh", "python3 -I -B -m unittest"):
             with self.subTest(cmd=cmd):
                 self.build(cmd)
+
+    def test_refusal_says_to_wrap_in_a_script(self):
+        with self.assertRaisesRegex(config.Stop, "script file or a Make target"):
+            self.build("python3 run.py -c x")
 
     def test_equals_sign_allowed_after_the_first_word(self):
         for cmd in ("pytest --maxfail=1", "pytest -k a=b", "a a=b"):

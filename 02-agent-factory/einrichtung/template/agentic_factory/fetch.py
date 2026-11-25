@@ -28,7 +28,8 @@ OUT_FILES = ("assessment.json", "clarify.json", "description.md", "spec.json", "
              NOTHING_NEW)
 SPEC_OUT_KEYS = ("fw", "source", "change", "readiness_line", "spec_text", "revision", "handled", "hand_edited", "diff",
                  "checksum")
-BUILD_OUT_KEYS = ("change", "changed", "test_line", "revision", "handled", "spec_diff", "start_commit", "checksum")
+BUILD_OUT_KEYS = ("change", "changed", "test_line", "revision", "handled", "spec_diff", "start_commit", "checksum",
+                  "amended")
 IO_DEFAULT = "agentic-io"  # split steps: inside the pipeline's clone
 NO_TEST_RUN = "Der Agent hat den Testbefehl nicht ausgeführt."
 

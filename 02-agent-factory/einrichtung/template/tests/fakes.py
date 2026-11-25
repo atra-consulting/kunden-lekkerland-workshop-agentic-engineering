@@ -221,9 +221,17 @@ elif mode.startswith("revise"):  # a spec revision: edits the change a first spe
 elif mode.startswith("rebuild"):  # build runs and reruns: the amend call (tag amend) adds a task; a build call
     d = pathlib.Path("openspec/changes/lower-tags")  # changes the code and checks every box
     if usage.endswith("usage-amend.json"):
-        with open(d / "tasks.md", "a") as fh: fh.write("- [ ] neu\n")
+        if mode != "rebuild-noop":  # rebuild-noop: an amend call that changes nothing
+            with open(d / "tasks.md", "a") as fh: fh.write("- [ ] neu\n")
         if mode == "rebuild-other":  # an amend call that writes code, too
             pathlib.Path("src").mkdir(exist_ok=True); pathlib.Path("src/Other.php").write_text("<?php\n")
+        if mode == "rebuild-spec":  # an OpenSpec amend call that adds a delta spec, too
+            (d / "specs/tags").mkdir(parents=True, exist_ok=True); (d / "specs/tags/spec.md").write_text("## neu\n")
+        if mode == "rebuild-commit":  # an amend call that commits the task file
+            import subprocess
+            subprocess.run(["git", "add", str(d / "tasks.md")], check=True)
+            subprocess.run(["git", "-c", "user.name=a", "-c", "user.email=a@example.invalid", "commit", "-q", "-m",
+                            "amend commit"], check=True)
     else:
         pathlib.Path("src").mkdir(exist_ok=True)
         with open("src/New.php", "a") as fh: fh.write("// build\n")

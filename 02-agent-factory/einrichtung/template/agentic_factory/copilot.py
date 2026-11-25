@@ -212,12 +212,13 @@ def revise_plan(cfg, key, fw, ticket, change, comments_block):
 
 def amend_plan(cfg, key, fw, ticket, change, comments_block, task_file, revision):
     """A build revision's amend call: the framework's amend_prompt, its spec tools and read_tools (no test tool), and
-    its extra environment. The call turns the new [Mensch] comments into new, unchecked tasks in task_file."""
+    its extra environment. The call turns the new [Mensch] comments into new, unchecked tasks in task_file (OpenSpec:
+    and into the change's spec documents, see feedback.amend_paths)."""
     F = cfg["frameworks"][fw]
     if not isinstance(F.get("amend_prompt"), str) or not F["amend_prompt"]:
         raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the template's config.json")
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
-            "task_file": task_file, "revision": revision, "key": key}
+            "task_file": task_file, "revision": revision, "key": key, "spec_root": F["spec_root"].format(change=change)}
     prompt = fill(F["amend_prompt"], vals, f"{fw} amend_prompt")
     env_extra = {F["env_feature_dir"]: f"specs/{change}"} if fw == "speckit" and F.get("env_feature_dir") else {}
     return prompt, [*F["spec_tools"], *check_read_tools(cfg)], env_extra

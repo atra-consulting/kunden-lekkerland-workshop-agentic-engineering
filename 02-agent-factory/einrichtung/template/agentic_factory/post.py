@@ -60,7 +60,11 @@ def checked_build(run, req, comments, path, d=None):
                           "strings")
     if not isinstance(b["handled"], list) or not all(isinstance(x, str) for x in b["handled"]):
         raise config.Stop(f"{path.name}: handled must be a list of comment ids")
+    if type(b["amended"]) is not bool:
+        raise config.Stop(f"{path.name}: amended must be true or false")
     want = {"revision": d["revision"], "handled": d["handled"]}
+    if d["kind"] == "first" or not d["handled"]:  # no amend call
+        want["amended"] = False
     if d["kind"] == "first":
         want["spec_diff"] = ""
     else:
@@ -75,6 +79,10 @@ def checked_build(run, req, comments, path, d=None):
     if d["kind"] != "first" and not d["handled"] and not b["spec_diff"]:
         raise config.Stop(f"{path.name}: a build revision without new comments must come from hand edits; nothing is "
                           "posted")
+    if d["kind"] != "first" and d["handled"] and not b["amended"] and not b["spec_diff"] and (
+            b["changed"] or b["test_line"] != fetch.NO_TEST_RUN):
+        raise config.Stop(f"{path.name}: a build revision that amended nothing and has no spec diff makes no build "
+                          "call, so it changes no files and runs no tests; nothing is posted")
     found = copied.token_findings(b["spec_diff"]) + copied.invisible_findings(b["spec_diff"])
     if found:
         raise config.Stop(f"{path.name}: spec_diff: {'; '.join(found)}")

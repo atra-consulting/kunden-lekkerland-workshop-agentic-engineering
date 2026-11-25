@@ -155,8 +155,8 @@ def print_lines(d):
         lines.append(f"# {nothing_reason(d)}")
     elif d["mode"] == "build":
         lines.append(f"# the build prompt{' gets the spec diff since the last build' if d['hand_edited'] else ''}"
-                     + (f"; the amend call first adds the comments as new tasks to {d['task_file']}" if d["new"]
-                        else ""))
+                     + (f"; the amend call first adds the comments as new tasks ({', '.join(d['amend_paths'])})"
+                        if d["new"] else ""))
     return lines
 
 
@@ -259,7 +259,8 @@ def plan_build(run, req, F, d):
             raise config.Stop(f"the spec changed since the last build, but the copy of the built spec ({copy}) doesn't "
                               f"match comment {last}; run build --fresh")
     kind = "rebuild" if d["new"] or hand else "nothing"
-    return {**d, "kind": kind, "copy": copy, "paths": paths, "hand_edited": hand, "diff": diff, "task_file": None}
+    return {**d, "kind": kind, "copy": copy, "paths": paths, "hand_edited": hand, "diff": diff, "task_file": None,
+            "amend_paths": [], "amended": False}
 
 
 def spec_changes(d):
@@ -299,7 +300,8 @@ def build_out(run, req, p, changed, test_line, head):
     config.say(f"spec copy for later diffs: {dest}")
     fetch.write_json(run.io / "out" / "build.json", {
         "change": change, "changed": sorted(set(changed)), "test_line": test_line, "revision": d["revision"],
-        "handled": list(d["handled"]), "spec_diff": d.get("diff", ""), "start_commit": start, "checksum": total})
+        "handled": list(d["handled"]), "spec_diff": d.get("diff", ""), "start_commit": start, "checksum": total,
+        "amended": bool(d.get("amended"))})
 
 
 def render_build(key, b, limit):

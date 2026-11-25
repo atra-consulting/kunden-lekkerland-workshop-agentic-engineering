@@ -197,8 +197,23 @@ def spec_diff_block(diff):
 
 
 def task_file(fw, F, change, spec_file):
-    """The one file a build revision's amend call may change: tasks.md under the spec root for OpenSpec and Spec Kit,
-    the built SPEC.md for BMad."""
+    """The file a build revision's amend call appends the new tasks to: tasks.md under the spec root for OpenSpec and
+    Spec Kit, the built SPEC.md for BMad."""
     if fw == "bmad":
         return spec_file
     return F["spec_root"].format(change=change) + "tasks.md"
+
+
+def amend_paths(fw, F, change, spec_file):
+    """What a build revision's amend call may change, the one place that decides it: exact paths, and folders (ending
+    in /) with every file below them, new ones too. OpenSpec: the whole change folder, because /openspec-apply-change
+    refuses a task that proposal, specs, and design don't cover (spike, ruling R25). Spec Kit and BMad: the task file
+    only."""
+    if fw == "openspec":
+        return [F["spec_root"].format(change=change)]
+    return [task_file(fw, F, change, spec_file)]
+
+
+def outside_amend(paths, allowed):
+    """The paths that amend_paths' list doesn't allow."""
+    return [p for p in paths if not any(p == a or (a.endswith("/") and p.startswith(a)) for a in allowed)]

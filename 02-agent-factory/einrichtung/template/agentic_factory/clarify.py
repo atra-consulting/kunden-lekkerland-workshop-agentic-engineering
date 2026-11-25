@@ -382,12 +382,14 @@ def render_spec_questions(key, text):
 
 
 def render_build(key, change, changed, test_line, revision=1, handled=(), spec_diff="", start_commit="", checksum="",
-                 full=True):
+                 amended=False, full=True):
     """The build comment. Revision 1 is the first build (marker build); a later revision has the marker build
     überarbeitung, the ids of the [Mensch] comments it handled, and the spec diff from hand edits since the last build
     (full=False leaves the diff out and says so: a comment that would be too long). The lines feedback.state reads
     (Change, Bearbeitet, Start-Commit, Spec-Prüfsumme) stay outside the fenced blocks, and the changed files come
-    before the diff, so a diff line can't pose as them; the checksum comes last."""
+    before the diff, so a diff line can't pose as them; the checksum comes last. amended: the amend call turned the
+    handled comments into tasks; without that and without a spec diff no build call ran, and the comment says so
+    instead of listing files and a test line."""
     done = "Lokal umgesetzt mit agentic-factory.py, nicht geprüft und nicht gepusht."
     if revision == 1:
         parts = [marker("build", key), f"Change: {one_line(change)}. {done}"]
@@ -397,15 +399,22 @@ def render_build(key, change, changed, test_line, revision=1, handled=(), spec_d
         if handled:  # the line feedback.HANDLED_RE reads
             parts.append(f"Bearbeitet: Kommentar {', '.join(handled)}.")
         by_hand = "Die Spec wurde seit dem letzten Build von Hand geändert."
-        if handled and spec_diff:
+        to_spec = " agentic-factory.py hat den Code an die geänderte Spec angepasst."
+        no_task = "Der Agent hat aus den Kommentaren keine neue Aufgabe abgeleitet."
+        if handled and amended and spec_diff:
             parts.append(by_hand + " agentic-factory.py hat die genannten [Mensch]-Kommentare als neue Aufgaben in die "
                          "Spec übernommen und den Code an die Spec angepasst.")
-        elif handled:
+        elif handled and amended:
             parts.append("agentic-factory.py hat die genannten [Mensch]-Kommentare als neue Aufgaben in die Spec "
                          "übernommen und umgesetzt.")
+        elif handled and spec_diff:
+            parts.append(no_task + " " + by_hand + to_spec)
+        elif handled:
+            parts.append(no_task + " Darum hat agentic-factory.py nichts gebaut.")
         else:
-            parts.append(by_hand + " agentic-factory.py hat den Code an die geänderte Spec angepasst.")
-    parts += ["Geänderte Dateien:", fence("\n".join(one_line(p) for p in changed)), test_line]
+            parts.append(by_hand + to_spec)
+    if revision == 1 or not handled or amended or spec_diff:  # a build call ran
+        parts += ["Geänderte Dateien:", fence("\n".join(one_line(p) for p in changed)), test_line]
     if spec_diff and full:
         parts += ["Änderungen an der Spec seit dem letzten Build, von Hand:", fence(neutral(spec_diff).rstrip("\n"))]
     elif spec_diff:
@@ -439,7 +448,9 @@ RENDER_SAMPLES = [
     render_build("LL-1", "add-tags", ["src/Tags.php", "tests/TagsTest.php"], "Testbefehl make test: bestanden."),
     render_build("LL-1", "add-tags", ["src/Tags.php"], "Testbefehl make test: bestanden.", revision=2, handled=("12",),
                  spec_diff="--- a/openspec/changes/add-tags/tasks.md\n+++ b/openspec/changes/add-tags/tasks.md\n"
-                 "@@ -1 +1,2 @@\n - [x] t\n+- [ ] neu\n", start_commit="b" * 40, checksum="c" * 64),
+                 "@@ -1 +1,2 @@\n - [x] t\n+- [ ] neu\n", start_commit="b" * 40, checksum="c" * 64, amended=True),
+    render_build("LL-1", "add-tags", [], "Der Agent hat den Testbefehl nicht ausgeführt.", revision=4, handled=("13",),
+                 start_commit="b" * 40, checksum="c" * 64),
     render_build("LL-1", "add-tags", ["src/Tags.php"], "Testbefehl make test: bestanden.", revision=3,
                  spec_diff="+x\n", start_commit="b" * 40, checksum="c" * 64, full=False),
 ]

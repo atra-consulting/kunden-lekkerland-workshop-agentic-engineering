@@ -83,6 +83,7 @@ def work_plan(run, req, ticket, comments=()):
         else:
             if mode == "build" and fb["new"]:  # the amend call first: the new comments become new, unchecked tasks
                 fb["task_file"] = feedback.task_file(fw, F, p["change"], spec_file)
+                fb["amend_paths"] = feedback.amend_paths(fw, F, p["change"], spec_file)
                 prompt, amend_tools, _ = copilot.amend_plan(cfg, key, fw, ticket, p["change"],
                                                             clarify.comments_block(key, fb["new"]), fb["task_file"],
                                                             fb["revision"])
@@ -203,6 +204,27 @@ def run_agent(run, req, p):
         work.report()
 
 
+def _amend_done(repo, fb, at, now, head):
+    """After the amend call: it may change only what feedback.amend_paths allows, and make no commit, else Stop. Sets
+    fb["amended"]. Returns True when the build calls should not run: nothing amended and no hand edits."""
+    allowed = fb["amend_paths"]
+    if ticket_mod.head_commit(repo) != head:
+        raise config.Stop(f"the amend call may change only {', '.join(allowed)}, but it made a commit; nothing is "
+                          "posted")
+    changed = copilot.changed_paths(at, now)
+    other = feedback.outside_amend([x[3:] for x in changed], allowed)
+    if other:
+        raise config.Stop(f"the amend call changed more than {', '.join(allowed)}: {other[:10]}; nothing is posted")
+    fb["amended"] = bool(changed)
+    if changed:
+        return False
+    config.say(f"note: the amend call changed nothing in {', '.join(allowed)}: no new tasks from the comments")
+    if fb["diff"]:
+        return False
+    config.say("no hand edits of the spec either: no build call")
+    return True
+
+
 def _run_calls(run, req, p, work):
     cfg, repo, io = run.cfg, run.repo, run.io
     mode, key, calls = req["mode"], req["key"], p["calls"]
@@ -215,17 +237,13 @@ def _run_calls(run, req, p, work):
     if before:
         config.say(f"note: the working tree already has {len(before)} uncommitted change(s)")
     t_all = time.time()
+    ran = 0
     for n, (tag, prompt, tools, cap) in enumerate(calls, 1):
         at = work.snap() if tag == "amend" else None
         work.call(tag, "readiness check" if tag == "assess" else f"call {n}/{len(calls)}", prompt, tools, cap)
-        if tag == "amend":  # it may change only the task file
-            task = p["fb"]["task_file"]
-            other = [x for x in copilot.changed_paths(at, work.snap()) if x[3:] != task]
-            if other or ticket_mod.head_commit(repo) != head:
-                raise config.Stop(f"the amend call changed more than {task}: {other[:10] or 'it made a commit'}; "
-                                  "nothing is posted")
-            if not copilot.changed_paths(at, work.snap()):
-                config.say(f"note: the amend call added no task to {task}")
+        ran = n
+        if tag == "amend" and _amend_done(repo, p["fb"], at, work.snap(), head):
+            break  # nothing amended and no hand edits: nothing to build, no build call
         if tag == "assess":
             other = [x for x in copilot.changed_paths(before, work.snap()) if x[3:] != config.ASSESSMENT]
             if other or ticket_mod.head_commit(repo) != head:
@@ -251,7 +269,7 @@ def _run_calls(run, req, p, work):
             return config.EXIT_QUESTIONS
 
     changed = copilot.changed_paths(before, work.snap())
-    config.say(f"done: {len(calls)} call(s), credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
+    config.say(f"done: {ran} call(s), credits {work.total:.2f}, {int(time.time() - t_all)} s, logs in {work.logdir}")
     config.say(f"uncommitted changes ({len(changed)}):")
     for l in changed[:80]:
         print("    " + l)
@@ -271,7 +289,7 @@ def _run_calls(run, req, p, work):
     elif mode == "spec":
         revise.first_out(run, req, p, paths)
     elif mode == "build":
-        events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls if tag not in ("assess", "amend")]
+        events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls[:ran] if tag not in ("assess", "amend")]
         revise.build_out(run, req, p, paths, fetch.test_line(events, fetch.test_command(cfg)), head)
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
     return 0

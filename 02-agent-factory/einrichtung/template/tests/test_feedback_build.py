@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import unittest
 
-from agentic_factory import config, clarify, feedback, jira_rest, snapshot
+from agentic_factory import config, clarify, feedback, fetch, jira_rest, snapshot
 from agentic_factory import ticket as ticket_mod
 from .fakes import CFG, JiraE2E, KEY
 
@@ -110,11 +110,65 @@ class BuildRerun(JiraE2E, unittest.TestCase):
 
     def test_amend_touching_other_files_stops(self):
         first = self.first()
-        with self.assertRaisesRegex(config.Stop, f"changed more than {TASKS}.*src/Other.php"):
+        with self.assertRaisesRegex(config.Stop, f"changed more than {SPEC_DIR}/: .*src/Other.php"):
             self.build(comments=self.history(first, comment(21, "[Mensch] mehr", 9)), mode="rebuild-other")
         self.assertEqual([tag_of(c) for c in self.calls()], ["amend"])
         self.assertFalse((self.io / "out/comment-1.txt").exists())
         self.assertFalse((self.io / "out/build.json").exists())
+
+    def test_openspec_amend_may_edit_the_change_folder(self):
+        """R25: /openspec-apply-change refuses a task the spec doesn't cover, so the OpenSpec amend call may update the
+        delta specs (new files included), proposal, and design of the change, besides tasks.md."""
+        first = self.first()
+        rc, out = self.build(comments=self.history(first, comment(21, "[Mensch] auch Leerzeichen", 9)),
+                             mode="rebuild-spec")
+        self.assertEqual(rc, 0, out)
+        amend, build = self.calls()
+        self.assertEqual([tag_of(amend), tag_of(build)], ["amend", "1"])
+        prompt = amend[amend.index("-p") + 1]
+        self.assertIn(f"{SPEC_DIR}/specs/", prompt)
+        self.assertIn(f"openspec validate {CHANGE}", prompt)
+        self.assertTrue(json.loads((self.io / "out/build.json").read_text(encoding="utf-8"))["amended"])
+        text = self.comment()
+        self.assertIn("als neue Aufgaben in die Spec übernommen", text)
+        self.assertEqual((self.copy(2) / SPEC_DIR / "specs/tags/spec.md").read_text(encoding="utf-8"), "## neu\n")
+        self.assertEqual(SUM_RE.findall(text), [snapshot.checksum(self.repo, self.files())])
+
+    def test_amend_commit_stops(self):
+        first = self.first()
+        with self.assertRaisesRegex(config.Stop, "it made a commit"):
+            self.build(comments=self.history(first, comment(21, "[Mensch] mehr", 9)), mode="rebuild-commit")
+        self.assertEqual([tag_of(c) for c in self.calls()], ["amend"])
+        self.assertFalse((self.io / "out/comment-1.txt").exists())
+
+    def test_amend_noop_skips_the_build_call(self):
+        first = self.first()
+        rc, out = self.build(comments=self.history(first, comment(21, "[Mensch] passt so", 9)), mode="rebuild-noop")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([tag_of(c) for c in self.calls()], ["amend"])
+        b = json.loads((self.io / "out/build.json").read_text(encoding="utf-8"))
+        self.assertEqual((b["amended"], b["changed"], b["test_line"], b["handled"]),
+                         (False, [], fetch.NO_TEST_RUN, ["21"]))
+        text = self.comment()
+        self.assertTrue(text.startswith(clarify.marker("build_revision", KEY, 2) + "\n"), text)
+        self.assertIn("\nBearbeitet: Kommentar 21.\n", text)
+        self.assertIn("Der Agent hat aus den Kommentaren keine neue Aufgabe abgeleitet.", text)
+        self.assertNotIn("als neue Aufgaben", text)
+        self.assertNotIn("Geänderte Dateien", text)
+        self.assertEqual(START_RE.findall(text), START_RE.findall(first))
+
+    def test_amend_noop_with_hand_edit_still_builds(self):
+        first = self.first()
+        (self.repo / SPEC_DIR / "proposal.md").write_text("p\nvon Hand ergänzt\n", encoding="utf-8")
+        rc, out = self.build(comments=self.history(first, comment(21, "[Mensch] passt so", 9)), mode="rebuild-noop")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([tag_of(c) for c in self.calls()], ["amend", "1"])
+        self.assertFalse(json.loads((self.io / "out/build.json").read_text(encoding="utf-8"))["amended"])
+        text = self.comment()
+        self.assertIn("keine neue Aufgabe abgeleitet", text)
+        self.assertIn("von Hand geändert", text)
+        self.assertIn("+von Hand ergänzt", text)
+        self.assertNotIn("als neue Aufgaben", text)
 
     def test_hand_edited_spec_adds_diff_block(self):
         first = self.first()
@@ -239,12 +293,13 @@ class BuildRerun(JiraE2E, unittest.TestCase):
         self.run_main("build", "--step", "agent", *common, mode="rebuild")
         path = io / "out/build.json"
         good = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual((good["revision"], good["handled"], good["start_commit"], good["spec_diff"]),
-                         (2, ["21"], self.head(), ""))
+        self.assertEqual((good["revision"], good["handled"], good["start_commit"], good["spec_diff"], good["amended"]),
+                         (2, ["21"], self.head(), "", True))
         bad = {"revision": {**good, "revision": 3}, "handled": {**good, "handled": []},
                "handled extra": {**good, "handled": ["21", "22"]}, "change": {**good, "change": "other"},
                "start": {**good, "start_commit": "c" * 40}, "checksum": {**good, "checksum": "zz"},
-               "diff token": {**good, "spec_diff": "+ghp_" + "A" * 36}, "extra key": {**good, "x": 1}}
+               "diff token": {**good, "spec_diff": "+ghp_" + "A" * 36}, "extra key": {**good, "x": 1},
+               "amended not bool": {**good, "amended": "yes"}}
         for name, d in bad.items():
             with self.subTest(name=name):
                 path.write_text(json.dumps(d), encoding="utf-8")
@@ -267,12 +322,53 @@ class BuildRerun(JiraE2E, unittest.TestCase):
         good = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual((good["revision"], good["handled"], good["start_commit"]), (1, [], self.head()))
         bad = {"revision": {**good, "revision": 2}, "start": {**good, "start_commit": "HEAD"},
-               "diff": {**good, "spec_diff": "+x\n"}}
+               "diff": {**good, "spec_diff": "+x\n"}, "amended": {**good, "amended": True}}
         for name, d in bad.items():
             with self.subTest(name=name):
                 path.write_text(json.dumps(d), encoding="utf-8")
                 with self.assertRaises(config.Stop):
                     self.run_main("build", "--step", "post", *common)
+
+    def test_post_rechecks_a_build_without_build_call(self):
+        """amended false and no spec diff: no build call ran, so changed files or a test result can't be real."""
+        first = self.first()
+        io = self.d / "split"
+        cf = self.d / "comments.json"
+        cf.write_text(json.dumps(self.history(first, comment(21, "[Mensch] x", 9))), encoding="utf-8")
+        common = ("--io-dir", str(io))
+        self.run_main("build", "--step", "fetch", "--ticket-file", str(self.tf), "--comments-file", str(cf), *common)
+        self.run_main("build", "--step", "agent", *common, mode="rebuild-noop")
+        path = io / "out/build.json"
+        good = json.loads(path.read_text(encoding="utf-8"))
+        for name, d in {"files": {**good, "changed": ["src/New.php"]},
+                        "tests": {**good, "test_line": "Testbefehl ./bin/phpunit: bestanden."}}.items():
+            with self.subTest(name=name):
+                path.write_text(json.dumps(d), encoding="utf-8")
+                with self.assertRaisesRegex(config.Stop, "no build call"):
+                    self.run_main("build", "--step", "post", *common)
+
+    def test_tampered_me_stops_the_build_post_step(self):
+        first = self.first()
+        bot = {"key": "JIRAUSER-bot", "name": "bot"}
+        self.fake.comments = [
+            {"id": "10", "created": at(0), "body": jira_rest.text_to_wiki(self.spec_comment), "author": bot},
+            {"id": "20", "created": at(5), "body": jira_rest.text_to_wiki(first), "author": bot},
+            {"id": "21", "created": at(9), "body": "[Mensch] bitte ändern",
+             "author": {"key": "JIRAUSER-anna", "name": "anna"}}]
+        common = ("--io-dir", str(self.d / "split"))
+        self.run_main("build", "--step", "fetch", "--key", KEY, "--jira", "api", *common, env=self.env)
+        req_path = self.d / "split/in/request.json"
+        good = json.loads(req_path.read_text(encoding="utf-8"))
+        self.assertEqual(good["me"], "JIRAUSER-bot")
+        rc, out = self.run_main("build", "--step", "agent", *common, mode="rebuild")
+        self.assertEqual(rc, 0, out)
+        for me in (None, "JIRAUSER-anna"):
+            with self.subTest(me=me):
+                req_path.write_text(json.dumps({**good, "me": me}), encoding="utf-8")
+                with self.assertRaisesRegex(config.Stop, "me names another account"):
+                    self.run_main("build", "--step", "post", *common, env=self.env)
+                self.assertEqual(self.writes(), [])
+                self.assertFalse((self.d / "split/out/comment-1.txt").exists())
 
     def test_untrusted_build_comment_stops(self):
         first = self.first()
@@ -336,6 +432,25 @@ class BuildComment(unittest.TestCase):
         self.assertEqual(feedback.task_file("speckit", F["speckit"], "001-c", "x"), "specs/001-c/tasks.md")
         self.assertEqual(feedback.task_file("bmad", F["bmad"], "c", "_bmad-output/specs/c/SPEC.md"),
                          "_bmad-output/specs/c/SPEC.md")
+
+    def test_amend_paths(self):
+        """The one place that decides what an amend call may change: OpenSpec the change folder (R25), Spec Kit and
+        BMad the task file only."""
+        F = CFG["frameworks"]
+        allowed = feedback.amend_paths("openspec", F["openspec"], "c", "x")
+        self.assertEqual(allowed, ["openspec/changes/c/"])
+        self.assertEqual(feedback.outside_amend(["openspec/changes/c/specs/new/spec.md", "openspec/changes/c/tasks.md",
+                                                 "openspec/changes/c/proposal.md", "openspec/changes/d/tasks.md",
+                                                 "src/A.php"], allowed),
+                         ["openspec/changes/d/tasks.md", "src/A.php"])
+        allowed = feedback.amend_paths("speckit", F["speckit"], "001-c", "x")
+        self.assertEqual(allowed, ["specs/001-c/tasks.md"])
+        self.assertEqual(feedback.outside_amend(["specs/001-c/spec.md", "specs/001-c/tasks.md"], allowed),
+                         ["specs/001-c/spec.md"])
+        allowed = feedback.amend_paths("bmad", F["bmad"], "c", "_bmad-output/specs/c/SPEC.md")
+        self.assertEqual(allowed, ["_bmad-output/specs/c/SPEC.md"])
+        self.assertEqual(feedback.outside_amend(["_bmad-output/specs/c/SPEC.md", "_bmad-output/specs/c/other.md"],
+                                                allowed), ["_bmad-output/specs/c/other.md"])
 
     def test_amend_prompts_have_their_placeholders(self):
         for fw, F in CFG["frameworks"].items():

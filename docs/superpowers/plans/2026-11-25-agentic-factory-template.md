@@ -103,6 +103,32 @@ tests).
 - [ ] **Step 8: Commit** `config.json agentic_factory/ tests/` — "Make config.json stack-neutral and derive the test
   tool from test_command".
 
+### Task 1b: Default read-only tools for spec and build
+
+**Files:**
+- Modify: `config.json` (new key `read_tools`), `agentic_factory/copilot.py` (`plan`), `tests/fakes.py`
+  (`LAB_CFG["read_tools"] = []`)
+- Test: `tests/test_copilot.py` (new class `ReadTools`)
+
+**Interfaces:**
+- Consumes: Task 1's `plan`, `denied_by`.
+- Produces: `cfg["read_tools"]` (list of `shell(...)` strings); `copilot.check_read_tools(cfg) -> list[str]`
+  (stops on a non-`shell(...)` entry or one that matches `deny_tools`, naming it). `plan` returns tools in the order
+  framework tools, `read_tools`, test tool (build only).
+
+- [ ] **Step 1: Write the failing tests:** `test_spec_and_build_get_read_tools` (for each framework, every default
+  entry is in the tools of `spec` and `build`); `test_default_list` (`FULL_CFG["read_tools"]` equals exactly
+  `["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tail:*)", "shell(wc:*)", "shell(grep:*)", "shell(pwd:*)",
+  "shell(diff:*)", "shell(stat:*)", "shell(cd:*)", "shell(git status:*)", "shell(git diff:*)", "shell(git log:*)",
+  "shell(git show:*)", "shell(git ls-files:*)"]`); `test_dangerous_ones_absent` (none of `find`, `sed`, `awk`, `xargs`,
+  `rg`, `git grep`, `tree`, `sort` appears); `test_order_test_tool_last`; `test_non_shell_entry_stops`;
+  `test_denied_entry_stops`; `test_assess_and_clarify_unchanged` (their tools stay `[]`).
+- [ ] **Step 2: Run, confirm FAIL.**
+- [ ] **Step 3: Implement** `check_read_tools` and the append in `plan`; add `read_tools` to `config.json`; set
+  `LAB_CFG["read_tools"] = []` so Parity still matches.
+- [ ] **Step 4: Run the test command** (and once with `FACTORY_BASE`). Expected: PASS.
+- [ ] **Step 5: Commit** — "Allow standard read-only commands in spec and build calls".
+
 ### Task 2: `local.json` keeps machine settings only
 
 **Files:**
@@ -421,7 +447,8 @@ tests).
   Einrichtung mit `init`", „Blockierte Aufrufe: `blocked.jsonl`", „Feedback zu Spec und Build" (the two-channel,
   two-phase table; step-by-step; when `spec` refuses; `--fresh`; every stop and what to do; the lines `Bearbeitet`,
   `Start-Commit`, `Spec-Prüfsumme`), the note that team guidance belongs in `AGENTS.md`, the updated safety section
-  (test tool is the whole command; `npm` installs denied).
+  (test tool is the whole command; `npm` installs denied; the default `read_tools`, what is left out and why, and that
+  `cat`/`grep` can read outside the project).
 - [ ] **Step 2: Regenerate the prompt examples** from `agentic-factory.py --print-only` with the FLAB-41 ticket file and
   a config with `test_command` `./bin/phpunit`; say so in the examples' README.
 - [ ] **Step 3: Update the other files** from the `git grep` list.

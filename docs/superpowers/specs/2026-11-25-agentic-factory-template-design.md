@@ -104,6 +104,26 @@ too. In the spec phase `spec` picks them up; after a build `build` picks them up
   `shell(npx:*)`. The script stops before any call when the derived test tool matches a `deny_tools` entry, naming both.
 - The `[KI]` build comment's test line (`fetch.test_line`) keeps working with the configured command.
 
+### Default read-only tools
+
+Added at the user's request after runs where `ls`, `find`, or `grep` were denied.
+
+- New key `read_tools` in `config.json`, a list the script appends to every `spec` and `build` call (and the spec and
+  build revision calls), after the framework's tools and before the derived test tool. Default:
+  `shell(ls:*)`, `shell(cat:*)`, `shell(head:*)`, `shell(tail:*)`, `shell(wc:*)`, `shell(grep:*)`, `shell(pwd:*)`,
+  `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`, `shell(git status:*)`, `shell(git diff:*)`, `shell(git log:*)`,
+  `shell(git show:*)`, `shell(git ls-files:*)`.
+- Not included, because they can write files or run commands although they look read-only: `find` (`-delete`,
+  `-exec`), `sed` (`-i`), `awk` (`system()`), `xargs`, `rg` (`--pre`), `git grep` (`-O`), `tree` (`-o`), `sort` (`-o`).
+  Copilot's patterns match a prefix, so a tool can't be allowed with a dangerous option denied.
+- `assess`, `clarify`, and `init` don't get them: they have no shell, and any shell tool would switch off the
+  backstop that stops a run when Copilot ran a shell command anyway.
+- Every `read_tools` entry must be `shell(...)` and must not match `deny_tools`; the script stops otherwise.
+  `init` may add entries but never removes any.
+- Risk, stated in the README's safety section: `cat` and `grep` can read files outside the project, which Copilot's
+  own read tool can't. The token scan before posting is the only backstop for text copied into a spec.
+- Parity: the lab fixture `LAB_CFG` sets `read_tools` to `[]`.
+
 ### `local.json`
 
 Keeps only machine settings: `model`, `copilot`, `jira_mcp_server`, `jira_site`. `test_command` and `stack_hint` go
@@ -392,6 +412,7 @@ The steps cover:
 - The build's start commit goes into the `[KI]` build comment.
 - A BMad revision may touch the PRD folder and `specs/<change>/`; the change name comes from the previous comment.
 - A spike checks each framework's build re-entry before the build revision is built.
+- `read_tools` is one list for all spec and build calls, not six copies in `frameworks`.
 - The design doc is in English; the docs it changes stay German.
 - The change log lives in `template/aenderungen.md`; migration covers two starting points (`local.py` and the earlier
   `agentic-factory.py`).

@@ -193,6 +193,11 @@ if "FACTORY-ASSESSMENT.json" in prompt:
     pathlib.Path("FACTORY-ASSESSMENT.json").write_text(json.dumps(v))
     if mode == "tamper":
         with open("README.md", "a") as fh: fh.write("more\n")
+elif "FACTORY-INIT.json" in prompt:  # init: the suggestions from fake-init.json
+    pathlib.Path("FACTORY-INIT.json").write_text(pathlib.Path("fake-init.json").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+    if mode == "tamper":
+        with open("README.md", "a") as fh: fh.write("more\n")
 elif "FACTORY-CLARIFY.json" in prompt:
     pathlib.Path("FACTORY-CLARIFY.json").write_text(pathlib.Path("fake-clarify.json").read_text(encoding="utf-8"),
                                                     encoding="utf-8")
@@ -326,7 +331,7 @@ class E2E:
         self.tf.write_text(json.dumps(TICKET), encoding="utf-8")
         self.lj = self.d / "local.json"
         self.lj.write_text(json.dumps({"copilot": [sys.executable, "-I", str(self.d / "fake.py")]}), encoding="utf-8")
-        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\nfake-denied\n",
+        (self.repo / ".git/info/exclude").write_text("fake-mode\nfake-verdict\nfake-size\nfake-clarify.json\nfake-denied\nfake-init.json\n",
                                                      encoding="utf-8")
         self.rd = self.d / "readiness.md"
         self.rd.write_text(READINESS, encoding="utf-8")

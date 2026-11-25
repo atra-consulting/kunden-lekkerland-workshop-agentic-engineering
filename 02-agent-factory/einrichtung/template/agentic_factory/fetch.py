@@ -16,7 +16,7 @@ from . import ticket as ticket_mod
 # again, renders the comment, and posts it. Locally (--step all) the three run in one process. In a pipeline they run
 # as separate steps, each with only the secrets it needs (decision 6), so post trusts nothing in out/.
 
-MODES = ("assess", "spec", "build", "clarify")
+MODES = ("assess", "spec", "build", "clarify", "init")
 STEPS = ("fetch", "agent", "post", "all")
 ROUTES = ("offline", "mcp", "api")
 REQUEST_KEYS = ("mode", "key", "route", "framework", "change", "no_assess", "no_post")
@@ -31,7 +31,14 @@ NO_TEST_RUN = "Der Agent hat den Testbefehl nicht ausgeführt."
 
 def step_checks(step, mode, env):
     """Stops before anything runs: --step all in a pipeline, build in a pipeline (decision 3), and a pipeline step
-    that sees a secret it must not have (decision 6). Outside a pipeline, the split steps may see both."""
+    that sees a secret it must not have (decision 6). Outside a pipeline, the split steps may see both. init is local
+    only: no pipeline, and no split steps (it has no Jira to separate from the Copilot call)."""
+    if mode == "init":
+        if config.in_pipeline(env):
+            raise config.Stop("init is refused in a pipeline: it suggests changes to config.json for a person to review; "
+                              "run it locally")
+        if step != "all":
+            raise config.Stop(f"init runs as --step all only, not --step {step}")
     if config.in_pipeline(env) and step == "all":
         raise config.Stop("in a pipeline, run --step fetch, --step agent, and --step post as separate pipeline steps")
     if config.in_pipeline(env) and mode == "build":

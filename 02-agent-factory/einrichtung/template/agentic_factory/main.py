@@ -7,6 +7,8 @@ Usage (from anywhere inside the project's git repository):
   python3 agentic-factory.py build   --key LL-123 [--change <name>] [--framework speckit]
   python3 agentic-factory.py clarify --key LL-123 [--apply]  clarify the ticket in rounds of comments
   python3 agentic-factory.py spec    --key LL-123 --print-only  read the ticket, print the work calls, run none of them
+  python3 agentic-factory.py init    [--apply]             suggest config.json and readiness.md changes from the project's docs
+                                                           (local only; no --key, no Jira; --apply writes the checked ones)
 
 Options:
   --jira mcp|api         how to reach Jira. mcp: your Copilot's Atlassian MCP server (local.json jira_mcp_server,
@@ -38,7 +40,7 @@ import argparse
 import os
 import sys
 
-from . import copied, config, checks, fetch, agent, post
+from . import copied, config, checks, fetch, agent, init, post
 
 
 # --- main -------------------------------------------------------------------------------------------------------------
@@ -56,7 +58,7 @@ def parse(argv):
     ap.add_argument("--change", help="build: the spec folder's name, if there is more than one")
     ap.add_argument("--no-assess", action="store_true", help="spec: skip the readiness check before the spec calls")
     ap.add_argument("--no-post", action="store_true", help="write the comments to out/comment-<n>.txt, post nothing")
-    ap.add_argument("--apply", action="store_true", help="clarify: set the clarified description")
+    ap.add_argument("--apply", action="store_true", help="clarify: set the clarified description; init: write the checked suggestions to config.json and readiness.md")
     ap.add_argument("--print-only", action="store_true",
                     help="read the ticket (over MCP: one Jira call), print the copilot commands of the work calls, "
                     "run none of them and set or post nothing")
@@ -78,6 +80,8 @@ def main(argv=None):
     if a.print_only and a.step not in ("all", "agent"):
         raise config.Stop("--print-only works with --step all or --step agent")
     run = fetch.Run(a)
+    if a.mode == "init":  # no ticket, no Jira, no route
+        return init.run_init(run, a.apply, a.print_only)
     if a.mode == "assess" and not run.A:
         raise config.Stop("assess is not available in this config: config.json has no \"assess\" block")
     if a.mode == "clarify":

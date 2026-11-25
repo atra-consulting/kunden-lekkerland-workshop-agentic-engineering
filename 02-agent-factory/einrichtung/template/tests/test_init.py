@@ -1,13 +1,16 @@
-"""Tests for agentic_factory/init.py: the checks on init's suggestions (pure functions, no Copilot call)."""
+"""Tests for agentic_factory/init.py: the checks on init's suggestions (pure functions, no Copilot call), and the init mode
+(run_init) end to end with a fake Copilot."""
 import copy
 import json
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from agentic_factory import config, copilot, init, readiness
 
-from .fakes import FULL_CFG
+from .fakes import CFG, E2E, FULL_CFG, PIPE, READINESS
 
 READINESS_OLD = "# Criteria\n\n### `missing_detail`\n\nText.\n\n### `contradiction`\n\nMore.\n"
 INSTALLED = ["openspec", "bmad"]
@@ -314,3 +317,157 @@ class ReadinessParser(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+INIT_CFG = {k: v for k, v in CFG.items() if k != "assess"}
+NEW_READINESS = "# Criteria\n\n### `missing_detail`\nUnclear.\n\n### `already_exists`\nDone already.\n\n### `no_test`\nNo test named.\n"
+
+
+class InitMode(E2E, unittest.TestCase):
+    """agentic-factory.py init: one Copilot call writes FACTORY-INIT.json, the script checks and shows it, and with --apply
+    writes config.json and readiness.md."""
+
+    def setUp(self):
+        super().setUp()
+        self.cfgp = self.d / "config.json"
+
+    def init(self, suggestions, *args, mode="init"):
+        (self.repo / "fake-init.json").write_text(json.dumps(suggestions), encoding="utf-8")
+        return self.run_main("init", *args, mode=mode, cfg=INIT_CFG)
+
+    def calls(self):
+        p = self.d / "calls.jsonl"
+        return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines()] if p.exists() else []
+
+    def status(self):
+        return subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, capture_output=True, text=True).stdout
+
+    SUGGESTIONS = {"test_command": s("make test", "the README says so", "README.md:12"),
+                   "add_protected_paths": [s("^db/")],
+                   "add_tools": {"openspec": {"build": [s("shell(make lint:*)")]}},
+                   "readiness_md": s(NEW_READINESS)}
+
+    def test_init_without_apply_changes_nothing(self):
+        before_readiness = self.rd.read_bytes()
+        rc, out = self.init(self.SUGGESTIONS)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
+        self.assertEqual(self.rd.read_bytes(), before_readiness)
+        self.assertFalse((self.repo / init.OUT).exists())
+        self.assertEqual(self.status(), "")
+        for part in ("make test", "the README says so", "README.md:12", "--- config.json (current)",
+                     "+++ readiness.md (suggested)", "+### `no_test`", "nothing was changed", "--apply"):
+            self.assertIn(part, out)
+
+    def test_init_apply_writes_both(self):
+        rc, out = self.init(self.SUGGESTIONS, "--apply")
+        self.assertEqual(rc, 0, out)
+        text = self.cfgp.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith('{\n  "comment"'), text[:40])
+        self.assertTrue(text.endswith("}\n") and not text.endswith("\n\n"))
+        new = json.loads(text)
+        self.assertEqual(new["test_command"], "make test")
+        self.assertEqual(new["protected_paths"], INIT_CFG["protected_paths"] + ["^db/"])
+        self.assertEqual(new["frameworks"]["openspec"]["build_tools"],
+                         INIT_CFG["frameworks"]["openspec"]["build_tools"] + ["shell(make lint:*)"])
+        self.assertEqual(list(new), list(INIT_CFG))  # keys in their order
+        self.assertEqual(self.rd.read_text(encoding="utf-8"), NEW_READINESS)
+        self.assertFalse((self.repo / init.OUT).exists())
+        self.assertEqual(self.status(), "")  # nothing written into the project
+        self.assertIn("written", out)
+
+    def test_init_apply_writes_nothing_refused(self):
+        rc, out = self.init({"add_tools": {"openspec": {"spec": [s("shell(bash:*)")]}}, "add_deny_tools": [s("shell(curl:*)x")]},
+                            "--apply")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
+        self.assertEqual(self.rd.read_text(encoding="utf-8"), READINESS)
+        self.assertIn("refused", out)
+
+    def test_init_refused_in_pipeline(self):
+        with self.assertRaisesRegex(config.Stop, "init"):
+            self.run_main("init", mode="init", cfg=INIT_CFG, env=PIPE)
+        for step in ("fetch", "agent", "post"):
+            with self.subTest(step=step), self.assertRaisesRegex(config.Stop, "init"):
+                self.run_main("init", "--step", step, mode="init", cfg=INIT_CFG, env=PIPE)
+        self.assertEqual(self.calls(), [])
+
+    def test_init_needs_step_all(self):
+        for step in ("fetch", "agent", "post"):
+            with self.subTest(step=step), self.assertRaisesRegex(config.Stop, "init.*--step all"):
+                self.run_main("init", "--step", step, mode="init", cfg=INIT_CFG)
+        self.assertEqual(self.calls(), [])
+
+    def test_init_call_writing_other_files_stops(self):
+        (self.repo / "fake-init.json").write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, "README.md"):
+            self.run_main("init", "--apply", mode="tamper", cfg=INIT_CFG)
+        self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
+        self.assertEqual(self.rd.read_text(encoding="utf-8"), READINESS)
+
+    def test_init_without_docs_no_suggestions(self):
+        rc, out = self.init({})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("keine Vorschläge", out)
+        self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
+        self.assertFalse((self.repo / init.OUT).exists())
+
+    def test_init_print_only_runs_no_call(self):
+        rc, out = self.init(self.SUGGESTIONS, "--print-only")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.calls(), [])
+        self.assertIn("--deny-tool=shell", out)
+        self.assertIn("FACTORY-INIT.json", out)
+        self.assertFalse((self.repo / init.OUT).exists())
+
+    def test_init_call_shape_and_prompt(self):
+        (self.repo / "openspec/changes/x").mkdir(parents=True, exist_ok=True)
+        rc, out = self.init({})
+        self.assertEqual(rc, 0, out)
+        (argv,) = self.calls()
+        prompt = argv[argv.index("-p") + 1]
+        self.assertIn("openspec", prompt.split("Installed frameworks:")[1])
+        self.assertNotIn("speckit", prompt.split("Installed frameworks:")[1].split("Calls the factory")[0])
+        self.assertIn("### `missing_detail`", prompt)  # readiness.md
+        self.assertIn("no blocked calls recorded", prompt)
+        self.assertIn('"test_command"', prompt)  # the config's parts
+        self.assertNotIn("forbidden_env", prompt.split("Current configuration")[1])
+        self.assertEqual([a for a in argv if a.startswith("--allow-tool=")], ["--allow-tool=read", "--allow-tool=write"])
+        self.assertIn("--deny-tool=shell", argv)
+        self.assertEqual(argv[argv.index("--max-ai-credits") + 1], "40")
+        self.assertTrue(any(a.startswith("--disable-mcp-server=") for a in argv))
+        self.assertIn("INIT", str(next((self.d / ".factory-local" / "proj").glob("*-init-INIT"))))
+
+    def test_init_blocked_summary_in_prompt(self):
+        log = self.d / ".factory-local" / "proj" / "blocked.jsonl"
+        log.parent.mkdir(parents=True)
+        log.write_text(json.dumps({"mode": "build", "framework": "openspec", "tool": "shell", "command": "make lint",
+                                   "kind": "denied"}) + "\n", encoding="utf-8")
+        rc, out = self.init({})
+        (argv,) = self.calls()
+        self.assertIn("1x build/openspec shell: make lint", argv[argv.index("-p") + 1])
+
+    def test_init_uses_readiness_option(self):
+        other = self.d / "other.md"
+        other.write_text("# C\n\n### `only_one`\n", encoding="utf-8")
+        rc, out = self.init({"readiness_md": s("# C\n\n### `only_one`\n\n### `two`\n")}, "--readiness", str(other), "--apply")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("### `two`", other.read_text(encoding="utf-8"))
+        self.assertEqual(self.rd.read_text(encoding="utf-8"), READINESS)
+
+
+class InitFiles(unittest.TestCase):
+    def test_dump_config_keeps_the_indent(self):
+        new = {"a": [1], "b": "ä"}
+        self.assertEqual(init.dump_config('{\n    "a": 1\n}\n', new), '{\n    "a": [\n        1\n    ],\n    "b": "ä"\n}\n')
+        self.assertEqual(init.dump_config("{}", new), json.dumps(new, ensure_ascii=False, indent=2) + "\n")
+        self.assertEqual(init.dump_config('{\n\t"a": 1\n}', {"a": 1}), '{\n\t"a": 1\n}\n')
+
+    def test_installed_frameworks(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, True)
+        (d / ".specify").mkdir()
+        (d / "openspec").write_text("not a folder")
+        self.assertEqual(init.installed_frameworks(d, FULL_CFG), ["speckit"])
+        (d / "_bmad").mkdir()
+        self.assertEqual(init.installed_frameworks(d, FULL_CFG), ["speckit", "bmad"])

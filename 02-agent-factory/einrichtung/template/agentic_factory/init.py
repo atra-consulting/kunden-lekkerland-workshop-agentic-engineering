@@ -1,15 +1,21 @@
 """`init`: the checks on the suggestions a read-only Copilot call writes to FACTORY-INIT.json. The project's docs go into
 that call's prompt and may carry a prompt injection, so a suggestion may only add or tighten: it never loosens
-deny_tools, protected_paths, forbidden_flags, or forbidden_env. Pure functions: no Copilot call, no file written."""
+deny_tools, protected_paths, forbidden_flags, or forbidden_env. The checks are pure functions: no Copilot call, no file
+written. run_init (at the end) is the mode: one Copilot call, the checks, the report, and with --apply the two files."""
 import copy
 import difflib
 import json
 import re
+import shlex
+import time
 from collections import Counter
+from pathlib import Path
 
-from . import config, copilot, readiness
+from . import agent, blocked, config, copilot, readiness
+from . import ticket as ticket_mod
 
 OUT = "FACTORY-INIT.json"
+KEY = "INIT"  # the log folder name and the blocked.jsonl key of an init run (there is no ticket)
 SUGGESTION_KEYS = ("test_command", "add_tools", "add_protected_paths", "add_deny_tools", "enabled_frameworks", "readiness_md")
 MODES = ("spec", "build")  # the modes whose tool lists add_tools may extend
 NETWORK = {"curl", "wget", "ssh", "scp", "nc", "ncat", "netcat", "telnet", "sftp", "ftp", "rsync"}
@@ -364,3 +370,110 @@ def render_report(result):
 def diff(old, new, name):
     """A unified diff of two texts, or "" when they are equal."""
     return "\n".join(difflib.unified_diff(old.splitlines(), new.splitlines(), f"{name} (current)", f"{name} (suggested)", lineterm=""))
+
+
+# --- the mode ----------------------------------------------------------------------------------------------------------
+
+def installed_frameworks(repo, cfg):
+    """The frameworks of this config whose folder exists in the project (ticket.FRAMEWORK_MARKERS)."""
+    return [fw for fw, marker in ticket_mod.FRAMEWORK_MARKERS.items() if fw in cfg["frameworks"] and (Path(repo) / marker).is_dir()]
+
+
+def config_view(cfg):
+    """The parts of config.json init may change, as the prompt shows them."""
+    view = {k: cfg.get(k) for k in ("test_command", "enabled_frameworks", "protected_paths", "deny_tools")}
+    view["frameworks"] = {fw: {k: F.get(k, []) for k in ("spec_tools", "build_tools")} for fw, F in cfg["frameworks"].items()}
+    return json.dumps(view, ensure_ascii=False, indent=2)
+
+
+def init_call(cfg, readiness_text, installed, blocked_text):
+    """(prompt, tools, credit cap) of the one init call. No tools beyond the file tools: copilot_argv denies the shell."""
+    block = cfg["init"]
+    prompt = copilot.fill(block["prompt"], {"config": config_view(cfg), "readiness": readiness_text,
+                                            "installed": ", ".join(installed) or "none", "blocked": blocked_text,
+                                            "output_file": OUT}, "the init prompt")
+    return prompt, [], block.get("max_ai_credits", 40)
+
+
+def dump_config(old_text, new):
+    """config.json's text for the dict new: the indent of the old text (two spaces if it has none), keys in order, and a
+    trailing newline."""
+    m = re.search(r"(?m)^([ \t]+)\S", old_text)
+    return json.dumps(new, ensure_ascii=False, indent=m.group(1) if m else 2) + "\n"
+
+
+def run_init(run, apply, print_only):
+    """agentic-factory.py init: one Copilot call that reads the project's docs and writes FACTORY-INIT.json, the checks of
+    check_suggestions, the report and the diffs; with apply, config.json and readiness.md are written, nothing else.
+    No ticket and no Jira. Returns the exit code."""
+    cfg, repo, a = run.cfg, run.repo, run.a
+    if not isinstance(cfg.get("init"), dict):
+        raise config.Stop("init is not available in this config: config.json has no \"init\" block")
+    crit_path = Path(a.readiness) if a.readiness else Path(a.config).resolve().parent / run.A.get("criteria_file", "readiness.md")
+    readiness_text, _ = run.criteria()
+    installed = installed_frameworks(repo, cfg)
+    prompt, tools, cap = init_call(cfg, readiness_text, installed, blocked_summary(blocked.log_path(repo)))
+    logdir = run.log(KEY)
+    if print_only:
+        argv = copilot.copilot_argv(cfg, run.local, prompt, tools, (logdir / "usage-init.json").as_posix(), cap=cap)
+        print(f"# 1 copilot call, init, run in {repo}\n{shlex.join(argv)}")
+        print("\n# a local run also adds --disable-mcp-server=NAME for each server `copilot mcp list` shows")
+        return 0
+    run.set_io(logdir / "io")  # outside the project, so the work call's snapshots need no exception
+    work = agent.Work(run, KEY, {}, {"mode": "init", "framework": None, "key": KEY, "run": logdir.name})
+    try:  # the blocked-calls line ends every run, a stopped one too
+        return _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path, apply)
+    finally:
+        work.report()
+
+
+def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, crit_path, write):
+    cfg, repo, a = run.cfg, run.repo, run.a
+    out = repo / OUT
+    if out.is_file():
+        out.unlink()
+        config.say(f"removed the old {OUT}")
+    before = work.snap()
+    head = ticket_mod.head_commit(repo)
+    if before:
+        config.say(f"note: the working tree already has {len(before)} uncommitted change(s)")
+    t0 = time.time()
+    work.call("init", "init call", prompt, tools, cap)
+    other = [x for x in copilot.changed_paths(before, work.snap()) if x[3:] != OUT]
+    if other or ticket_mod.head_commit(repo) != head:
+        raise config.Stop(f"the init call changed more than {OUT}: {other[:10]}; nothing is suggested or written")
+    if not out.is_file():
+        raise config.Stop(f"the init call wrote no {OUT}")
+    try:
+        d = config.read_json(out)
+    finally:
+        out.unlink()
+    result = check_suggestions(d, cfg, readiness_text, installed)
+    config.say(f"done: credits {work.total:.2f}, {int(time.time() - t0)} s, logs in {work.logdir}")
+    if not (result["accepted"] or result["refused"]):
+        config.say("keine Vorschläge: nothing to change.")
+        return 0
+    print(render_report(result))
+    new = apply(cfg, result["accepted"])
+    new_readiness = readiness_of(result["accepted"])
+    cfg_path = Path(a.config)
+    old_text = cfg_path.read_text(encoding="utf-8")
+    new_text = dump_config(old_text, new) if new != cfg else old_text
+    changes = []
+    if new_text != old_text:
+        changes.append((cfg_path, new_text, "config.json"))
+    if new_readiness is not None and new_readiness != readiness_text:
+        changes.append((crit_path, new_readiness, "readiness.md"))
+    for path, text, name in changes:
+        print("\n" + diff(readiness_text if name == "readiness.md" else old_text, text, name))
+    if not changes:
+        config.say("no change to config.json or readiness.md")
+    elif not write:
+        config.say("nothing was changed. Run init again with --apply to write config.json and readiness.md.")
+    else:
+        config.check_config(new)  # the checks again on what is about to be written
+        for path, text, name in changes:
+            path.write_bytes(text.encode("utf-8"))
+            config.say(f"written: {path}")
+        config.say("review the diff, then commit config.json and readiness.md by hand")
+    return 0

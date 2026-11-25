@@ -20,6 +20,11 @@ class TemplateConfig(unittest.TestCase):
         for name, fw in FULL_CFG["frameworks"].items():
             self.assertNotIn("run2_editable_re", fw, name)
 
+    def test_rules_name_agents_md(self):
+        """AGENTS.md carries the team's guidance, so the spec and build rules point the agent at it."""
+        for k in ("spec_rules", "build_rules"):
+            self.assertTrue(FULL_CFG[k].endswith(" Read and follow AGENTS.md in the repository root if it exists."), k)
+
     def test_no_team_rules_left(self):
         self.assertNotIn("rules", FULL_CFG)
         self.assertFalse((HERE / "regeln").exists())

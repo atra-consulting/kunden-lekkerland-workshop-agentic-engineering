@@ -21,7 +21,7 @@ from unittest import mock
 
 from agentic_factory import copied, config, copilot, jira_mcp
 from agentic_factory import ticket as ticket_mod
-from .fakes import CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, LAB_CFG, TICKET, drop_usage
+from .fakes import AGENTS_LINE, CFG, FACTORY_BASE, FULL_CFG, HAVE_PWD, HERE, KEY, LAB_CFG, TICKET, drop_usage
 
 
 BUILD = {"openspec": ("add-lowercase-tags", ["openspec/changes/add-lowercase-tags/proposal.md",
@@ -345,8 +345,10 @@ class TestCommand(unittest.TestCase):
         self.assertIsNone(copilot.denied_by("npxy", deny))
 
     def test_lab_build_rules_equal_factory(self):
-        self.assertEqual(copilot.fill(FULL_CFG["build_rules"], {"test_command": "./bin/phpunit"}, "x"),
+        self.assertEqual(copilot.fill(LAB_CFG["build_rules"], {"test_command": "./bin/phpunit"}, "x"),
                          copied.BUILD_RULES)
+        self.assertEqual(FULL_CFG["build_rules"], LAB_CFG["build_rules"] + AGENTS_LINE)  # the template adds AGENTS.md
+        self.assertEqual(FULL_CFG["spec_rules"], copied.SPEC_RULES + AGENTS_LINE)
 
 
 DEFAULT_READ_TOOLS = ["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tail:*)", "shell(wc:*)", "shell(grep:*)",

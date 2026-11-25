@@ -71,7 +71,9 @@ LAB_DENY_TOOLS = [
     "shell(npm:*)",
     "shell(npx:*)"
 ]
-LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "read_tools": [], "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
+AGENTS_LINE = " Read and follow AGENTS.md in the repository root if it exists."  # the template's, not the lab's
+LAB_CFG = {**CFG, "test_command": "./bin/phpunit", "read_tools": [],
+           "spec_rules": CFG["spec_rules"].replace(AGENTS_LINE, ""), "build_rules": CFG["build_rules"].replace(AGENTS_LINE, ""), "protected_paths": LAB_PROTECTED_PATHS, "deny_tools": LAB_DENY_TOOLS,
            "frameworks": {**CFG["frameworks"], "speckit": {**CFG["frameworks"]["speckit"], "spec_prompts": [
                *CFG["frameworks"]["speckit"]["spec_prompts"][:1],
                "/speckit-plan Use the existing Symfony 7 / PHP stack and PHPUnit; no new dependencies.\n\n{spec_rules}",

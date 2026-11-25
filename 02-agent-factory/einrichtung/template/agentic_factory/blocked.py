@@ -5,7 +5,7 @@ import json
 import time
 from pathlib import Path
 
-from . import config
+from . import config, copied
 
 
 def _events(events_path):
@@ -76,8 +76,10 @@ def record(repo, ctx, events_path, allowed):
         return 0
     at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     base = {"at": at, **{k: ctx.get(k) for k in ("run", "mode", "framework", "key", "call")}}
-    lines = [{**base, **e, "allowed": list(allowed)} for e in found]
-    lines.append({"kind": "final", "call": ctx.get("call"), "text": final_message(events_path)})
+    # the file is handed over: known token formats and the step's secrets never go in (copied.redact)
+    lines = [{**base, **e, "command": copied.redact(str(e["command"])), "message": copied.redact(e["message"]),
+              "allowed": list(allowed)} for e in found]
+    lines.append({"kind": "final", "call": ctx.get("call"), "text": copied.redact(final_message(events_path))})
     path = log_path(repo)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -84,6 +84,21 @@ class Record(Base):
     def record(self, p, allowed=("read", "write")):
         return blocked.record(self.repo, {**self.ctx, "call": "1"}, p, list(allowed))
 
+    def test_tokens_are_redacted(self):
+        pat = "ghp_" + "A" * 36
+        with mock.patch.dict(os.environ, {"JIRA_API_TOKEN": "jira-secret-value-1"}):
+            p = self.events(start("1", "bash", command=f"curl -H 'Authorization: {pat}' x"),
+                            done("1", False, code="denied", message="denied: jira-secret-value-1"),
+                            {"type": "assistant.message", "data": {"content": f"token {pat} jira-secret-value-1"}})
+            self.record(p)
+        text = blocked.log_path(self.repo).read_text(encoding="utf-8")
+        self.assertNotIn(pat, text)
+        self.assertNotIn("jira-secret-value-1", text)
+        entry, final = self.lines()
+        self.assertIn("[REDACTED-PATTERN]", entry["command"])
+        self.assertIn("[REDACTED]", entry["message"])
+        self.assertIn("[REDACTED-PATTERN]", final["text"])
+
     def test_line_fields_and_final(self):
         p = self.events(start("1", "bash", command="cat x | python3 y"), done("1", False, **DENIED),
                         {"type": "assistant.message", "data": {"content": "konnte nicht"}})

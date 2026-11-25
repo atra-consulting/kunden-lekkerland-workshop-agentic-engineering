@@ -288,14 +288,27 @@ class TestCommand(unittest.TestCase):
     def test_bare_wrapper_endings_refused(self):
         for cmd in ("env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox", "uv run",
                     "poetry run", "pipenv run", "pdm run", "hatch run", "rye run", "UV run", "timeout 60", "timeout 60s",
-                    "nice -n 10", "make timeout 60", "env timeout 60", "timeout --foreground 60", "uv run --frozen"):
+                    "nice -n 10", "env timeout 60", "sudo -n", "timeout 60 env FOO=1", "timeout --foreground 60", "uv run --frozen"):
             with self.subTest(cmd=cmd), self.assertRaisesRegex(config.Stop, "fixed script, module, or target"):
                 self.build(cmd)
 
     def test_wrapper_with_a_target_allowed(self):
         for cmd in ("uv run pytest", "poetry run pytest -q", "timeout 60 make test", "nice -n 10 make test",
-                    "make run", "npm run test", "cargo run"):
+                    "make run", "npm run test", "cargo run", "make timeout 60", "sudo -u bob make test"):
             with self.subTest(cmd=cmd):
+                self.build(cmd)
+
+    def test_arguments_are_never_wrappers_or_interpreters(self):
+        for cmd in ("./bin/phpunit tests/Command", "./bin/phpunit --filter Command", "pytest tests/env", "pytest tests/python",
+                    "pytest tests/bash tests/node", "make timeout 60", "./bin/phpunit --filter env", "npm test timeout",
+                    "make test python3", "make test -c"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
+    def test_wrapper_chain_reaches_the_interpreter(self):
+        for cmd in ("env timeout 60 python3 -c 1", "sudo -n env FOO=1 bash -c x", "nice -n 10 uv run python -c 1",
+                    "uv run env node", "timeout 60 nice python3 -m", "poetry run nohup bash"):
+            with self.subTest(cmd=cmd), self.assertRaises(config.Stop):
                 self.build(cmd)
 
     def test_shell_syntax_refused(self):
@@ -342,8 +355,7 @@ class TestCommand(unittest.TestCase):
 
 
 DEFAULT_READ_TOOLS = ["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tail:*)", "shell(wc:*)", "shell(grep:*)",
-                      "shell(pwd:*)", "shell(diff:*)", "shell(stat:*)", "shell(cd:*)", "shell(git status:*)",
-                      "shell(git diff:*)", "shell(git log:*)", "shell(git show:*)", "shell(git ls-files:*)"]
+                      "shell(pwd:*)", "shell(diff:*)", "shell(stat:*)", "shell(cd:*)"]
 
 
 class ReadTools(unittest.TestCase):
@@ -369,6 +381,8 @@ class ReadTools(unittest.TestCase):
         words = {e[len("shell("):-len(":*)")] for e in FULL_CFG["read_tools"]}
         for bad in ("find", "sed", "awk", "xargs", "rg", "git grep", "tree", "sort"):
             self.assertNotIn(bad, words)
+        for entry in FULL_CFG["read_tools"]:  # git in any form: --output= writes files, .git/config can run code
+            self.assertNotIn("git", entry)
 
     def test_order_test_tool_last(self):
         for fw, F in FULL_CFG["frameworks"].items():

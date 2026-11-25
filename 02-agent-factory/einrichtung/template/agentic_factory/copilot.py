@@ -59,21 +59,27 @@ def runs_inline_code(interpreter, word):
     return interpreter.startswith(("deno", "bun")) and word == "eval"
 
 
-def open_ending(words):
-    """The word where the command leaves the code, module, or target to the agent, or None: the last interpreter with
-    no non-option word after it (the word after -m counts), or a wrapper (env, timeout 60, uv run) followed only by
-    numbers and options."""
-    last = max((i for i, w in enumerate(words) if interpreter_name(w)), default=None)
-    if last is not None:
-        rest = words[last + 1:]
-        if not any(not w.startswith("-") or (i and rest[i - 1] == "-m") for i, w in enumerate(rest)):
-            return words[last]
-    for i, w in enumerate(words):
-        name = base_name(w)
-        if name in WRAPPERS or (name == "run" and i and base_name(words[i - 1]) in RUNNERS):
-            if all(x.startswith("-") or NUMBER.fullmatch(x) for x in words[i + 1:]):
-                return w
-    return None
+def command_start(words):
+    """The index of the command a test command runs: wrappers (env, timeout 60, nice -n 10, uv run) and their own
+    options, numbers, and KEY=VALUE words are skipped. len(words) when only wrappers are left."""
+    i = 0
+    while i < len(words):
+        name = base_name(words[i])
+        if name in WRAPPERS:
+            i += 1
+        elif name in RUNNERS and i + 1 < len(words) and words[i + 1].lower() == "run":
+            i += 2
+        else:
+            break
+        while i < len(words) and (words[i].startswith("-") or NUMBER.fullmatch(words[i]) or "=" in words[i]):
+            i += 1
+    return i
+
+
+def ends_open(rest):
+    """Whether the words after an interpreter leave the code or module to the agent: no non-option word (the word
+    after -m counts)."""
+    return not any(not w.startswith("-") or (i and rest[i - 1] == "-m") for i, w in enumerate(rest))
 
 
 def check_test_command(cmd):
@@ -91,16 +97,20 @@ def check_test_command(cmd):
             raise config.Stop(f"test_command {cmd!r}: {w!r} has characters outside letters, digits and _ . / : @ + , % - "
                               "(and = after the first word); shell syntax and quotes aren't allowed, "
                               "put them in a script or a make target")
-    interpreter = None
-    for w in words:  # every word after an interpreter: an option's value word must not hide a later flag
-        if interpreter and runs_inline_code(interpreter, w):
-            raise config.Stop(f"test_command {cmd!r}: {interpreter} with {w} may run inline code, or this check can't "
-                              "tell; wrap the command in a script file or a Make target and use that")
-        interpreter = interpreter_name(w) or interpreter
-    ending = open_ending(words)
-    if ending:
+    start = command_start(words)
+    if start == len(words):
         raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or target; "
-                          f"{ending!r} with nothing after it lets the agent supply the code or module")
+                          f"{words[-1]!r} with nothing after it lets the agent supply the command")
+    interpreter = interpreter_name(words[start])  # only the command itself: its arguments are never wrappers or interpreters
+    if interpreter:
+        rest = words[start + 1:]
+        for w in rest:
+            if runs_inline_code(interpreter, w):
+                raise config.Stop(f"test_command {cmd!r}: {interpreter} with {w} may run inline code, or this check can't "
+                                  "tell; wrap the command in a script file or a Make target and use that")
+        if ends_open(rest):
+            raise config.Stop(f"test_command {cmd!r}: the command must end in a fixed script, module, or target; "
+                              f"{words[start]!r} with nothing after it lets the agent supply the code or module")
 
 
 def test_tool(cmd):

@@ -180,12 +180,7 @@
     "shell(pwd:*)",
     "shell(diff:*)",
     "shell(stat:*)",
-    "shell(cd:*)",
-    "shell(git status:*)",
-    "shell(git diff:*)",
-    "shell(git log:*)",
-    "shell(git show:*)",
-    "shell(git ls-files:*)"
+    "shell(cd:*)"
   ],
   "forbidden_flags": [
     "--allow-all",

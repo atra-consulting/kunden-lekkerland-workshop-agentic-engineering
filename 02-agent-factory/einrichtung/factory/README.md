@@ -51,7 +51,7 @@ python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-12
 
 - `<dieser Ordner>` ist dieser Ordner im Workshop-Repo: `02-agent-factory/einrichtung/factory/`.
 - Eine Ticket-Datei ist JSON mit `key`, `summary`, `description` und `labels`. Ein Muster: [`ticket-FLAB-41.json`](../prompt-beispiele/ticket-FLAB-41.json).
-- Nur Läufe mit `--print-only` starten keinen Copilot-Aufruf und kosten nichts. `init` ohne `--print-only` kostet bis zu 40 Credits.
+- Läufe mit `--print-only` starten keinen Arbeitsaufruf. Mit `--ticket-file` und bei `init` kosten sie nichts. Mit einem Ticket aus Jira liest das Skript das Ticket trotzdem, über den Jira-MCP mit einem eigenen Copilot-Aufruf: Im OroCommerce-Test kostete das 10 Credits. `init` ohne `--print-only` kostet bis zu 40 Credits.
 - Das Ticket nennt ihr direkt nach dem Modus, als Schlüssel oder als URL aus dem Browser: `spec LL-123` oder `spec https://example.atlassian.net/browse/LL-123`. Der Host der URL muss zu eurer Jira-Seite passen (`jira_site` in `local.json` oder `JIRA_BASE_URL`), sonst stoppt das Skript. `--key LL-123` ist die lange Form und geht weiter.
 - `--ticket-file` bedeutet offline: Das Skript fragt Jira nie und postet nichts. Den Kommentar schreibt es in eine Datei, die letzte Zeile nennt sie. Ohne das Label `sdd-<framework>` in der Datei wählt ihr das Framework mit `--framework`.
 - Feedback probiert ihr auch offline aus: `--comments-file c.json` gibt dem Lauf Kommentare aus einer Datei, als JSON-Liste mit `body` und optional `created`, `id`, `author` und `updated`. Legt dort den `[KI]`-Kommentar des vorigen Laufs und einen `[Mensch]`-Kommentar ab und startet `spec` noch einmal.
@@ -61,7 +61,7 @@ python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-12
 - Euren Testbefehl tragt ihr in `config.json` ein, als `test_command`: ein Wort, etwa `"./run-tests"`, oder zwei bei `npm`, `yarn` und `go`, etwa `"npm test"`. Für `make test` und Ähnliches schreibt ihr ein kleines Skript, siehe [Der Testbefehl](#der-testbefehl). `init` schlägt ihn vor. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. `assess`, `clarify` und `spec` brauchen ihn nicht. Was das Skript am Testbefehl prüft, steht unter [Der Testbefehl](#der-testbefehl).
 - `local.json` hat nur die Einstellungen eures Rechners. Steht dort ein älterer Schlüssel, stoppt das Skript und sagt, wohin der Wert gehört, etwa `test_command moved to config.json (key test_command); remove it from local.json`.
 - Jira-Zugangsdaten gehören nie in `local.json`, nur in die Umgebung: `JIRA_BASE_URL`, `JIRA_API_TOKEN` und für Jira Cloud `JIRA_EMAIL`. Die braucht nur `--jira api`.
-- Die Tests in `tests/` prüfen die Dateien der Vorlage. Ändert ihr `config.json`, schlagen einige fehl. Kopiert sie nur, wenn ihr den Code selbst ändern wollt.
+- Die Tests in `tests/` prüfen die Dateien der Vorlage. Ändert ihr `config.json`, schlagen einige fehl. Die Tests von `pipelines.example.yml` überspringen sie, wenn die Datei fehlt. Kopiert sie nur, wenn ihr den Code selbst ändern wollt.
 
 Für den Weg über den Jira-MCP, einmal pro Rechner:
 
@@ -217,7 +217,7 @@ python3 -I factory/agentic-factory.py init --print-only  # nur den Copilot-Befeh
 - `readiness_md` muss jede bisherige Kriterium-ID behalten. Steuerzeichen und Zeichen für die Schreibrichtung lehnt das Skript ab.
 - `enabled_frameworks` muss `default_framework` enthalten, wenn es gesetzt ist.
 
-Abgelehnte Vorschläge zeigt der Bericht mit Grund. Er lässt sie nicht still weg. Breite Werkzeuge markiert er, etwa `shell(make:*)` mit „allows every Make target“.
+Abgelehnte Vorschläge zeigt der Bericht mit Grund. Er lässt sie nicht still weg. Breite Werkzeuge markiert er, etwa `shell(make:*)` mit „allows every Make target“. Geschützte Pfade, die zu keiner Datei passen, die git im Projekt sieht, markiert er auch, etwa ein ignoriertes `vendor/`: Das Skript prüft nach jedem Aufruf nur, was `git status` zeigt, Änderungen dort bemerkt es also nicht.
 
 **Was ihr seht.** Ohne `--apply`: den Bericht, dann einen Diff von `config.json` und `readiness.md`. Nichts ändert sich, Exit-Code 0. Das Skript speichert das geprüfte Ergebnis im Log-Ordner des Laufs, als `init-result.json`, und nennt den Pfad. Dazu kommen Prüfsummen von `config.json` und `readiness.md`.
 
@@ -273,7 +273,7 @@ Vor jedem Lauf nennt das Skript Nummer und Konto jedes `[Mensch]`-Kommentars, de
 
 1. `spec` schreibt die Spec und postet `[KI] agentic-factory spec key=LL-123`.
 2. Lest die Spec. Schreibt euer Feedback als Kommentar ins Ticket, der mit `[Mensch]` beginnt. Oder ändert die Spec-Dateien selbst. Oder beides.
-3. Prüft, was der nächste Lauf tun würde: `python3 -I factory/agentic-factory.py spec LL-123 --print-only`. Die Ausgabe nennt die Kommentare, die er bearbeitet, und ob die Spec von Hand geändert ist.
+3. Prüft, was der nächste Lauf tun würde: `python3 -I factory/agentic-factory.py spec LL-123 --print-only`. Die Ausgabe nennt die Kommentare, die er bearbeitet, und ob die Spec von Hand geändert ist. Über den Jira-MCP kostet das einen Jira-Aufruf.
 4. Startet `spec` noch einmal, mit denselben Optionen wie beim ersten Mal, etwa `--framework`: `python3 -I factory/agentic-factory.py spec LL-123`.
 5. Das Skript postet `[KI] agentic-factory spec überarbeitung=2 key=LL-123`: welche Kommentare bearbeitet sind, den Diff zur vorigen Fassung und die ganze Spec. Lest ihn.
 6. Wiederholt das, bis die Spec passt. Dann startet ihr `build`.
@@ -304,7 +304,7 @@ Bei OpenSpec darf der amend-Aufruf mehr, zur Vorsicht: `/openspec-apply-change` 
 
 **Keine neue Aufgabe.** Macht der amend-Aufruf aus den Kommentaren keine Aufgabe, etwa weil sie nichts zu bauen verlangen, und habt ihr die Spec nicht von Hand geändert, startet kein Build-Aufruf. Der Kommentar sagt dann: „Der Agent hat aus den Kommentaren keine neue Aufgabe abgeleitet. Darum hat agentic-factory.py nichts gebaut.“ Die Kommentare gelten trotzdem als bearbeitet.
 
-**Nichts Neues.** Keine neuen `[Mensch]`-Kommentare und keine Änderung von Hand seit dem letzten `[KI]`-Kommentar: Der Lauf endet vor jedem Aufruf mit `nothing new since comment …`. Er postet nichts, kostet nichts und endet mit Exit-Code 0.
+**Nichts Neues.** Keine neuen `[Mensch]`-Kommentare und keine Änderung von Hand seit dem letzten `[KI]`-Kommentar: Der Lauf endet vor jedem Arbeitsaufruf mit `nothing new since comment …`. Er postet nichts und endet mit Exit-Code 0. Über den Jira-MCP kostet er trotzdem Credits: das Lesen des Tickets und die Abfrage eures Kontos sind eigene Copilot-Aufrufe, im OroCommerce-Test zusammen 6 bis 8 Credits. Über `--jira api` und mit `--ticket-file` kostet er nichts.
 
 ### Wann `spec` ablehnt
 
@@ -315,6 +315,12 @@ Nach dem ersten Build stoppt `spec` mit `a build exists for LL-123 (comment …)
 `spec --fresh` und `build --fresh` übergehen alle früheren `[KI]`-Kommentare des Modus und laufen wie beim ersten Mal. `spec --fresh` hat also wieder eine Bereitschaftsprüfung. Der neue Kommentar zählt wieder als Überarbeitung 1. `[Mensch]`-Kommentare davor gelten als bearbeitet. `spec --fresh` nach einem Build beendet die Build-Phase: Der nächste `build` ist wieder ein erster Build.
 
 Nehmt `--fresh` nach einem verworfenen Build, einem gelöschten Spec-Ordner, einem Kommentar, dem das Skript nicht traut, und für eine Spec, die die Pipeline oder das Konto eines Kollegen gepostet hat.
+
+Was `spec --fresh` dafür braucht, hat der OroCommerce-Test gezeigt:
+
+- **Der Code des Builds muss weg.** Liegt er noch im Projekt, findet die Bereitschaftsprüfung ihn und widerspricht dem Ticket (`contradicts_code`): Das Skript postet „nicht bereit“ statt einer Spec, Exit-Code 4.
+- **Der alte Change-Ordner muss weg** oder umbenannt sein. Sonst sieht der Agent eine Spec, die nicht zum Ticket passt, und schreibt Fragen statt einer Spec (`spec fragen`, Exit-Code 5).
+- **Entscheidungen aus `[Mensch]`-Kommentaren gehen verloren.** `--fresh` liest nur die Beschreibung des Tickets. Was ihr in Kommentaren entschieden habt, schreibt ihr vorher in die Beschreibung.
 
 ### Wann das Skript stoppt
 

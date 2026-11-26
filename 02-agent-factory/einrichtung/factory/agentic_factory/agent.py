@@ -74,7 +74,8 @@ def work_plan(run, req, ticket, comments=()):
             specs = [x for x in specs if f"/{change}/" in x] or specs
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
-            config.say(f"building change {change} ({len(paths)} spec files)")
+            if fb["kind"] != "nothing":  # nothing new: no build, so don't say one starts
+                config.say(f"building change {change} ({len(paths)} spec files)")
         if mode == "spec" and fb["kind"] == "revision":  # the spec rerun: a revise call (new comments), or none
             p["fb"] = fb = revise.plan(run, req, F, fb)
             p["change"] = fb["change"]
@@ -219,7 +220,8 @@ def run_agent(run, req, p):
     if fb and fb["kind"] == "nothing":  # before any Copilot process: no credits
         reason = revise.nothing_reason(fb)
         revise.write_nothing_new(out, mode, reason)
-        config.say(f"{key}: {reason}")
+        if run.a.step != "all":  # in one process the post step says it, once
+            config.say(f"{key}: {reason}")
         return 0
     if fb and fb["kind"] == "hand":
         return revise.hand_out(run, req, p)

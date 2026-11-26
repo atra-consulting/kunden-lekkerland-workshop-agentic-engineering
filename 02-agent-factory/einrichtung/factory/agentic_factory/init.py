@@ -519,7 +519,7 @@ def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, cri
                           "or written")
     d = parse_reply(final)
     config.say(f"done: credits {work.total:.2f}, {int(time.time() - t0)} s, logs in {work.logdir}")
-    changes = _report(cfg, d, readiness_text, installed, Path(a.config), crit_path)
+    changes = _report(cfg, d, readiness_text, installed, Path(a.config), crit_path, repo)
     if changes:
         saved = work.logdir / RESULT
         _write_result(saved, {"config": str(Path(a.config).resolve()), "config_sha256": _sha256(a.config),
@@ -539,9 +539,23 @@ def _write_result(path, obj):
         raise config.Stop(f"can't write {path}: {e.strerror or e}")
 
 
-def _report(cfg, d, readiness_text, installed, cfg_path, crit_path):
-    """The checks of d, the report, and the diffs. Returns [(path, new text, name)] of the files that would change."""
+def unseen_notes(accepted, files):
+    """Notes for accepted protected paths that match no file git sees (files: ticket.repo_files). The check after each
+    call compares git status only, so a pattern for a gitignored folder such as vendor/ protects nothing there."""
+    out = []
+    for key, _, sg in accepted:
+        if key == "add_protected_paths" and not any(re.search(sg["value"], f) for f in files):
+            out.append(f"{sg['value']}: matches no file git sees in this project; if the folder is gitignored (such as "
+                       "vendor/), the check after each call can't see changes there, so this path isn't protected")
+    return out
+
+
+def _report(cfg, d, readiness_text, installed, cfg_path, crit_path, repo=None):
+    """The checks of d, the report, and the diffs. Returns [(path, new text, name)] of the files that would change.
+    repo: the project, for the note on protected paths git doesn't see."""
     result = check_suggestions(d, cfg, readiness_text, installed)
+    if repo is not None:
+        result["notes"] += unseen_notes(result["accepted"], ticket_mod.repo_files(repo))
     if not (result["accepted"] or result["refused"]):
         config.say("keine Vorschläge: nothing to change.")
         return []
@@ -582,7 +596,8 @@ def _apply_saved(run, crit_path, readiness_text):
         raise config.Stop(f"config.json or readiness.md changed since the init run in {saved.parent} (or this run uses "
                           "other files); run init again")
     config.say(f"init --apply: no Copilot call; writing the checked result of {saved}")
-    changes = _report(cfg, d["suggestions"], readiness_text, [str(x) for x in d["installed"]], Path(a.config), crit_path)
+    changes = _report(cfg, d["suggestions"], readiness_text, [str(x) for x in d["installed"]], Path(a.config), crit_path,
+                      repo)
     for path, text, name in changes:
         path.write_bytes(text.encode("utf-8"))
         config.say(f"written: {path}")

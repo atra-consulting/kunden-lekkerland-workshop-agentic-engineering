@@ -345,6 +345,12 @@ class Reports(unittest.TestCase):
         self.assertIn("1x spec/openspec bash: find .", out)
         self.assertNotIn("older config", init.blocked_summary(p))  # no test command: nothing to compare
 
+    def test_protected_path_git_doesnt_see_is_noted(self):  # OroCommerce test, F3: ^vendor/ is gitignored there
+        r = check({"add_protected_paths": [s("^vendor/"), s("^composer\\.lock$")]})
+        notes = init.unseen_notes(r["accepted"], ["composer.lock", "src/App.php"])
+        self.assertEqual(len(notes), 1)
+        self.assertTrue(notes[0].startswith("^vendor/: matches no file git sees in this project"), notes[0])
+
     def test_add_tools_copilot_never_matches_refused(self):  # OroCommerce test, F18: init suggested these
         r = check({"add_tools": {"openspec": {"build": [s("shell(make check:*)"), s("shell(make unit:*)"),
                                                         s("shell(./run-checks:*)")]}}})

@@ -348,7 +348,10 @@ def _run_calls(run, req, p, work):
         revise.first_out(run, req, p, paths)
     elif mode == "build":
         events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls[:ran] if tag not in ("assess", "amend")]
-        revise.build_out(run, req, p, paths, fetch.test_line(events, fetch.test_command(cfg)), head)
+        line = fetch.test_line(events, fetch.test_command(cfg))
+        if events and (line == fetch.NO_TEST_RUN or line == fetch.test_lines(fetch.test_command(cfg))[3]):
+            config.say(f"WARNING: no test ran in this build ({line}); run the tests yourself before you trust it")
+        revise.build_out(run, req, p, paths, line, head)
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
     return 0
 

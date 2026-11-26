@@ -376,6 +376,7 @@ Spec-Prüfsumme: 9c1e…
 | `Change: <name>.` | Der Spec-Ordner. Spätere Läufe nehmen ihn von hier, nicht aus den geänderten Dateien |
 | `Bearbeitet: Kommentar 10234, 10240.` | Die `[Mensch]`-Kommentare, die dieser Lauf bearbeitet hat. Sie zählen danach nicht mehr als neu |
 | `Wollt ihr etwas ändern, …` | Wie ihr antwortet. Jeder Kommentar von `spec` und `build` hat diese Zeile |
+| `Testbefehl ./run-tests: bestanden.` | Nur bei `build`: der letzte Lauf des Testbefehls im Build-Aufruf. `fehlgeschlagen` heißt, die Tests liefen und scheiterten. `abgelehnt, nicht ausgeführt` heißt, Copilot hat den Aufruf abgelehnt, die Tests liefen also nicht; das Skript warnt dann auch auf dem Bildschirm. `Der Agent hat den Testbefehl nicht ausgeführt.` heißt, er hat es nicht versucht. Exit-Code ist in allen Fällen 0 |
 | `Start-Commit: <sha>` | Nur bei `build`: der Commit, auf dem der erste Build startete. Überarbeitungen behalten ihn |
 | `Spec-Prüfsumme: <sha256>` | Eine Prüfsumme über die Spec-Dateien des Change nach dem letzten Aufruf. Bei `build` nach dem Abhaken der Aufgaben, abgehakte Kästchen zählen also nicht als Änderung von Hand. Weicht die Spec später davon ab, hat sie jemand von Hand geändert |
 

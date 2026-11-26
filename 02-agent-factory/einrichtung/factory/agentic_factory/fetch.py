@@ -78,7 +78,10 @@ def test_command(cfg):
 
 
 def test_lines(cmd):
-    return (f"Testbefehl {cmd}: bestanden.", f"Testbefehl {cmd}: fehlgeschlagen.", NO_TEST_RUN)
+    """The lines a build comment may carry about the tests: passed, failed, not run, and denied (the agent tried, and
+    Copilot refused the call, so nothing ran)."""
+    return (f"Testbefehl {cmd}: bestanden.", f"Testbefehl {cmd}: fehlgeschlagen.", NO_TEST_RUN,
+            f"Testbefehl {cmd}: abgelehnt, nicht ausgeführt.")
 
 
 def test_line(events_paths, cmd):
@@ -110,11 +113,14 @@ def test_line(events_paths, cmd):
                 if isinstance(c, str) and (c.strip() == cmd or c.strip().startswith(cmd + " ")):
                     last = cid
             elif e.get("type") == "tool.execution_complete":
-                ok[cid] = d.get("success") is True
+                err = d.get("error") if isinstance(d.get("error"), dict) else {}
+                ok[cid] = "ok" if d.get("success") is True else ("denied" if err.get("code") == "denied" else "failed")
     if last is None:
         return NO_TEST_RUN
-    good, bad, _ = test_lines(cmd)
-    return good if last[1] is not None and ok.get(last) else bad
+    good, bad, _, denied = test_lines(cmd)
+    if last[1] is None:
+        return bad
+    return {"ok": good, "denied": denied}.get(ok.get(last), bad)
 
 
 def spec_result(repo, F, paths):

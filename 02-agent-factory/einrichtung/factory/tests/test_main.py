@@ -85,6 +85,8 @@ class PipelineExample(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        if not (HERE / "pipelines.example.yml").exists():  # a project's factory/ without the example
+            raise unittest.SkipTest("pipelines.example.yml is not next to agentic-factory.py")
         cls.text = (HERE / "pipelines.example.yml").read_text(encoding="utf-8")
         cls.code = "\n".join(l for l in cls.text.splitlines() if not l.lstrip().startswith("#"))
         cls.pipes = {m.group(1): m.group(2) for m in re.finditer(

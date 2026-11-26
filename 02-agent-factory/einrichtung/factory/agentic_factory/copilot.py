@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import threading
 
@@ -31,6 +32,11 @@ POWERSHELL_CODE_FLAGS = ("command", "encodedcommand")  # PowerShell accepts any 
 WRAPPERS = {"env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox"}
 RUNNERS = {"uv", "poetry", "pipenv", "pdm", "hatch", "rye"}  # "<runner> run" is a wrapper too
 NUMBER = re.compile(r"\d+(\.\d+)?[smhd]?")  # timeout 60, timeout 1.5s
+# Copilot CLI 1.0.115 matches an allow rule shell(<prefix>:*) only on the command, or on the command and one subcommand
+# for the CLIs it knows. Tried on 26 Nov 2026 with --no-ask-user: shell(npm test:*), shell(yarn test:*),
+# shell(go test:*), and shell(git status:*) let their commands run; shell(make check:*), shell(uv run:*),
+# shell(./run.sh test:*), shell(go test ./...:*), and shell(npm run test:unit:*) never did.
+SUBCOMMAND_CLIS = {"npm", "yarn", "go", "git"}
 
 
 def base_name(word):
@@ -92,7 +98,8 @@ def ends_open(rest):
 def check_test_command(cmd):
     """Stops unless cmd is plain words: no shell syntax, no environment assignment, and no interpreter running inline
     code (bash -c, python -c, node -e, ...), because the build call's tool is the whole command as a prefix. A
-    misconfiguration check, not a security boundary: the prefix lets the agent append arguments anyway."""
+    misconfiguration check, not a security boundary: the prefix lets the agent append arguments anyway. Whether Copilot
+    can match the prefix at all is check_test_rule."""
     words = cmd.split(" ")
     if not cmd or "" in words:
         raise config.Stop(f"test_command {cmd!r}: words must be separated by single spaces, with no leading or trailing space")
@@ -120,6 +127,30 @@ def check_test_command(cmd):
                               f"{words[start]!r} with nothing after it lets the agent supply the code or module")
 
 
+def rule_matches(prefix):
+    """Whether Copilot would ever let a command through an allow rule shell(<prefix>:*): one word, or two words when
+    the first is a CLI whose subcommands Copilot knows (SUBCOMMAND_CLIS). A longer rule never matches."""
+    words = prefix.split(" ")
+    return len(words) == 1 or (len(words) == 2 and words[0] in SUBCOMMAND_CLIS)
+
+
+def rule_problem(prefix):
+    """Why shell(<prefix>:*) can't work, or None."""
+    if rule_matches(prefix):
+        return None
+    return (f"Copilot CLI matches an allow rule only on one word, or on two for {', '.join(sorted(SUBCOMMAND_CLIS))} "
+            f"(such as npm test), so shell({prefix}:*) never lets the agent run it")
+
+
+def check_test_rule(cmd):
+    """Stops unless Copilot can match the test command's allow rule (rule_matches). Without this, every test run of the
+    agent is denied, and the build goes on untested."""
+    problem = rule_problem(cmd)
+    if problem:
+        raise config.Stop(f"test_command {cmd!r}: {problem}; put the command in a one-word script such as ./run-checks "
+                          "that ignores its arguments, protect it in protected_paths, and use that")
+
+
 def test_tool(cmd):
     """The one tool a build call gets for the test command: the whole command as a prefix."""
     return f"shell({cmd}:*)"
@@ -142,6 +173,7 @@ def build_test_command(cfg):
     if not cmd:
         raise config.Stop("set test_command in config.json (or run init)")
     check_test_command(cmd)
+    check_test_rule(cmd)
     entry = denied_by(cmd, cfg["deny_tools"])
     if entry:
         raise config.Stop(f"test_command {cmd!r} is covered by {entry} in deny_tools, which beats every allow; "
@@ -177,7 +209,7 @@ def rules_of(cfg, name):
     AGENTS.md sentence and with the lab's PHP test command."""
     rules = cfg.get(name)
     if not isinstance(rules, str) or not rules:
-        raise config.Stop(f"config.json has no {name}: copy it from the template's config.json")
+        raise config.Stop(f"config.json has no {name}: copy it from the workshop's factory/config.json")
     return rules
 
 
@@ -212,7 +244,7 @@ def revise_plan(cfg, key, fw, ticket, change, comments_block):
     and its extra environment. The spec rules name the change's own folder."""
     F = cfg["frameworks"][fw]
     if not isinstance(F.get("revise_prompt"), str) or not F["revise_prompt"]:
-        raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the template's config.json")
+        raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the workshop's factory/config.json")
     root = F["spec_root"].format(change=change)
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
             "spec_root": root, "spec_rules": rules_of(cfg, "spec_rules").format(folder=root), "key": key}
@@ -227,7 +259,7 @@ def amend_plan(cfg, key, fw, ticket, change, comments_block, task_file, revision
     and into the change's spec documents, see feedback.amend_paths)."""
     F = cfg["frameworks"][fw]
     if not isinstance(F.get("amend_prompt"), str) or not F["amend_prompt"]:
-        raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the template's config.json")
+        raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the workshop's factory/config.json")
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
             "task_file": task_file, "revision": revision, "key": key, "spec_root": F["spec_root"].format(change=change)}
     prompt = fill(F["amend_prompt"], vals, f"{fw} amend_prompt")
@@ -373,12 +405,26 @@ def resolve_copilot(local):
     return [exe]
 
 
+def _kill_call(p, group):
+    """Ends a Copilot call: the whole process group, so a child that holds stdout (a launcher's real process, a test
+    run) can't keep the read loop waiting past the timeout. Without process groups (Windows) only the process."""
+    try:
+        if group:
+            os.killpg(p.pid, signal.SIGKILL)
+        else:
+            p.kill()
+    except OSError:
+        pass
+
+
 def run_call(argv, repo, env, events_path, timeout):
     """Start Copilot, show its tool calls live, keep the JSON events. Returns (exit code, final message, denied)."""
     final, denied = "", 0
+    group = hasattr(os, "killpg")  # POSIX: Copilot and every process it starts in a group of their own
     with open(events_path, "wb") as log, subprocess.Popen(argv, cwd=repo, env=env, stdin=subprocess.DEVNULL,
-                                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as p:
-        timer = threading.Timer(timeout, p.kill)
+                                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                                          start_new_session=group) as p:
+        timer = threading.Timer(timeout, _kill_call, (p, group))
         timer.start()
         try:
             for raw in p.stdout:
@@ -402,6 +448,8 @@ def run_call(argv, repo, env, events_path, timeout):
         finally:
             timed_out = not timer.is_alive()
             timer.cancel()
+            if p.poll() is None:  # interrupted (Ctrl-C reaches only this process now) or an error while reading
+                _kill_call(p, group)
     return ("timeout" if timed_out and rc != 0 else rc), final, denied
 
 
@@ -415,8 +463,9 @@ def credits_of(usage_file):
 # --- a call's JSON events: its tool calls, and the shell backstop -----------------------------------------------------
 
 def mcp_events(events_path):
-    """{"version", "calls": [{"id", "tool", "args", "ok", "raw", "denied"}]} from a call's JSON events. Start and
-    complete pair by toolCallId. denied: Copilot refused the call (error code "denied"), so it did nothing.
+    """{"version", "calls": [{"id", "tool", "args", "ok", "raw", "denied", "error", "failure"}]} from a call's JSON
+    events. Start and complete pair by toolCallId. denied: Copilot refused the call (error code "denied"), so it did
+    nothing. error: the failed call's error message; failure: Copilot's failure_category, such as auth_required.
     raw is the tool's own text: the text items of result.contents joined in order (the MCP server's complete answer).
     result.detailedContent is only the fallback (older Copilot): Copilot 1.0.115 cuts it off at about 10 KB, so a long
     ticket would not parse. result.content is never used: it has Copilot's cost note added.
@@ -446,18 +495,23 @@ def mcp_events(events_path):
                 except ValueError:
                     pass
             c = {"id": d.get("toolCallId"), "tool": d.get("toolName"), "args": args, "ok": False, "raw": None,
-                 "denied": False}
+                 "denied": False, "error": None, "failure": None}
             calls.append(c)
             by_id[c["id"]] = c
         elif t == "tool.execution_complete":
             c = by_id.pop(d.get("toolCallId"), None)
             if c is None:
-                c = {"id": d.get("toolCallId"), "tool": None, "args": None, "ok": False, "raw": None, "denied": False}
+                c = {"id": d.get("toolCallId"), "tool": None, "args": None, "ok": False, "raw": None, "denied": False,
+                     "error": None, "failure": None}
                 calls.append(c)
             res = d.get("result") if isinstance(d.get("result"), dict) else {}
             c["ok"] = d.get("success") is True
             err = d.get("error") if isinstance(d.get("error"), dict) else {}
             c["denied"] = not c["ok"] and err.get("code") == "denied"
+            tel = d.get("toolTelemetry") if isinstance(d.get("toolTelemetry"), dict) else {}
+            props = tel.get("properties") if isinstance(tel.get("properties"), dict) else {}
+            c["error"] = err.get("message") if not c["ok"] and isinstance(err.get("message"), str) else None
+            c["failure"] = props.get("failure_category") if isinstance(props.get("failure_category"), str) else None
             items = res.get("contents") if isinstance(res.get("contents"), list) else []
             texts = [i["text"] for i in items if isinstance(i, dict) and i.get("type") == "text"
                      and isinstance(i.get("text"), str)]

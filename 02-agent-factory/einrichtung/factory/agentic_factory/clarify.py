@@ -57,13 +57,42 @@ def first_line(body):
     return lines[0].strip()
 
 
+def edited(c):
+    """Whether a comment was changed after it was posted: updated differs from created (an offline file may have no
+    updated)."""
+    return bool(c.get("updated")) and c["updated"] != c.get("created")
+
+
+def loop_account(cs, key):
+    """The author of the first unedited round 1 marker of this ticket: the account the clarify loop runs as. "" when
+    there is none or its author is unknown (an offline file)."""
+    for c in cs:
+        m = ROUND_RE.fullmatch(first_line(c["body"])) if tag_of(c["body"]) == "KI" else None
+        if m and m.group(2) == key and m.group(1) == "1" and not edited(c):
+            return c.get("author") or ""
+    return ""
+
+
+def marker_doubt(c, account):
+    """Why a round, handover, or ready marker doesn't count, or None: anyone may comment, so a comment that merely
+    starts with the marker proves nothing. It must be unedited and, when known, written by the account that posted
+    round 1. Proposals are judged by proposal_trust, which stops instead."""
+    if edited(c):
+        return "it was edited after it was posted"
+    if account and (c.get("author") or "") != account:
+        return "another account wrote it than round 1"
+    return None
+
+
 def clarify_state(comments, key):
     """What the comments of one ticket say about its clarify loop. Only `[KI]` comments can carry markers and
-    assumptions; the first line of the comment must be the marker."""
+    assumptions; the first line of the comment must be the marker. Round, handover, and ready markers that are edited
+    or come from another account than round 1 don't count (marker_doubt); they are listed in "ignored"."""
     cs = sorted(comments, key=lambda c: c["created"])  # stable: equal timestamps keep their order
+    account = loop_account(cs, key)
     rounds, last_i = 0, None
     handover_at, answer_at, proposal_at, ready_at = [], [], [], []
-    tagged, skipped_at = [], []
+    tagged, skipped_at, ignored = [], [], []
     for i, c in enumerate(cs):
         tag = tag_of(c["body"])
         if tag is None:
@@ -75,7 +104,13 @@ def clarify_state(comments, key):
             continue
         line = first_line(c["body"])
         m = ROUND_RE.fullmatch(line)
-        if m and m.group(2) == key and int(m.group(1)) >= rounds:
+        is_round = bool(m and m.group(2) == key)
+        if is_round or line in (marker("handover", key), marker("ready", key)):
+            why = marker_doubt(c, account)
+            if why:
+                ignored.append((c.get("id"), why))
+                continue
+        if is_round and int(m.group(1)) >= rounds:
             rounds, last_i = int(m.group(1)), i
         elif line == marker("handover", key):
             handover_at.append(i)
@@ -98,9 +133,18 @@ def clarify_state(comments, key):
         "proposal_answered": proposed and any(j > proposal_at[-1] for j in answer_at),
         "applied": after(ready_at),  # a ready comment follows the last round: the description was set
         "tagged": tagged,
+        "ignored": ignored,
         "skipped": len(skipped_at),
         "skipped_since": sum(1 for j in skipped_at if last_i is not None and j > last_i),
     }
+
+
+def ignored_note(state):
+    """A note on the markers clarify_state didn't count, or None."""
+    if not state["ignored"]:
+        return None
+    return "note: these [KI] comments don't count for the clarify loop: " + "; ".join(
+        f"{cid} ({why})" for cid, why in state["ignored"])
 
 
 def skip_note(state):

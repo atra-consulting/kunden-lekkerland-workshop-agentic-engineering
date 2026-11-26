@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest import mock
 
-from agentic_factory import config, jira_mcp, clarify, main
+from agentic_factory import config, fetch, jira_mcp, clarify, main
 from .fakes import CFG, E2E, JiraE2E, KEY, NOT_READY_FAKE, PAT, PIPE, TICKET
 
 
@@ -19,6 +19,39 @@ class PluginCheck(E2E, unittest.TestCase):
         self.assertFalse((self.d / ".factory-local" / "proj").exists())  # stopped before the log folder, too
         with self.assertRaisesRegex(config.Stop, "no MCP server named 'atlassian'"):  # with the plugin it gets further
             self.run_main("assess", "--key", KEY, "--jira", "mcp", "--readiness", str(self.rd), cfg=self.acfg)
+
+
+class ProjectFolder(E2E, unittest.TestCase):
+    """agentic-factory.py works only from <project>/factory/: the project is the repository around that folder."""
+
+    def test_factory_folder_at_the_top(self):
+        self.assertEqual(fetch.project_of(self.repo / "factory"), self.repo.resolve())
+
+    def test_other_folder_name_stops(self):
+        with self.assertRaisesRegex(config.Stop, r"not in a folder named factory/: put agentic-factory.py and the files "
+                                                 r"next to it in the folder factory/ at the top of your project"):
+            fetch.project_of(self.repo / "tools")
+
+    def test_factory_folder_deeper_in_the_project_stops(self):
+        (self.repo / "tools").mkdir()
+        with self.assertRaisesRegex(config.Stop, r"tools is not the top folder of a git repository \(its top folder is "):
+            fetch.project_of(self.repo / "tools" / "factory")
+
+    def test_no_repository_stops(self):
+        (self.d / "plain").mkdir()
+        with self.assertRaisesRegex(config.Stop, "plain is not the top folder of a git repository"):
+            fetch.project_of(self.d / "plain" / "factory")
+
+    def test_run_stops_before_any_call(self):
+        with mock.patch.object(config, "HERE", self.d / "factory"), \
+                self.assertRaisesRegex(config.Stop, "is not the top folder of a git repository"):
+            fetch.Run(main.parse(["spec", "--ticket-file", str(self.tf), "--local", str(self.lj),
+                                  "--config", str(self.d / "missing.json")]))
+        self.assertFalse((self.d / "calls.jsonl").exists())
+
+    def test_repo_option_is_gone(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            main.parse(["spec", "LL-1", "--repo", "."])
 
 
 class Steps(JiraE2E, unittest.TestCase):

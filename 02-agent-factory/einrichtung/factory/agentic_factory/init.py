@@ -212,6 +212,7 @@ def check_suggestions(d, cfg, readiness_text, installed):
             why = refusal(f"shell({cmd}:*)", checked, interpreters=False)
             if why:
                 raise config.Stop(f"test_command {cmd!r}: {why}")
+            copilot.check_test_rule(cmd)
             yes("test_command", "", sg)
         except config.Stop as e:
             no("test_command", "", sg, str(e))
@@ -232,7 +233,8 @@ def check_suggestions(d, cfg, readiness_text, installed):
                     no("add_tools", path, value, f"unknown mode {mode!r}; only {' and '.join(MODES)} can get tools")
                     continue
                 for sg in many("add_tools", value, path):
-                    why = refusal(sg["value"], checked)
+                    # a rule Copilot never matches (make lint, uv run pytest) looks like a fix and changes nothing
+                    why = refusal(sg["value"], checked) or copilot.rule_problem(shell_prefix(sg["value"]))
                     if why:
                         no("add_tools", path, sg, why)
                     else:
@@ -339,10 +341,21 @@ def _clean(x, limit=300):
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
-def blocked_summary(path, limit=50):
+def _current_test(cfg):
+    """config.json's test_command, or None when it is unset or an old list (init still runs then)."""
+    try:
+        return config.test_command(cfg) or None
+    except config.Stop:
+        return None
+
+
+def blocked_summary(path, limit=50, test_command=None):
     """Counts of the blocked calls in blocked.jsonl per (mode, framework, tool, command), most first, one line each, for
-    the prompt: the agent can't read outside the repo."""
+    the prompt: the agent can't read outside the repo. A build line whose test tool (the last allowed entry) differs from
+    test_command's gets "(older config: ...)": it may be fixed already, such as a denied make check before the test
+    command became a one-word script."""
     counts = Counter()
+    now = copilot.test_tool(test_command) if test_command else None
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
@@ -353,10 +366,13 @@ def blocked_summary(path, limit=50):
         except ValueError:
             continue
         if isinstance(e, dict) and e.get("kind") != "final" and e.get("tool"):
-            counts[tuple(_clean(e.get(k) if e.get(k) is not None else "?", 120) for k in ("mode", "framework", "tool", "command"))] += 1
+            allowed = e.get("allowed") if isinstance(e.get("allowed"), list) else []
+            then = allowed[-1] if e.get("mode") == "build" and allowed and isinstance(allowed[-1], str) else None
+            older = f" (older config: the test tool was {_clean(then, 120)})" if now and then and then != now else ""
+            counts[(*(_clean(e.get(k) if e.get(k) is not None else "?", 120) for k in ("mode", "framework", "tool", "command")), older)] += 1
     if not counts:
         return "no blocked calls recorded"
-    rows = [f"{n}x {mode}/{fw} {tool}: {cmd}" for (mode, fw, tool, cmd), n in counts.most_common()]
+    rows = [f"{n}x {mode}/{fw} {tool}: {cmd}{older}" for (mode, fw, tool, cmd, older), n in counts.most_common()]
     return "\n".join(rows[:limit] + ([f"... and {len(rows) - limit} more"] if len(rows) > limit else []))
 
 
@@ -473,7 +489,7 @@ def run_init(run, apply, print_only):
             return 0
         return _apply_saved(run, crit_path, readiness_text)
     installed = installed_frameworks(repo, cfg)
-    prompt, tools, cap = init_call(cfg, readiness_text, installed, blocked_summary(blocked.log_path(repo)))
+    prompt, tools, cap = init_call(cfg, readiness_text, installed, blocked_summary(blocked.log_path(repo), test_command=_current_test(cfg)))
     logdir = run.log(KEY)
     if print_only:
         argv = copilot.copilot_argv(cfg, run.local, prompt, tools, (logdir / "usage-init.json").as_posix(), cap=cap,
@@ -503,7 +519,7 @@ def _run_init_call(run, work, prompt, tools, cap, installed, readiness_text, cri
                           "or written")
     d = parse_reply(final)
     config.say(f"done: credits {work.total:.2f}, {int(time.time() - t0)} s, logs in {work.logdir}")
-    changes = _report(cfg, d, readiness_text, installed, Path(a.config), crit_path)
+    changes = _report(cfg, d, readiness_text, installed, Path(a.config), crit_path, repo)
     if changes:
         saved = work.logdir / RESULT
         _write_result(saved, {"config": str(Path(a.config).resolve()), "config_sha256": _sha256(a.config),
@@ -523,9 +539,23 @@ def _write_result(path, obj):
         raise config.Stop(f"can't write {path}: {e.strerror or e}")
 
 
-def _report(cfg, d, readiness_text, installed, cfg_path, crit_path):
-    """The checks of d, the report, and the diffs. Returns [(path, new text, name)] of the files that would change."""
+def unseen_notes(accepted, files):
+    """Notes for accepted protected paths that match no file git sees (files: ticket.repo_files). The check after each
+    call compares git status only, so a pattern for a gitignored folder such as vendor/ protects nothing there."""
+    out = []
+    for key, _, sg in accepted:
+        if key == "add_protected_paths" and not any(re.search(sg["value"], f) for f in files):
+            out.append(f"{sg['value']}: matches no file git sees in this project; if the folder is gitignored (such as "
+                       "vendor/), the check after each call can't see changes there, so this path isn't protected")
+    return out
+
+
+def _report(cfg, d, readiness_text, installed, cfg_path, crit_path, repo=None):
+    """The checks of d, the report, and the diffs. Returns [(path, new text, name)] of the files that would change.
+    repo: the project, for the note on protected paths git doesn't see."""
     result = check_suggestions(d, cfg, readiness_text, installed)
+    if repo is not None:
+        result["notes"] += unseen_notes(result["accepted"], ticket_mod.repo_files(repo))
     if not (result["accepted"] or result["refused"]):
         config.say("keine Vorschläge: nothing to change.")
         return []
@@ -566,7 +596,8 @@ def _apply_saved(run, crit_path, readiness_text):
         raise config.Stop(f"config.json or readiness.md changed since the init run in {saved.parent} (or this run uses "
                           "other files); run init again")
     config.say(f"init --apply: no Copilot call; writing the checked result of {saved}")
-    changes = _report(cfg, d["suggestions"], readiness_text, [str(x) for x in d["installed"]], Path(a.config), crit_path)
+    changes = _report(cfg, d["suggestions"], readiness_text, [str(x) for x in d["installed"]], Path(a.config), crit_path,
+                      repo)
     for path, text, name in changes:
         path.write_bytes(text.encode("utf-8"))
         config.say(f"written: {path}")

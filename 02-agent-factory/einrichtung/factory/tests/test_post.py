@@ -94,6 +94,14 @@ class ExistingModesPost(JiraE2E, unittest.TestCase):
         self.assertEqual(fetch.test_line([p], "./bin/phpunit"), "Testbefehl ./bin/phpunit: fehlgeschlagen.")
         p.write_text("\n".join(line("./bin/phpunitx", True, "a")), encoding="utf-8")
         self.assertEqual(fetch.test_line([p], "./bin/phpunit"), "Der Agent hat den Testbefehl nicht ausgeführt.")
+        denied = [json.dumps({"type": "tool.execution_start", "data": {"toolCallId": "d", "toolName": "bash",
+                                                                       "arguments": {"command": "./bin/phpunit"}}}),
+                  json.dumps({"type": "tool.execution_complete", "data": {"toolCallId": "d", "success": False,
+                                                                          "error": {"code": "denied", "message": "no"}}})]
+        p.write_text("\n".join(denied), encoding="utf-8")  # OroCommerce test, F10: denied, not failed
+        self.assertEqual(fetch.test_line([p], "./bin/phpunit"), "Testbefehl ./bin/phpunit: abgelehnt, nicht ausgeführt.")
+        p.write_text("\n".join(denied + line("./bin/phpunit", True, "e")), encoding="utf-8")
+        self.assertEqual(fetch.test_line([p], "./bin/phpunit"), "Testbefehl ./bin/phpunit: bestanden.")
 
     def test_no_post(self):
         rc, out = self.api("assess", "--readiness", str(self.rd), "--no-post", cfg=self.acfg, verdict="not_ready")

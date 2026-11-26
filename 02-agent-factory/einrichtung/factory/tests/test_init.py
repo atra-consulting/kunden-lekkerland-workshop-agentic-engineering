@@ -147,9 +147,13 @@ class Refusals(unittest.TestCase):
             r = check({"test_command": s(cmd)})
             self.assertEqual((r["accepted"], len(r["refused"])), ([], 1), cmd)
             self.assertIn("test_command", r["refused"][0][3])
-        for cmd in ("python3 -m pytest", "uv run pytest", "npm test", "npm run test", "make test", "mvn -q test", "./gradlew test"):
+        for cmd in ("npm test", "yarn test", "go test", "./gradlew", "pytest"):
             r = check({"test_command": s(cmd)})
             self.assertEqual((len(r["accepted"]), r["refused"]), (1, []), cmd)
+        for cmd in ("python3 -m pytest", "uv run pytest", "npm run test", "make test", "mvn -q test", "./gradlew test"):
+            r = check({"test_command": s(cmd)})  # safe, but Copilot never matches the rule
+            self.assertEqual(r["accepted"], [], cmd)
+            self.assertIn("Copilot CLI matches an allow rule only on one word", r["refused"][0][3], cmd)
 
     def test_refuses_every_git_tool(self):
         for t in ("shell(git:*)", "shell(git status:*)", "shell(git add:*)", "shell(git -c core.x=y status:*)"):
@@ -178,7 +182,7 @@ class Refusals(unittest.TestCase):
 
     def test_add_tools_targets(self):
         r = check({"add_tools": {"nope": {"spec": [s("shell(make:*)")]}, "openspec": {"review": [s("shell(make:*)")],
-                                                                                     "build": [s("shell(make test:*)")]}}})
+                                                                                     "build": [s("shell(npm test:*)")]}}})
         self.assertEqual([(x[0], x[1]) for x in r["accepted"]], [("add_tools", "openspec.build")])
         reasons = {x[1]: x[3] for x in r["refused"]}
         self.assertIn("nope", reasons["nope"])
@@ -198,7 +202,7 @@ class Accepted(unittest.TestCase):
         bad = check({"test_command": s("bash -c x")})
         self.assertEqual(bad["accepted"], [])
         self.assertIn("test_command", bad["refused"][0][3])
-        good = check({"test_command": s("uv run pytest")})
+        good = check({"test_command": s("npm test")})
         self.assertEqual([x[0] for x in good["accepted"]], ["test_command"])
         self.assertEqual(good["refused"], [])
 
@@ -218,7 +222,7 @@ class Accepted(unittest.TestCase):
         self.assertEqual(init.broad_note("shell(mvn:*)"), "allows every mvn command")
         self.assertIsNone(init.broad_note("shell(make test:*)"))
         self.assertIsNone(init.broad_note("shell(make)"))
-        r = check({"add_tools": {"openspec": {"build": [s("shell(make:*)"), s("shell(make test:*)")]}}})
+        r = check({"add_tools": {"openspec": {"build": [s("shell(make:*)"), s("shell(npm test:*)")]}}})
         self.assertEqual(len(r["accepted"]), 2)
         self.assertEqual(len(r["notes"]), 1)
         self.assertIn("allows every Make target", r["notes"][0])
@@ -303,15 +307,15 @@ class Apply(unittest.TestCase):
 
     def test_apply_values(self):
         cfg = dict(copy.deepcopy(FULL_CFG), default_framework="openspec")
-        r = check({"test_command": s("make test"), "enabled_frameworks": s(["openspec"]),
-                   "add_tools": {"openspec": {"spec": [s("shell(make lint:*)")], "build": [s("shell(make test:*)")]}},
+        r = check({"test_command": s("npm test"), "enabled_frameworks": s(["openspec"]),
+                   "add_tools": {"openspec": {"spec": [s("shell(./run-lint:*)")], "build": [s("shell(npm test:*)")]}},
                    "readiness_md": s("# C\n\n### `missing_detail`\n\n### `contradiction`\n")}, cfg)
         self.assertEqual(r["refused"], [])
         new = init.apply(cfg, r["accepted"])
-        self.assertEqual(new["test_command"], "make test")
+        self.assertEqual(new["test_command"], "npm test")
         self.assertEqual(new["enabled_frameworks"], ["openspec"])
-        self.assertEqual(new["frameworks"]["openspec"]["spec_tools"], cfg["frameworks"]["openspec"]["spec_tools"] + ["shell(make lint:*)"])
-        self.assertEqual(new["frameworks"]["openspec"]["build_tools"], cfg["frameworks"]["openspec"]["build_tools"] + ["shell(make test:*)"])
+        self.assertEqual(new["frameworks"]["openspec"]["spec_tools"], cfg["frameworks"]["openspec"]["spec_tools"] + ["shell(./run-lint:*)"])
+        self.assertEqual(new["frameworks"]["openspec"]["build_tools"], cfg["frameworks"]["openspec"]["build_tools"] + ["shell(npm test:*)"])
         self.assertEqual(new["frameworks"]["bmad"], cfg["frameworks"]["bmad"])
         self.assertEqual(init.readiness_of(r["accepted"]), "# C\n\n### `missing_detail`\n\n### `contradiction`\n")
         self.assertNotIn("readiness_md", new)
@@ -327,6 +331,34 @@ class Apply(unittest.TestCase):
 
 
 class Reports(unittest.TestCase):
+    def test_blocked_summary_marks_denials_from_another_test_command(self):  # OroCommerce test, F18
+        p = Path(tempfile.mkdtemp()) / "blocked.jsonl"
+        old = {"mode": "build", "framework": "openspec", "tool": "bash", "command": "make check", "kind": "denied",
+               "allowed": ["read", "shell(make check:*)"]}
+        now = {**old, "command": "sed -i x f", "allowed": ["read", "shell(./run-checks:*)"]}
+        spec = {"mode": "spec", "framework": "openspec", "tool": "bash", "command": "find .", "kind": "denied",
+                "allowed": ["read", "shell(ls:*)"]}
+        p.write_text("\n".join(json.dumps(r) for r in (old, now, spec)) + "\n", encoding="utf-8")
+        out = init.blocked_summary(p, test_command="./run-checks").splitlines()
+        self.assertIn("1x build/openspec bash: make check (older config: the test tool was shell(make check:*))", out)
+        self.assertIn("1x build/openspec bash: sed -i x f", out)
+        self.assertIn("1x spec/openspec bash: find .", out)
+        self.assertNotIn("older config", init.blocked_summary(p))  # no test command: nothing to compare
+
+    def test_protected_path_git_doesnt_see_is_noted(self):  # OroCommerce test, F3: ^vendor/ is gitignored there
+        r = check({"add_protected_paths": [s("^vendor/"), s("^composer\\.lock$")]})
+        notes = init.unseen_notes(r["accepted"], ["composer.lock", "src/App.php"])
+        self.assertEqual(len(notes), 1)
+        self.assertTrue(notes[0].startswith("^vendor/: matches no file git sees in this project"), notes[0])
+
+    def test_add_tools_copilot_never_matches_refused(self):  # OroCommerce test, F18: init suggested these
+        r = check({"add_tools": {"openspec": {"build": [s("shell(make check:*)"), s("shell(make unit:*)"),
+                                                        s("shell(./run-checks:*)")]}}})
+        self.assertEqual([x[2]["value"] for x in r["accepted"]], ["shell(./run-checks:*)"])
+        self.assertEqual(len(r["refused"]), 2)
+        for x in r["refused"]:
+            self.assertIn("Copilot CLI matches an allow rule only on one word", x[3])
+
     def test_blocked_summary_counts(self):
         p = Path(tempfile.mkdtemp()) / "blocked.jsonl"
         rows = [{"mode": "build", "framework": "openspec", "tool": "shell", "command": "make test", "kind": "denied"}] * 3
@@ -421,9 +453,9 @@ class InitMode(E2E, unittest.TestCase):
     def status(self):
         return subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, capture_output=True, text=True).stdout
 
-    SUGGESTIONS = {"test_command": s("make test", "the README says so", "README.md:12"),
+    SUGGESTIONS = {"test_command": s("./run-tests", "the README says so", "README.md:12"),
                    "add_protected_paths": [s("^db/")],
-                   "add_tools": {"openspec": {"build": [s("shell(make lint:*)")]}},
+                   "add_tools": {"openspec": {"build": [s("shell(./run-lint:*)")]}},
                    "readiness_md": s(NEW_READINESS)}
 
     def test_init_without_apply_changes_nothing(self):
@@ -433,7 +465,7 @@ class InitMode(E2E, unittest.TestCase):
         self.assertEqual(self.cfgp.read_bytes(), json.dumps(INIT_CFG).encode("utf-8"))
         self.assertEqual(self.rd.read_bytes(), before_readiness)
         self.assertEqual(self.status(), "")
-        for part in ("make test", "the README says so", "README.md:12", "--- config.json (current)",
+        for part in ("./run-tests", "the README says so", "README.md:12", "--- config.json (current)",
                      "+++ readiness.md (suggested)", "+### `no_test`", "nothing was changed", "--apply"):
             self.assertIn(part, out)
 
@@ -458,7 +490,7 @@ class InitMode(E2E, unittest.TestCase):
 
     def test_init_apply_writes_both(self):
         self.init(self.SUGGESTIONS)
-        (self.repo / "fake-init.json").write_text(json.dumps({"test_command": s("make other")}), encoding="utf-8")
+        (self.repo / "fake-init.json").write_text(json.dumps({"test_command": s("./other")}), encoding="utf-8")
         rc, out = self.apply()
         self.assertEqual(len(self.calls()), 1, "--apply makes no Copilot call")
         self.assertIn("no Copilot call", out)
@@ -467,10 +499,10 @@ class InitMode(E2E, unittest.TestCase):
         self.assertTrue(text.startswith('{\n  "comment"'), text[:40])
         self.assertTrue(text.endswith("}\n") and not text.endswith("\n\n"))
         new = json.loads(text)
-        self.assertEqual(new["test_command"], "make test")
+        self.assertEqual(new["test_command"], "./run-tests")
         self.assertEqual(new["protected_paths"], INIT_CFG["protected_paths"] + ["^db/"])
         self.assertEqual(new["frameworks"]["openspec"]["build_tools"],
-                         INIT_CFG["frameworks"]["openspec"]["build_tools"] + ["shell(make lint:*)"])
+                         INIT_CFG["frameworks"]["openspec"]["build_tools"] + ["shell(./run-lint:*)"])
         self.assertEqual(list(new), list(INIT_CFG))  # keys in their order
         self.assertEqual(self.rd.read_text(encoding="utf-8"), NEW_READINESS)
         self.assertEqual(self.status(), "")  # nothing written into the project

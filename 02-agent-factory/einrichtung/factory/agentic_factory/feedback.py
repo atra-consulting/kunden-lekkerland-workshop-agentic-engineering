@@ -77,7 +77,8 @@ def _fenced_after(body, head):
     return []
 
 
-TEST_LINE_RE = re.compile(r"Testbefehl .+: (?:bestanden|fehlgeschlagen)\.|Der Agent hat den Testbefehl nicht ausgeführt\.")
+TEST_LINE_RE = re.compile(r"Testbefehl .+: (?:bestanden|fehlgeschlagen|abgelehnt, nicht ausgeführt)\.|"
+                          r"Der Agent hat den Testbefehl nicht ausgeführt\.")
 
 
 def _files_of(body):

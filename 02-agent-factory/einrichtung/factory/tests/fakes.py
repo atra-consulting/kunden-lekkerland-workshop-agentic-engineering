@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest import mock
 
-from agentic_factory import main
+from agentic_factory import config, main
 
 HERE = Path(__file__).resolve().parent.parent  # the template folder: agentic-factory.py, agentic_factory/, config.json
 FACTORY_BASE = os.environ.get("FACTORY_BASE")
@@ -417,13 +417,14 @@ class E2E:
         cfgp.write_text(json.dumps(cfg), encoding="utf-8")
         out = io.StringIO()
         with mock.patch.dict(os.environ, {"HOME": str(self.d), "USERPROFILE": str(self.d), "no_proxy": "*",
-                                          "NO_PROXY": "*"}), contextlib.redirect_stdout(out):
+                                          "NO_PROXY": "*"}), contextlib.redirect_stdout(out), \
+                mock.patch.object(config, "HERE", self.repo / config.FACTORY_FOLDER):  # as if copied to proj/factory/
             for k, v in {**dict.fromkeys(self.CLEAN_ENV), **(env or {})}.items():
                 if v is None:
                     os.environ.pop(k, None)
                 else:
                     os.environ[k] = v
-            argv = [*args, "--repo", str(self.repo), "--local", str(self.lj), "--config", str(cfgp)]
+            argv = [*args, "--local", str(self.lj), "--config", str(cfgp)]
             try:
                 if entry:
                     with mock.patch.object(sys, "argv", ["agentic-factory.py", *argv]), \

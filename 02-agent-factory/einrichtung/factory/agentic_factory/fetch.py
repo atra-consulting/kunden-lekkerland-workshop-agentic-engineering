@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -77,7 +78,10 @@ def test_command(cfg):
 
 
 def test_lines(cmd):
-    return (f"Testbefehl {cmd}: bestanden.", f"Testbefehl {cmd}: fehlgeschlagen.", NO_TEST_RUN)
+    """The lines a build comment may carry about the tests: passed, failed, not run, and denied (the agent tried, and
+    Copilot refused the call, so nothing ran)."""
+    return (f"Testbefehl {cmd}: bestanden.", f"Testbefehl {cmd}: fehlgeschlagen.", NO_TEST_RUN,
+            f"Testbefehl {cmd}: abgelehnt, nicht ausgeführt.")
 
 
 def test_line(events_paths, cmd):
@@ -109,11 +113,14 @@ def test_line(events_paths, cmd):
                 if isinstance(c, str) and (c.strip() == cmd or c.strip().startswith(cmd + " ")):
                     last = cid
             elif e.get("type") == "tool.execution_complete":
-                ok[cid] = d.get("success") is True
+                err = d.get("error") if isinstance(d.get("error"), dict) else {}
+                ok[cid] = "ok" if d.get("success") is True else ("denied" if err.get("code") == "denied" else "failed")
     if last is None:
         return NO_TEST_RUN
-    good, bad, _ = test_lines(cmd)
-    return good if last[1] is not None and ok.get(last) else bad
+    good, bad, _, denied = test_lines(cmd)
+    if last[1] is None:
+        return bad
+    return {"ok": good, "denied": denied}.get(ok.get(last), bad)
 
 
 def spec_result(repo, F, paths):
@@ -160,15 +167,36 @@ def folder_digest(folder):
         raise config.Stop(f"can't read {folder}: {e.strerror or e}")
 
 
+def project_of(here):
+    """The project this script works on: the git repository whose top folder holds the folder factory/ with
+    agentic-factory.py, config.json, and readiness.md in it. Anywhere else it stops, before any Copilot call: then
+    config.json and readiness.md might belong to another project, and the protected path factory/ wouldn't cover them."""
+    here = Path(here).resolve()
+    want = f"put agentic-factory.py and the files next to it in the folder {config.FACTORY_FOLDER}/ at the top of your " \
+           f"project, as <project>/{config.FACTORY_FOLDER}/agentic-factory.py"
+    if here.name != config.FACTORY_FOLDER:
+        raise config.Stop(f"agentic-factory.py is in {here}, not in a folder named {config.FACTORY_FOLDER}/: {want}")
+    try:
+        r = ticket_mod.run_git(here.parent, ("rev-parse", "--show-toplevel"), stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL)
+    except OSError:
+        r = None
+    top = r.stdout.decode("utf-8", errors="replace").strip() if r is not None and r.returncode == 0 else ""
+    if not top or Path(top).resolve() != here.parent:
+        raise config.Stop(f"{here.parent} is not the top folder of a git repository "
+                          f"({'its top folder is ' + top if top else 'no git repository there'}): {want}")
+    return here.parent
+
+
 class Run:
     """What every step needs: the options, the config, the project, the folders, and the Jira layer."""
 
     def __init__(self, a):
         self.a = a
+        self.repo = project_of(config.HERE)  # first: config.json and local.json belong to this project's factory/
         self.cfg = config.read_json(a.config)
         config.check_required(self.cfg, a.config)
         self.local = config.load_local(a.local)
-        self.repo = Path(ticket_mod.git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
         snapshot.repo_part(self.repo.name)  # the logs and spec copies need it: stop before any Copilot call
         ticket_mod.trust_git_dir(self.repo)  # every later git call checks .git/config, hooks, and includes against it
         self.A = self.cfg.get("assess") or {}

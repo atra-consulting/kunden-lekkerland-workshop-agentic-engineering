@@ -914,6 +914,36 @@ class Comments(unittest.TestCase):
         self.assertFalse(st["answered"])
         self.assertFalse(st["handed_over"])
 
+    def test_edited_or_foreign_markers_dont_count(self):  # OroCommerce test, F19
+        def c(i, body, author="bot", edited=False):
+            x = {**self.c(i, body), "author": author}
+            x["updated"] = "2026-01-01T11:00:00" if edited else x["created"]
+            return x
+        r1, ans = c(1, clarify.marker("round", "K-1", 1)), c(2, "[Mensch] Antwort", author="anna")
+        cases = {
+            "edited handover": (c(3, clarify.marker("handover", "K-1"), edited=True), "it was edited after it was posted"),
+            "foreign handover": (c(3, clarify.marker("handover", "K-1"), author="eve"), "another account wrote it than round 1"),
+            "foreign ready": (c(3, clarify.marker("ready", "K-1"), author="eve"), "another account wrote it than round 1"),
+            "foreign round 9": (c(3, clarify.marker("round", "K-1", 9), author="eve"), "another account wrote it than round 1"),
+        }
+        for name, (fake, why) in cases.items():
+            with self.subTest(name):
+                st = clarify.clarify_state([r1, ans, fake], "K-1")
+                self.assertEqual((st["rounds"], st["answered"], st["handed_over"], st["applied"]), (1, True, False, False))
+                self.assertEqual(st["ignored"], [("3", why)])
+                self.assertIn(f"3 ({why})", clarify.ignored_note(st))
+                self.assertIsNone(clarify.clarify_pause(st))  # the loop goes on: answers to round 1 wait
+        st = clarify.clarify_state([r1, ans, c(3, clarify.marker("handover", "K-1"))], "K-1")  # the factory's own
+        self.assertTrue(st["handed_over"])
+        self.assertIsNone(clarify.ignored_note(st))
+        edited_r1 = c(1, clarify.marker("round", "K-1", 1), edited=True)  # an edited round 1 sets no account either
+        st = clarify.clarify_state([edited_r1, ans], "K-1")
+        self.assertEqual((st["rounds"], st["ignored"]), (0, [("1", "it was edited after it was posted")]))
+        # an offline file without authors: only the edit counts
+        st = clarify.clarify_state([self.c(1, clarify.marker("round", "K-1", 1)), self.c(2, "[Mensch] a"),
+                                    self.c(3, clarify.marker("handover", "K-1"))], "K-1")
+        self.assertTrue(st["handed_over"])
+
     def test_sorted_by_created_stable(self):
         late = self.c(1, clarify.marker("round", "K-1", 1), created="2026-01-02T00:00:00")
         early = self.c(2, "[Mensch] a", created="2026-01-01T00:00:00")

@@ -30,6 +30,8 @@ def work_plan(run, req, ticket, comments=()):
     if mode == "clarify":
         checks.clarify_config(cfg)
         state = clarify.clarify_state(comments, key)
+        if clarify.ignored_note(state):
+            config.say(clarify.ignored_note(state))
         applying = fetch.apply_wanted(run) and fetch.can_post(run, req)
         p.update(state=state, pause=fetch.clarify_pause_of(run, req, state), crit=run.criteria("clarify"), proposal=None)
         if clarify.applies_proposal(state, applying):  # --apply on a posted proposal: only the readiness check on its text
@@ -66,13 +68,14 @@ def work_plan(run, req, ticket, comments=()):
                 change, files = fb["change"], ticket_mod.repo_files(repo)
                 config.say(revise.describe(fb))
             else:
-                change, files = ticket_mod.find_change(repo, F, req["change"])
+                change, files = ticket_mod.find_change(repo, F, req["change"], fb.get("spec_change"))
             paths = ticket_mod.spec_paths_for(F, change, files)
             specs = [x for x in paths if x.endswith("SPEC.md")]
             specs = [x for x in specs if f"/{change}/" in x] or specs
             spec_file = specs[0] if specs else paths[0] if paths else F["spec_root"].format(change=change)
             p["change"] = change
-            config.say(f"building change {change} ({len(paths)} spec files)")
+            if fb["kind"] != "nothing":  # nothing new: no build, so don't say one starts
+                config.say(f"building change {change} ({len(paths)} spec files)")
         if mode == "spec" and fb["kind"] == "revision":  # the spec rerun: a revise call (new comments), or none
             p["fb"] = fb = revise.plan(run, req, F, fb)
             p["change"] = fb["change"]
@@ -217,7 +220,8 @@ def run_agent(run, req, p):
     if fb and fb["kind"] == "nothing":  # before any Copilot process: no credits
         reason = revise.nothing_reason(fb)
         revise.write_nothing_new(out, mode, reason)
-        config.say(f"{key}: {reason}")
+        if run.a.step != "all":  # in one process the post step says it, once
+            config.say(f"{key}: {reason}")
         return 0
     if fb and fb["kind"] == "hand":
         return revise.hand_out(run, req, p)
@@ -348,7 +352,10 @@ def _run_calls(run, req, p, work):
         revise.first_out(run, req, p, paths)
     elif mode == "build":
         events = [work.logdir / f"events-{tag}.jsonl" for tag, *_ in calls[:ran] if tag not in ("assess", "amend")]
-        revise.build_out(run, req, p, paths, fetch.test_line(events, fetch.test_command(cfg)), head)
+        line = fetch.test_line(events, fetch.test_command(cfg))
+        if events and (line == fetch.NO_TEST_RUN or line == fetch.test_lines(fetch.test_command(cfg))[3]):
+            config.say(f"WARNING: no test ran in this build ({line}); run the tests yourself before you trust it")
+        revise.build_out(run, req, p, paths, line, head)
     config.say("next: review `git diff`, run the tests yourself, and commit by hand")
     return 0
 

@@ -42,17 +42,17 @@ git merge <doku-branch>
 
 ## 2. `agentic-factory.py` einrichten
 
-Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien und die Ordner `agentic_factory/` und `agentic-factory-plugin/` aus der [Vorlage](../../02-agent-factory/einrichtung/template/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
+Prüft zuerst die Versionen: `python3 --version` und `copilot --version`. Dann holt ihr die vier Dateien und die Ordner `agentic_factory/` und `agentic-factory-plugin/` aus der [Vorlage](../../02-agent-factory/einrichtung/factory/README.md) in diesem Workshop-Repo. Habt ihr schon einen Klon, nehmt ihn nach einem `git pull` statt `~/workshop-agentic-engineering`.
 
 ```bash
 git clone https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering.git ~/workshop-agentic-engineering
 mkdir -p factory
-cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic_factory,agentic-factory-plugin} factory/
-cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic-factory.py,config.json,readiness.md,local.example.json} factory/
+cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/factory/{agentic_factory,agentic-factory-plugin} factory/
+cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/factory/{agentic-factory.py,config.json,readiness.md,local.example.json} factory/
 cp factory/local.example.json factory/local.json
 ```
 
-`agentic-factory.py` braucht nur die Python-Standardbibliothek. Aus der Factory importiert es nur sein eigenes Paket, den Ordner `agentic_factory/` daneben. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
+Der Ordner muss `factory/` heißen und im Wurzelordner eures Repos liegen. Sonst stoppt das Skript vor jedem Aufruf. `agentic-factory.py` braucht nur die Python-Standardbibliothek. Aus der Factory importiert es nur sein eigenes Paket, den Ordner `agentic_factory/` daneben. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
 
 | Datei | Nötig? | Ohne sie |
 |---|---|---|
@@ -64,12 +64,12 @@ cp factory/local.example.json factory/local.json
 
 Die Vorlage ist aus `local.py` im Lab-Repo entstanden, Branch `factory-base`. Die anderen Dateien dort, etwa `agent.py`, `assess.py` und `check.py`, gehören zur Pipeline. Lokal braucht ihr sie nicht.
 
-Lest vor dem ersten Lauf den Abschnitt [Sicherheit](../../02-agent-factory/einrichtung/template/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage: Der Agent läuft als ihr, mit eurer Umgebung, ohne Container.
+Lest vor dem ersten Lauf den Abschnitt [Sicherheit](../../02-agent-factory/einrichtung/factory/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage: Der Agent läuft als ihr, mit eurer Umgebung, ohne Container.
 
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `agentic-factory.py` und `readiness.md`.
 - Diese Übung nimmt das Ticket immer mit `--ticket-file`. Dann fragt das Skript Jira nie und schreibt keine Kommentare ins Ticket. Wie es Jira selbst liest und kommentiert, steht in der [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#zwei-wege-zu-jira---jira).
-- Öffnet `factory/config.json`. Dort steht `"test_command": ""`. Tragt euren echten Testbefehl ein, bevor ihr committet, etwa `"test_command": "make test"`. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. Den Vorschlag kann euch auch `init` machen, siehe [Vorlage](../../02-agent-factory/einrichtung/template/README.md#erste-einrichtung-mit-init). Das kostet einen Aufruf, höchstens 40 Credits.
-- Aus dem Testbefehl wird die Erlaubnis für den ganzen Befehl: Aus `make test` wird `shell(make test:*)`. Das ist enger als früher, aber keine Grenze: Der Agent darf Argumente anhängen, bei Make also auch weitere Ziele, etwa `make test deploy`. `bash -c …`, `&&`, `|` und Anführungszeichen lehnt das Skript im Testbefehl ab. Braucht ihr so etwas, schreibt ein Make-Ziel.
+- Öffnet `factory/config.json`. Dort steht `"test_command": ""`. Tragt euren echten Testbefehl ein, bevor ihr committet: ein Wort, etwa `"test_command": "./run-tests"`, oder zwei bei `npm`, `yarn` und `go`, etwa `"npm test"`. Für `make test` schreibt ihr ein Skript `run-tests` mit `exec make test`, ohne `"$@"`, und tragt `^run-tests$` in `protected_paths` ein. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. Den Vorschlag kann euch auch `init` machen, siehe [Vorlage](../../02-agent-factory/einrichtung/factory/README.md#erste-einrichtung-mit-init). Das kostet einen Aufruf, höchstens 40 Credits.
+- Aus dem Testbefehl wird die Erlaubnis für den ganzen Befehl: Aus `./run-tests` wird `shell(./run-tests:*)`. Copilot passt eine Erlaubnis nur auf ein Wort, oder zwei bei `npm`, `yarn` und `go`. Bei `make test` stoppt `build` deshalb vor dem Aufruf. Die Erlaubnis ist keine Grenze: Der Agent darf Argumente anhängen, euer Skript ignoriert sie. `bash -c …`, `&&`, `|` und Anführungszeichen lehnt das Skript im Testbefehl ab. Braucht ihr so etwas, schreibt es ins Skript.
 - `local.json` hat nur Einstellungen eures Rechners, etwa `model`. Euren Stack beschreibt ihr in `AGENTS.md`. Copilot liest die Datei selbst.
 
 ```bash
@@ -170,7 +170,7 @@ python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-12
 
 Zuerst läuft die Bereitschaftsprüfung, wie in der Factory. Nur bei „ready“ startet der Spec-Schritt.
 
-**Das seht ihr:** `[agentic-factory] Jira route: offline (offline input)`, `[agentic-factory] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Jede Ablehnung schreibt das Skript auch nach `~/.factory-local/<repo>/blocked.jsonl`, siehe [Vorlage](../../02-agent-factory/einrichtung/template/README.md#blockierte-aufrufe-blockedjsonl). Am Ende `[agentic-factory] done: … credits …`, `[agentic-factory] uncommitted changes`, eine Zeile wie `[agentic-factory] no blocked calls` und `comment not posted (offline input)`: Den Kommentar für Jira schreibt das Skript nur in eine Datei.
+**Das seht ihr:** `[agentic-factory] Jira route: offline (offline input)`, `[agentic-factory] copilot readiness check: tools ['read', 'write']`, dann `verdict: ready`. Danach die Werkzeug-Aufrufe des Agenten, eingerückt. `DENIED` heißt: Copilot hat einen nicht erlaubten Befehl abgelehnt. Das ist kein Fehler. Der Agent nimmt dann einen erlaubten Weg. Jede Ablehnung schreibt das Skript auch nach `~/.factory-local/<repo>/blocked.jsonl`, siehe [Vorlage](../../02-agent-factory/einrichtung/factory/README.md#blockierte-aufrufe-blockedjsonl). Am Ende `[agentic-factory] done: … credits …`, `[agentic-factory] uncommitted changes`, eine Zeile wie `[agentic-factory] no blocked calls` und `comment not posted (offline input)`: Den Kommentar für Jira schreibt das Skript nur in eine Datei.
 
 - **`not ready: no spec calls`, Exit-Code 4:** Gründe und Fragen stehen in der Ausgabe. Verbessert die Beschreibung in Jira und holt das Ticket neu (Schritt 4). Genau das übt ihr in Übung 2.
 - **`the agent wrote FACTORY-QUESTIONS.md`, Exit-Code 5:** Das Framework fand das Ticket zu unklar. Die Fragen stehen in der Ausgabe. Löscht `FACTORY-QUESTIONS.md`, bevor ihr `spec` neu startet. Sonst stoppt das Skript.
@@ -203,15 +203,15 @@ git status --short
 python3 -I factory/agentic-factory.py build --ticket-file ~/factory-tickets/LL-123.json --change <name>
 ```
 
-`<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
+`<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt. Mit Jira nimmt `build` den Ordner, den der Spec-Kommentar im Ticket nennt; offline gibt es den nicht.
 
-**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste euer ganzer Testbefehl, etwa `shell(make test:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
+**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste euer ganzer Testbefehl, etwa `shell(./run-tests:*)`, dann Aufrufe wie `bash ./run-tests 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
 
 ## 10. Freigabe 2: Ihr lest den Diff
 
 ```bash
 git diff
-make test      # oder euer Testbefehl aus config.json
+./run-tests   # oder euer Testbefehl aus config.json
 ```
 
 Beim Bau stoppt lokal keine Prüfung den Lauf. Darum lest ihr den Diff selbst:

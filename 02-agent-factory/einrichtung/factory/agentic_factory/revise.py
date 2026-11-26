@@ -69,7 +69,7 @@ def decide_build(run, req, comments, quiet=False):
     comments after a spec belong to the spec, not to a first build."""
     key = req["key"]
     first = {"mode": "build", "kind": "first", "revision": 1, "change": None, "handled": [], "new": [],
-             "checksum": None, "last": None, "start_commit": None, "files": []}
+             "checksum": None, "last": None, "start_commit": None, "files": [], "spec_change": None}
     if req["fresh"]:
         return first
     raw = feedback.state(comments, key)
@@ -81,6 +81,9 @@ def decide_build(run, req, comments, quiet=False):
         if st["new_human"] and not quiet:
             config.say(f"note: comment(s) {', '.join(c['id'] for c in st['new_human'])} came after the spec: a first "
                        "build doesn't read them; revise the spec with spec first, if they should count")
+        if st["phase"] == "spec" and st["change"] and ticket_mod.CHANGE_NAME.fullmatch(st["change"]):
+            # the change the trusted spec comment names: find_change takes it when there are several spec folders
+            return {**first, "spec_change": (st["change"], st["last"]["id"])}
         return first
     if st["last"]["id"] != st["last_build"]["id"]:
         raise config.Stop(f"the latest result comment {st['last']['id']} is a spec posted after the build in comment "

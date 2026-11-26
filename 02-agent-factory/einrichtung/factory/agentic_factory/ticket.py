@@ -317,8 +317,9 @@ def head_commit(repo):
     return r.stdout.decode().strip() or None
 
 
-def find_change(repo, F, option):
-    """The spec folder to build: --change, else the only one, else the only one with uncommitted changes."""
+def find_change(repo, F, option, spec_change=None):
+    """The spec folder to build: --change, else the only one, else the one the spec comment names (spec_change:
+    (change, comment id), from revise.decide_build), else the only one with uncommitted changes."""
     rx = re.compile(F["spec_change_re"])
     files = repo_files(repo)
     names = sorted({m.group(1).split("/")[0] for p in files for m in [rx.match(p)] if m and m.group(1)})
@@ -332,6 +333,9 @@ def find_change(repo, F, option):
         return names[0], files
     if not names:
         raise config.Stop("no spec found: run `agentic-factory.py spec` first")
+    if spec_change and spec_change[0] in names:
+        config.say(f"several spec folders; building {spec_change[0]}, the change of the spec comment {spec_change[1]}")
+        return spec_change[0], files
     dirty = {l[3:].strip('"') for l in status_lines(repo)}
     touched = sorted({m.group(1).split("/")[0] for p in dirty for m in [rx.match(p)] if m and m.group(1)})
     if len(touched) == 1:

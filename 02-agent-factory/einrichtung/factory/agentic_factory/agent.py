@@ -68,7 +68,7 @@ def work_plan(run, req, ticket, comments=()):
                 change, files = fb["change"], ticket_mod.repo_files(repo)
                 config.say(revise.describe(fb))
             else:
-                change, files = ticket_mod.find_change(repo, F, req["change"])
+                change, files = ticket_mod.find_change(repo, F, req["change"], fb.get("spec_change"))
             paths = ticket_mod.spec_paths_for(F, change, files)
             specs = [x for x in paths if x.endswith("SPEC.md")]
             specs = [x for x in specs if f"/{change}/" in x] or specs

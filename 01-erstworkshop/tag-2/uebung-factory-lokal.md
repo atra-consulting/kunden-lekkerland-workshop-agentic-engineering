@@ -203,7 +203,7 @@ git status --short
 python3 -I factory/agentic-factory.py build --ticket-file ~/factory-tickets/LL-123.json --change <name>
 ```
 
-`<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
+`<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt. Mit Jira nimmt `build` den Ordner, den der Spec-Kommentar im Ticket nennt; offline gibt es den nicht.
 
 **Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste euer ganzer Testbefehl, etwa `shell(./run-tests:*)`, dann Aufrufe wie `bash ./run-tests 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
 

@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agentic_factory import config
+from agentic_factory import config, revise
 from agentic_factory import ticket as ticket_mod
 from .fakes import CFG, E2E, KEY
 
@@ -275,6 +275,22 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertEqual(name, "new-one")
         name, _ = ticket_mod.find_change(self.repo, CFG["frameworks"]["openspec"], "old-one")
         self.assertEqual(name, "old-one")
+        # the spec comment names a change: it wins over the uncommitted one (OroCommerce test, F17)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            name, _ = ticket_mod.find_change(self.repo, CFG["frameworks"]["openspec"], None, ("old-one", "10108"))
+        self.assertEqual(name, "old-one")
+        self.assertIn("building old-one, the change of the spec comment 10108", out.getvalue())
+        name, _ = ticket_mod.find_change(self.repo, CFG["frameworks"]["openspec"], None, ("gone", "10108"))
+        self.assertEqual(name, "new-one")  # a change that isn't there any more: as before
+
+    def test_first_build_takes_the_change_of_the_spec_comment(self):
+        spec = {"id": "10108", "created": "2026-01-01T10:00:00", "updated": "2026-01-01T10:00:00",
+                "body": "[KI] agentic-factory spec key=LL-123\n\nChange: old-one. Bereitschaftsprüfung: bestanden.\n"}
+        req = {"mode": "build", "key": "LL-123", "fresh": False, "me": None}
+        with contextlib.redirect_stdout(io.StringIO()):
+            d = revise.decide_build(None, req, [spec])
+        self.assertEqual((d["kind"], d["spec_change"]), ("first", ("old-one", "10108")))
+        self.assertIsNone(revise.decide_build(None, {**req, "fresh": True}, [spec])["spec_change"])
 
 
 class ShellBackstop(E2E, unittest.TestCase):

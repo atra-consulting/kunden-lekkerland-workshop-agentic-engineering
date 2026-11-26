@@ -274,7 +274,7 @@ python3 -I factory/agentic-factory.py spec    LL-123 --print-only         # nur 
 
 - `assess` braucht kein Framework-Label. Es schreibt `FACTORY-ASSESSMENT.json` ins Repository und zeigt das Urteil. Ist es „nicht bereit“, bleibt die Datei liegen. Committe sie nicht.
 - `spec` schreibt die Spec in den Ordner des Frameworks. Danach liest du sie, änderst sie bei Bedarf und committest sie von Hand. Ein zweiter Lauf überarbeitet sie, siehe [Spec und Build überarbeiten](#spec-und-build-überarbeiten).
-- `build` findet die Spec selbst, wenn es genau einen Spec-Ordner gibt oder genau einen mit nicht committeten Änderungen. Sonst nennst du ihn mit `--change`. Das Framework kommt wieder vom Label oder von `--framework`.
+- `build` findet die Spec selbst: Gibt es genau einen Spec-Ordner, nimmt es den. Sonst den, den der letzte `[KI]`-Kommentar von `spec` im Ticket nennt (`Change: <name>.`), wenn es ihn noch gibt. Sonst den einzigen mit nicht committeten Änderungen. Sonst nennst du ihn mit `--change`. Das Framework kommt wieder vom Label oder von `--framework`.
 - `--print-only` liest das Ticket trotzdem. Mit `--jira mcp` kostet das einen Jira-Aufruf, etwa 4 bis 9 Credits. Die Prüfung deines Kontos bei `clarify --apply` macht `--print-only` nicht, auf keinem der beiden Wege. Die macht erst der echte Lauf, bevor er etwas setzt. Mit `--ticket-file` kostet es nichts.
 - Nach jedem Lauf zeigt das Skript Credits, Dauer, geänderte Dateien und Commits des Agenten. Die Protokolle liegen unter `~/.factory-local/<Projekt>/`.
 - Die letzte Zeile eines Laufs mit Copilot-Aufrufen nennt die abgelehnten Werkzeug-Aufrufe, etwa `2 blocked call(s), see …/blocked.jsonl`. Die Datei sammelt sie über alle Läufe. Was drin steht und wie du sie weitergibst: [Vorlage](../einrichtung/factory/README.md#blockierte-aufrufe-blockedjsonl).
@@ -598,7 +598,7 @@ Jeder Stopp beginnt mit `[agentic-factory] STOP:` und endet mit Exit-Code 2.
 | `more than one framework label` | Zwei `sdd-`-Labels. Eins entfernen |
 | `framework speckit is not installed in this project` | Ordner des Frameworks fehlt, etwa `.specify/` |
 | `FACTORY-QUESTIONS.md exists from an earlier run` | Ein früherer Lauf hat Fragen statt einer Spec geschrieben. Fragen im Ticket beantworten, Datei löschen, neu starten |
-| `several specs found, choose one with --change` | Mehrere Spec-Ordner. Den richtigen mit `--change` nennen |
+| `several specs found, choose one with --change` | Mehrere Spec-Ordner, und kein Spec-Kommentar im Ticket nennt einen davon, etwa offline mit `--ticket-file`. Den richtigen mit `--change` nennen |
 | `assess is not available in this config` | Die `config.json` hat keinen Block `assess` |
 | `clarify is not available in this config` | Die `config.json` braucht die Blöcke `clarify` und `assess`. Nimm sie aus der Vorlage |
 | `readiness.md not found` | `readiness.md` neben `agentic-factory.py` legen |

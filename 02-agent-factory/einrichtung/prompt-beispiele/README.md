@@ -118,7 +118,7 @@ Alle Aufrufe dürfen `read` und `write`. Dazu:
 | Bauen | `shell(openspec:*)`, `shell(mkdir:*)`, die `read_tools`, `shell(./bin/phpunit:*)` | `shell(mkdir:*)`, `check-prerequisites.sh`, `resolve-template.sh`, die `read_tools`, `shell(./bin/phpunit:*)` | `shell(uv:*)`, `shell(mkdir:*)`, `shell(git add:*)`, `shell(git commit:*)`, `shell(git status:*)`, `shell(git diff:*)`, die `read_tools`, `shell(./bin/phpunit:*)` |
 
 - Die `read_tools` aus `config.json`: `shell(ls:*)`, `shell(cat:*)`, `shell(head:*)`, `shell(tail:*)`, `shell(wc:*)`, `shell(grep:*)`, `shell(pwd:*)`, `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`. Warum genau diese, steht in der [Vorlage](../factory/README.md#sicherheit-was-ihr-wissen-müsst).
-- `shell(./bin/phpunit:*)` ist der Testbefehl aus `test_command` in `config.json`, als ganzer Befehl. Aus `make test` würde `shell(make test:*)`. In der Vorlage ist `test_command` leer: Dann stoppt `build`.
+- `shell(./bin/phpunit:*)` ist der Testbefehl aus `test_command` in `config.json`, als ganzer Befehl. Aus `npm test` würde `shell(npm test:*)`. `make test` lehnt `build` ab: `shell(make test:*)` passt Copilot nie. In der Vorlage ist `test_command` leer: Dann stoppt `build`.
 - `shell(uv:*)` erlaubt BMad, beliebigen Python-Code zu starten. BMad darf beim Bauen auch selbst committen.
 
 ### Verbotene Befehle

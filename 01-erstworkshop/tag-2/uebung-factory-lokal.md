@@ -68,8 +68,8 @@ Lest vor dem ersten Lauf den Abschnitt [Sicherheit](../../02-agent-factory/einri
 
 - Der Ordner heißt `factory/`, denn dort sucht der Skill in Übung 3 `agentic-factory.py` und `readiness.md`.
 - Diese Übung nimmt das Ticket immer mit `--ticket-file`. Dann fragt das Skript Jira nie und schreibt keine Kommentare ins Ticket. Wie es Jira selbst liest und kommentiert, steht in der [Referenz](../../02-agent-factory/bedienung/lokal-ausfuehren.md#zwei-wege-zu-jira---jira).
-- Öffnet `factory/config.json`. Dort steht `"test_command": ""`. Tragt euren echten Testbefehl ein, bevor ihr committet, etwa `"test_command": "make test"`. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. Den Vorschlag kann euch auch `init` machen, siehe [Vorlage](../../02-agent-factory/einrichtung/factory/README.md#erste-einrichtung-mit-init). Das kostet einen Aufruf, höchstens 40 Credits.
-- Aus dem Testbefehl wird die Erlaubnis für den ganzen Befehl: Aus `make test` wird `shell(make test:*)`. Das ist enger als früher, aber keine Grenze: Der Agent darf Argumente anhängen, bei Make also auch weitere Ziele, etwa `make test deploy`. `bash -c …`, `&&`, `|` und Anführungszeichen lehnt das Skript im Testbefehl ab. Braucht ihr so etwas, schreibt ein Make-Ziel.
+- Öffnet `factory/config.json`. Dort steht `"test_command": ""`. Tragt euren echten Testbefehl ein, bevor ihr committet: ein Wort, etwa `"test_command": "./run-tests"`, oder zwei bei `npm`, `yarn` und `go`, etwa `"npm test"`. Für `make test` schreibt ihr ein Skript `run-tests` mit `exec make test`, ohne `"$@"`, und tragt `^run-tests$` in `protected_paths` ein. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. Den Vorschlag kann euch auch `init` machen, siehe [Vorlage](../../02-agent-factory/einrichtung/factory/README.md#erste-einrichtung-mit-init). Das kostet einen Aufruf, höchstens 40 Credits.
+- Aus dem Testbefehl wird die Erlaubnis für den ganzen Befehl: Aus `./run-tests` wird `shell(./run-tests:*)`. Copilot passt eine Erlaubnis nur auf ein Wort, oder zwei bei `npm`, `yarn` und `go`. Bei `make test` stoppt `build` deshalb vor dem Aufruf. Die Erlaubnis ist keine Grenze: Der Agent darf Argumente anhängen, euer Skript ignoriert sie. `bash -c …`, `&&`, `|` und Anführungszeichen lehnt das Skript im Testbefehl ab. Braucht ihr so etwas, schreibt es ins Skript.
 - `local.json` hat nur Einstellungen eures Rechners, etwa `model`. Euren Stack beschreibt ihr in `AGENTS.md`. Copilot liest die Datei selbst.
 
 ```bash
@@ -205,13 +205,13 @@ python3 -I factory/agentic-factory.py build --ticket-file ~/factory-tickets/LL-1
 
 `<name>` ist der Ordner aus Schritt 7: bei OpenSpec `openspec/changes/<name>/`, bei Spec Kit `specs/<NNN>-<name>/`. Ohne `--change` stoppt `build` mit `several specs found`, sobald es mehr als einen Spec-Ordner gibt.
 
-**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste euer ganzer Testbefehl, etwa `shell(make test:*)`, dann Aufrufe wie `bash make test 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
+**Das seht ihr:** `[agentic-factory] building change <name> (… spec files)`, in der Werkzeug-Liste euer ganzer Testbefehl, etwa `shell(./run-tests:*)`, dann Aufrufe wie `bash ./run-tests 2>&1 | tail -30`. Am Ende die geänderten Dateien und ``[agentic-factory] next: review `git diff`, run the tests yourself, and commit by hand``.
 
 ## 10. Freigabe 2: Ihr lest den Diff
 
 ```bash
 git diff
-make test      # oder euer Testbefehl aus config.json
+./run-tests   # oder euer Testbefehl aus config.json
 ```
 
 Beim Bau stoppt lokal keine Prüfung den Lauf. Darum lest ihr den Diff selbst:

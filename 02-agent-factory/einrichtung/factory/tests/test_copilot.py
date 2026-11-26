@@ -10,6 +10,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -197,7 +198,13 @@ class ShellDeny(unittest.TestCase):
 
 
 class TestCommand(unittest.TestCase):
-    """The test command of config.json: the build call's test tool is derived from it."""
+    """The test command of config.json: the build call's test tool is derived from it. These are the checks of its
+    words; whether Copilot can match the rule at all is TestRule, so it is switched off here."""
+
+    def setUp(self):
+        patcher = mock.patch.object(copilot, "check_test_rule")
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def build(self, cmd, fw="openspec"):
         return copilot.plan({**FULL_CFG, "test_command": cmd}, "build", KEY, fw, TICKET, "c", "x")
@@ -355,10 +362,40 @@ DEFAULT_READ_TOOLS = ["shell(ls:*)", "shell(cat:*)", "shell(head:*)", "shell(tai
                       "shell(pwd:*)", "shell(diff:*)", "shell(stat:*)", "shell(cd:*)"]
 
 
+class TestRule(unittest.TestCase):
+    """Copilot CLI 1.0.115 matches an allow rule only on one word, or on two for npm, yarn, go, and git (tried on
+    26 Nov 2026). A test command whose rule can't match stops the build before any call."""
+
+    def build(self, cmd):
+        return copilot.plan({**FULL_CFG, "test_command": cmd}, "build", KEY, "openspec", TICKET, "c", "x")
+
+    def test_one_word_and_known_subcommands_pass(self):
+        for cmd in ("./run-checks", "./bin/phpunit", "pytest", "npm test", "yarn test", "go test"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.build(cmd)[1][-1], f"shell({cmd}:*)")
+
+    def test_rules_copilot_never_matches_stop(self):
+        for cmd in ("make test", "make check", "uv run pytest", "./bin/phpunit tests", "go test ./...",
+                    "npm run test:unit", "python3 -m pytest", "docker compose run --rm app make test"):
+            with self.subTest(cmd=cmd), self.assertRaisesRegex(
+                    config.Stop, re.escape(f"test_command {cmd!r}: Copilot CLI matches an allow rule only on one word, or "
+                                           f"on two for git, go, npm, yarn (such as npm test), so shell({cmd}:*) never "
+                                           "lets the agent run it; put the command in a one-word script such as "
+                                           "./run-checks")):
+                self.build(cmd)
+
+    def test_rule_matches(self):
+        self.assertTrue(copilot.rule_matches("openspec"))
+        self.assertTrue(copilot.rule_matches("git push"))
+        self.assertFalse(copilot.rule_matches("make lint"))
+        self.assertFalse(copilot.rule_matches("npm run test:unit"))
+        self.assertIsNone(copilot.rule_problem("npm test"))
+
+
 class ReadTools(unittest.TestCase):
     """Default read-only shell tools for the spec and build calls and their revisions (read_tools in config.json)."""
 
-    CFG = {**FULL_CFG, "test_command": "make test"}
+    CFG = {**FULL_CFG, "test_command": "npm test"}
 
     def plan(self, mode, fw, cfg=None):
         return copilot.plan(cfg or self.CFG, mode, KEY, fw, TICKET, "c", "x")[1]
@@ -383,7 +420,7 @@ class ReadTools(unittest.TestCase):
                 _, tools, _ = copilot.amend_plan(self.CFG, KEY, fw, TICKET, "c", "<<<COMMENTS\nCOMMENTS>>>",
                                                  "t.md", 2)
                 self.assertEqual(tools, [*F["spec_tools"], *DEFAULT_READ_TOOLS])
-                self.assertNotIn("shell(make test:*)", tools)
+                self.assertNotIn("shell(npm test:*)", tools)
 
     def test_dangerous_ones_absent(self):
         words = {e[len("shell("):-len(":*)")] for e in FULL_CFG["read_tools"]}
@@ -395,13 +432,13 @@ class ReadTools(unittest.TestCase):
     def test_order_test_tool_last(self):
         for fw, F in FULL_CFG["frameworks"].items():
             self.assertEqual(self.plan("spec", fw), [*F["spec_tools"], *DEFAULT_READ_TOOLS])
-            self.assertEqual(self.plan("build", fw), [*F["build_tools"], *DEFAULT_READ_TOOLS, "shell(make test:*)"])
+            self.assertEqual(self.plan("build", fw), [*F["build_tools"], *DEFAULT_READ_TOOLS, "shell(npm test:*)"])
 
     def test_empty_read_tools_add_nothing(self):
         cfg = {**self.CFG, "read_tools": []}
         self.assertEqual(self.plan("spec", "openspec", cfg), FULL_CFG["frameworks"]["openspec"]["spec_tools"])
         self.assertEqual(self.plan("build", "openspec", cfg),
-                         [*FULL_CFG["frameworks"]["openspec"]["build_tools"], "shell(make test:*)"])
+                         [*FULL_CFG["frameworks"]["openspec"]["build_tools"], "shell(npm test:*)"])
 
     def test_non_shell_entry_stops(self):
         for entry in ("write", "shell", "read", "ls", "url(example.com)", "powershell(ls:*)", "shell(ls:*", 7):
@@ -544,14 +581,14 @@ class AgentsMd(unittest.TestCase):
     def test_missing_rules_stop_instead_of_the_lab_copy(self):
         for name, mode in (("spec_rules", "spec"), ("build_rules", "build")):
             cfg = {k: v for k, v in FULL_CFG.items() if k != name}
-            cfg["test_command"] = "make test"
+            cfg["test_command"] = "npm test"
             with self.subTest(name=name), self.assertRaisesRegex(config.Stop, f"config.json has no {name}"):
                 copilot.plan(cfg, mode, KEY, "openspec", dict(TICKET), "lower-tags", None)
 
     def test_build_prompt_has_the_configured_test_command_and_agents_md(self):
-        cfg = {**FULL_CFG, "test_command": "make test"}
+        cfg = {**FULL_CFG, "test_command": "npm test"}
         prompts, _, _ = copilot.plan(cfg, "build", KEY, "openspec", dict(TICKET), "lower-tags", None)
-        self.assertIn("Run the tests with exactly: make test.", prompts[0])
+        self.assertIn("Run the tests with exactly: npm test.", prompts[0])
         self.assertNotIn("phpunit", prompts[0])
         self.assertTrue(prompts[0].endswith(AGENTS_LINE))
 

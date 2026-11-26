@@ -58,7 +58,7 @@ python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-12
 - **Der Ordner muss `factory/` heißen und im Wurzelordner eures Repos liegen,** als `<Repo>/factory/agentic-factory.py`. Sonst stoppt das Skript vor jedem Aufruf, etwa mit `agentic-factory.py is in …/tools, not in a folder named factory/` oder `… is not the top folder of a git repository`. Das Projekt ist das Repository um diesen Ordner. Starten könnt ihr das Skript aus jedem Ordner. Die Option `--repo` gibt es nicht mehr.
 - Warum fest: `config.json`, `readiness.md` und `local.json` gehören damit immer zu diesem Projekt, der geschützte Pfad `factory/` deckt sie ab, und der Skill [`schreibe-ticket`](../../werkzeuge/schreibe-ticket/README.md) findet `agentic-factory.py` und `readiness.md` dort.
 - `agentic-factory.py` liest `config.json`, `readiness.md` und `local.json` **neben sich**, nicht im aktuellen Ordner. Die Ordner `agentic_factory/` und `agentic-factory-plugin/` auch. Fehlt `agentic_factory/`, stoppt das Skript mit Exit-Code 2.
-- Euren Testbefehl tragt ihr in `config.json` ein, als `test_command`, etwa `"make test"`. `init` schlägt ihn vor. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. `assess`, `clarify` und `spec` brauchen ihn nicht. Was das Skript am Testbefehl prüft, steht unter [Der Testbefehl](#der-testbefehl).
+- Euren Testbefehl tragt ihr in `config.json` ein, als `test_command`: ein Wort, etwa `"./run-tests"`, oder zwei bei `npm`, `yarn` und `go`, etwa `"npm test"`. Für `make test` und Ähnliches schreibt ihr ein kleines Skript, siehe [Der Testbefehl](#der-testbefehl). `init` schlägt ihn vor. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. `assess`, `clarify` und `spec` brauchen ihn nicht. Was das Skript am Testbefehl prüft, steht unter [Der Testbefehl](#der-testbefehl).
 - `local.json` hat nur die Einstellungen eures Rechners. Steht dort ein älterer Schlüssel, stoppt das Skript und sagt, wohin der Wert gehört, etwa `test_command moved to config.json (key test_command); remove it from local.json`.
 - Jira-Zugangsdaten gehören nie in `local.json`, nur in die Umgebung: `JIRA_BASE_URL`, `JIRA_API_TOKEN` und für Jira Cloud `JIRA_EMAIL`. Die braucht nur `--jira api`.
 - Die Tests in `tests/` prüfen die Dateien der Vorlage. Ändert ihr `config.json`, schlagen einige fehl. Kopiert sie nur, wenn ihr den Code selbst ändern wollt.
@@ -113,8 +113,34 @@ Alles eines Projekts auf einmal: `rm -rf ~/.factory-local/<repo>/`. Danach brauc
 
 `build` braucht `test_command` in `config.json`. Das Skript macht daraus zwei Dinge:
 
-- **Die Regel im Prompt:** `Run the tests with exactly: make test.`
-- **Eine Freigabe:** der ganze Befehl als Anfang, nicht nur das erste Wort. Aus `make test` wird `shell(make test:*)`, aus `npm test` wird `shell(npm test:*)`, aus `uv run pytest` wird `shell(uv run pytest:*)`. Das ist enger als `shell(make:*)` oder `shell(uv:*)`. Weil die Freigabe auf `:*` endet, darf der Agent aber Argumente anhängen, bei Make also auch weitere Ziele, etwa `make test deploy`.
+- **Die Regel im Prompt:** `Run the tests with exactly: ./run-tests.`
+- **Eine Freigabe:** der ganze Befehl als Anfang. Aus `./run-tests` wird `shell(./run-tests:*)`, aus `npm test` wird `shell(npm test:*)`.
+
+**Ein Wort, oder zwei bei `npm`, `yarn` und `go`.** Copilot CLI 1.0.115 vergleicht eine Freigabe nur mit dem Befehl selbst, bei Werkzeugen, deren Unterbefehle er kennt, auch mit dem ersten Unterbefehl. Mit `--no-ask-user` ausprobiert, am 26. November 2026:
+
+| Freigabe | Befehl des Agenten | Ergebnis |
+|---|---|---|
+| `shell(./run-checks:*)` | `./run-checks` | läuft |
+| `shell(npm test:*)`, `shell(yarn test:*)`, `shell(go test:*)` | `npm test`, `npm test -- --ci`, `yarn test`, `go test ./...` | läuft |
+| `shell(make check:*)`, `shell(make check)` | `make check` | abgelehnt |
+| `shell(uv run:*)` | `uv run --no-project ./ok.sh` | abgelehnt |
+| `shell(./ok.sh test:*)` | `./ok.sh test` | abgelehnt |
+| `shell(go test ./...:*)`, `shell(npm run test:unit:*)` | `go test ./...`, `npm run test:unit` | abgelehnt |
+
+Eine längere Freigabe passt also nie: Der Agent dürfte die Tests nicht starten, und der Build liefe ungetestet weiter. Darum stoppt `build` bei so einem Testbefehl vor jedem Aufruf, etwa mit `test_command 'make test': Copilot CLI matches an allow rule only on one word, or on two for git, go, npm, yarn …`. Schreibt dann ein Skript im Wurzelordner, tragt es in `protected_paths` ein und nehmt es als Testbefehl:
+
+```sh
+#!/bin/sh
+# run-checks: der Testbefehl für agentic-factory.py. Ein Wort, weil Copilot nur das passt.
+exec make test   # "$@" fehlt mit Absicht: Argumente des Agenten werden ignoriert
+```
+
+```json
+"test_command": "./run-checks",
+"protected_paths": [ "…", "^run-checks$" ]
+```
+
+Das Skript ist ausführbar (`chmod +x run-checks`) und committet. Weil die Freigabe auf `:*` endet, darf der Agent Argumente anhängen. Ein Skript, das sie ignoriert, nimmt ihm das: Mit `shell(make test:*)` hätte er auch `make test deploy`, `make test CC=/bin/sh` oder `make --eval=…` starten dürfen.
 
 Vor jedem Build-Aufruf prüft das Skript den Befehl. Es stoppt bei:
 
@@ -124,9 +150,10 @@ Vor jedem Build-Aufruf prüft das Skript den Befehl. Es stoppt bei:
 - einem Befehl ohne festes Ziel, etwa `python3` allein,
 - Optionen eines Wrappers wie `timeout` oder `uv run`, die nicht die Form `--opt=value` haben,
 - einem Befehl, den ein Eintrag in `deny_tools` trifft. Ein Verbot schlägt jede Freigabe,
-- einer Liste statt eines Textes, wie in alten Konfigurationen: `test_command must be a string such as "make test"`.
+- einer Liste statt eines Textes, wie in alten Konfigurationen: `test_command must be a string such as "make test"`,
+- einer Freigabe, die Copilot nie passt, siehe oben.
 
-Braucht euer Test mehr, schreibt ein Skript oder ein Make-Ziel und tragt das ein. Diese Prüfung fängt Fehler in der Konfiguration. Eine Sicherheitsgrenze ist sie nicht, siehe [Sicherheit](#sicherheit-was-ihr-wissen-müsst).
+Braucht euer Test mehr, schreibt ein Skript und tragt das ein. Diese Prüfung fängt Fehler in der Konfiguration. Eine Sicherheitsgrenze ist sie nicht, siehe [Sicherheit](#sicherheit-was-ihr-wissen-müsst).
 
 **Zeit.** Jeder Copilot-Aufruf darf höchstens `agent_timeout_s` Sekunden laufen, in der Vorlage 1200, also 20 Minuten. Der Build-Aufruf startet die Tests oft mehrmals. Dauern eure Tests lange, erhöht den Wert in `config.json`.
 
@@ -183,7 +210,8 @@ python3 -I factory/agentic-factory.py init --print-only  # nur den Copilot-Befeh
   - jeden `git`-Befehl,
   - Befehle, die Dateien schreiben oder Befehle starten können: `find`, `sed`, `awk`, `rg`, `tree`, `sort`, `tar`, `docker`, `podman`.
 - Paketmanager nimmt es nur mit Test- und Run-Befehlen an: `npm`, `pnpm`, `yarn`, `bun` mit `test`, `t`, `tst` oder `run`; `uv`, `poetry`, `pipenv`, `pdm`, `hatch`, `rye` mit `run`; `cargo` mit `test`, `build`, `check`, `clippy` oder `fmt`; `go` mit `test`, `build` oder `vet`; `composer` mit `test` oder `run-script`. Für `bundle`, `gem` und `pip` nichts. Davor stehen nur Optionen der Form `--opt=value`.
-- Ein vorgeschlagener Testbefehl durchläuft dieselben Prüfungen wie einer von Hand, siehe [Der Testbefehl](#der-testbefehl). `uv run pytest` geht also, obwohl `shell(uv:*)` abgelehnt wäre. Dazu prüft `init` ihn gegen die Liste oben, nur ohne die Regel für Interpreter. Einen Testbefehl wie `docker compose run --rm test` lehnt `init` deshalb ab. Den tragt ihr von Hand ein.
+- Ein vorgeschlagener Testbefehl durchläuft dieselben Prüfungen wie einer von Hand, siehe [Der Testbefehl](#der-testbefehl). `npm test` geht also, obwohl `shell(npm:*)` zu breit wäre. `uv run pytest` lehnt es ab: Die Freigabe passt Copilot nie.
+- Werkzeuge, deren Freigabe Copilot nie passt, lehnt es ab: mehr als ein Wort, außer zwei bei `npm`, `yarn` und `go`. `shell(make lint:*)` sähe aus wie eine Lösung und änderte nichts. Dazu prüft `init` ihn gegen die Liste oben, nur ohne die Regel für Interpreter. Einen Testbefehl wie `docker compose run --rm test` lehnt `init` deshalb ab. Den tragt ihr von Hand ein.
 - Geschützte Pfade: höchstens 200 Zeichen, ohne Leer- und Steuerzeichen, höchstens 20 neue pro Lauf.
 - Ein neues Verbot darf keinen der `read_tools` und nicht den Testbefehl treffen.
 - `readiness_md` muss jede bisherige Kriterium-ID behalten. Steuerzeichen und Zeichen für die Schreibrichtung lehnt das Skript ab.
@@ -211,7 +239,7 @@ Copilot läuft unbeaufsichtigt (`--no-ask-user`). Alles ohne Freigabe lehnt er a
 Ein ausgedachtes Beispiel, gekürzt:
 
 ```json
-{"at": "2026-11-25T10:00:00+0100", "run": "20261125-095800-build-LL-123", "mode": "build", "framework": "openspec", "key": "LL-123", "call": "1", "tool": "bash", "command": "cd src && make lint", "kind": "denied", "message": "Permission denied because no interactive user response was available. …", "allowed": ["read", "write", "shell(openspec:*)", "…", "shell(make test:*)"]}
+{"at": "2026-11-25T10:00:00+0100", "run": "20261125-095800-build-LL-123", "mode": "build", "framework": "openspec", "key": "LL-123", "call": "1", "tool": "bash", "command": "cd src && make lint", "kind": "denied", "message": "Permission denied because no interactive user response was available. …", "allowed": ["read", "write", "shell(openspec:*)", "…", "shell(./run-tests:*)"]}
 ```
 
 So gebt ihr die Datei weiter:
@@ -333,7 +361,7 @@ src/Tags.php
 tests/TagsTest.php
 ```
 
-Testbefehl make test: bestanden.
+Testbefehl ./run-tests: bestanden.
 
 Wollt ihr etwas ändern, antwortet mit einem Kommentar, der mit [Mensch] beginnt. Der nächste Lauf von build arbeitet ihn ein.
 
@@ -425,12 +453,13 @@ Die beiden Dateien legen fest, was der Agent darf und wann ein Ticket bereit ist
 - **Eure Umgebung:** Copilot bekommt alle eure Umgebungsvariablen, nur die drei Jira-Variablen nicht. Code, den der Agent startet, etwa Tests oder Skripte von BMad und Spec Kit, läuft mit derselben Umgebung und eurer Anmeldung, auch bei git. Darum die Shell ohne andere Tokens.
 - **BMad darf beliebigen Code starten:** `shell(uv:*)` gilt beim Spec schreiben und beim Bauen. Mit `uv` startet der Agent jedes Python-Programm. Beim Bauen darf BMad außerdem selbst committen. OpenSpec und Spec Kit haben keinen solchen Freibrief.
 - **Der Agent kann ändern, was er starten darf:** Er darf Dateien schreiben, also auch euer Testskript, die Skripte unter `.specify/` oder euer `Makefile`, und sie danach starten. Ein Ticket-Text, der ihn dazu bringt, führt so eigenen Code aus. Das Skript warnt erst nach dem Lauf, mit `WARNING: protected paths changed`, wenn sich ein geschützter Pfad geändert hat, etwa `.specify/` oder `.github/`. Ein geändertes `Makefile` meldet es nicht, außer ihr nehmt es in `protected_paths` auf.
-- **Die Prüfung des Testbefehls ist keine Sicherheitsgrenze.** Sie fängt Fehler in der Konfiguration. Die Freigabe `shell(make test:*)` endet aber auf `:*`: Der Agent darf Argumente anhängen, bei Make also weitere Ziele. Und die Tests führen Code aus, den der Agent geschrieben hat.
+- **Die Prüfung des Testbefehls ist keine Sicherheitsgrenze.** Sie fängt Fehler in der Konfiguration. Die Freigabe endet auf `:*`: Der Agent darf Argumente anhängen. Ignoriert euer Testskript sie nicht, startet er darüber mehr als die Tests. Und die Tests führen Code aus, den der Agent geschrieben hat.
 - **`npm` ist nicht ganz verboten.** `deny_tools` verbietet `npm install`, `npm i`, `npm ci`, `npm exec` und `npx`, sonst liefe `npm test` nicht. Ein Verbot schlägt jede Freigabe. Andere Paketmanager verbietet die Vorlage nicht. `init` kann Verbote für euren Stack vorschlagen.
 - **Lesende Befehle in `spec` und `build`.** Jeder Aufruf dieser Schritte bekommt die `read_tools` aus `config.json`, auch die Aufrufe, die eine Spec oder einen Build nach `[Mensch]`-Kommentaren überarbeiten: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `pwd`, `diff`, `stat` und `cd`, je als `shell(<befehl>:*)`. Die Bereitschaftsprüfung, `clarify` und `init` bekommen sie nicht: Sie haben keine Shell.
 - **Was in `read_tools` fehlt, mit Absicht.** Diese Befehle sehen lesend aus, können aber schreiben oder Befehle starten: `find` (`-exec`, `-delete`), `sed` (`-i`), `awk` (`system()`), `xargs`, `rg` (`--pre`), `tree` (`-o`), `sort` (`-o`). Auch kein `git`-Befehl: `git diff`, `git log` und `git show` schreiben mit `--output=` Dateien, und `.git/config` kann jeden `git`-Aufruf zum Start von Code machen, auch `git status`. Eine Freigabe passt immer auf den Anfang eines Befehls. Eine gefährliche Option lässt sich also nicht einzeln verbieten. Braucht euer Agent `find`, tragt ihr `shell(find:*)` von Hand in `read_tools` ein. Dann kann er über `find` auch Dateien löschen (`-delete`) und Befehle starten (`-exec`).
 - **`cat` und `grep` lesen auch außerhalb des Projekts,** etwa in eurem Home-Ordner. Copilots eigenes Lese-Werkzeug kann das nicht. Kopiert der Agent so etwas in eine Spec, fängt es nur der Token-Scan vor dem Posten.
-- **Lesende Befehle ohne Freigabe.** Copilot kann in `spec` und `build` auch lesende Befehle außerhalb der Freigabe ausführen. Ein Verbot von `shell` würde dort alle Shell-Werkzeuge mit abschalten.
+- **`cat` schreibt auch.** Mit einer Umleitung legt `cat > datei <<EOF` Dateien an oder hängt an (`>>`), im Projekt und außerhalb. Das lässt `shell(cat:*)` zu. Im OroCommerce-Test hat ein amend-Aufruf so `tasks.md` ergänzt. Im Projekt sieht das Skript die Änderung nach dem Aufruf, außerhalb nicht. Wollt ihr das nicht, nehmt `cat`, `head` und `tail` aus `read_tools`: Copilots Lese-Werkzeug liest Dateien im Projekt auch ohne sie.
+- **Lesende Befehle ohne Freigabe.** Copilot kann in `spec` und `build` auch lesende Befehle außerhalb der Freigabe ausführen. Im OroCommerce-Test liefen so `find`, `git log` und `git status`, obwohl `read_tools` sie mit Absicht weglässt. Ein Verbot von `shell` würde dort alle Shell-Werkzeuge mit abschalten.
 - **`.git/`:** Eine geänderte `.git/config` oder ein neuer Hook kann jeden `git`-Befehl zum Start von Code machen. Das Skript startet git deshalb ohne fsmonitor, Hooks, externen Diff und Pager. Es vergleicht `.git/config`, `config.worktree`, die Hooks und eingebundene Konfigurationsdateien vor jedem `git`-Befehl und nach jedem Copilot-Aufruf mit dem Stand beim Start. Ändert sich etwas, stoppt es vor dem nächsten `git`-Befehl: `the work call changed .git/config; nothing is posted. … inspect these files with cat and ls before you run any git command`. Bindet `.git/config` eine Datei im Projekt ein (`include.path`), stoppt es vor dem ersten Aufruf. Das ist zusätzlicher Schutz, keine Grenze.
 - **Ignorierte Dateien:** Das Skript vergleicht nur, was `git status` zeigt. Änderungen in ignorierten Dateien, etwa `.env`, sieht es nicht.
 - **Die Ereignisse von Copilot:** `blocked.jsonl`, die Shell-Prüfung und die Testzeile lesen die JSON-Ereignisse von Copilot CLI 1.0.115. Sehen sie anders aus oder meldet Copilot eine andere Version, schreibt das Skript `WARNING: Copilot … events not recognized` oder `WARNING: Copilot … is not the tested 1.0.115`. Dann kann es dort etwas übersehen.

@@ -31,6 +31,11 @@ POWERSHELL_CODE_FLAGS = ("command", "encodedcommand")  # PowerShell accepts any 
 WRAPPERS = {"env", "timeout", "nice", "nohup", "sudo", "xargs", "exec", "command", "busybox"}
 RUNNERS = {"uv", "poetry", "pipenv", "pdm", "hatch", "rye"}  # "<runner> run" is a wrapper too
 NUMBER = re.compile(r"\d+(\.\d+)?[smhd]?")  # timeout 60, timeout 1.5s
+# Copilot CLI 1.0.115 matches an allow rule shell(<prefix>:*) only on the command, or on the command and one subcommand
+# for the CLIs it knows. Tried on 26 Nov 2026 with --no-ask-user: shell(npm test:*), shell(yarn test:*),
+# shell(go test:*), and shell(git status:*) let their commands run; shell(make check:*), shell(uv run:*),
+# shell(./run.sh test:*), shell(go test ./...:*), and shell(npm run test:unit:*) never did.
+SUBCOMMAND_CLIS = {"npm", "yarn", "go", "git"}
 
 
 def base_name(word):
@@ -92,7 +97,8 @@ def ends_open(rest):
 def check_test_command(cmd):
     """Stops unless cmd is plain words: no shell syntax, no environment assignment, and no interpreter running inline
     code (bash -c, python -c, node -e, ...), because the build call's tool is the whole command as a prefix. A
-    misconfiguration check, not a security boundary: the prefix lets the agent append arguments anyway."""
+    misconfiguration check, not a security boundary: the prefix lets the agent append arguments anyway. Whether Copilot
+    can match the prefix at all is check_test_rule."""
     words = cmd.split(" ")
     if not cmd or "" in words:
         raise config.Stop(f"test_command {cmd!r}: words must be separated by single spaces, with no leading or trailing space")
@@ -120,6 +126,30 @@ def check_test_command(cmd):
                               f"{words[start]!r} with nothing after it lets the agent supply the code or module")
 
 
+def rule_matches(prefix):
+    """Whether Copilot would ever let a command through an allow rule shell(<prefix>:*): one word, or two words when
+    the first is a CLI whose subcommands Copilot knows (SUBCOMMAND_CLIS). A longer rule never matches."""
+    words = prefix.split(" ")
+    return len(words) == 1 or (len(words) == 2 and words[0] in SUBCOMMAND_CLIS)
+
+
+def rule_problem(prefix):
+    """Why shell(<prefix>:*) can't work, or None."""
+    if rule_matches(prefix):
+        return None
+    return (f"Copilot CLI matches an allow rule only on one word, or on two for {', '.join(sorted(SUBCOMMAND_CLIS))} "
+            f"(such as npm test), so shell({prefix}:*) never lets the agent run it")
+
+
+def check_test_rule(cmd):
+    """Stops unless Copilot can match the test command's allow rule (rule_matches). Without this, every test run of the
+    agent is denied, and the build goes on untested."""
+    problem = rule_problem(cmd)
+    if problem:
+        raise config.Stop(f"test_command {cmd!r}: {problem}; put the command in a one-word script such as ./run-checks "
+                          "that ignores its arguments, protect it in protected_paths, and use that")
+
+
 def test_tool(cmd):
     """The one tool a build call gets for the test command: the whole command as a prefix."""
     return f"shell({cmd}:*)"
@@ -142,6 +172,7 @@ def build_test_command(cfg):
     if not cmd:
         raise config.Stop("set test_command in config.json (or run init)")
     check_test_command(cmd)
+    check_test_rule(cmd)
     entry = denied_by(cmd, cfg["deny_tools"])
     if entry:
         raise config.Stop(f"test_command {cmd!r} is covered by {entry} in deny_tools, which beats every allow; "

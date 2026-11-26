@@ -53,7 +53,7 @@ Diese Seite sagt, was sich an `agentic-factory.py` gegenüber `local.py` und der
 |---|---|
 | Die `config.json` des Labs: Symfony und PHP, `./bin/phpunit` und die Schlüssel der Pipeline von factory-base | Ohne Annahmen über euren Stack. Die Schlüssel, die nur die Pipeline las, sind weg. Die Tabelle unter [A: von `local.py`](#a-von-localpy) nennt jeden |
 | `test_command` in `config.json` als Liste `["./bin/phpunit"]`. `local.json` kann es als Text überschreiben | `test_command` steht nur in `config.json`, als Text, zum Start leer. Ohne ihn stoppt `build` |
-| Die Freigabe für den Testbefehl ist sein erstes Wort: Aus `make test` wird `shell(make:*)` | Die Freigabe ist der ganze Befehl als Anfang: `shell(make test:*)`. Vor jedem Build prüft das Skript den Befehl, etwa auf `bash -c` oder `&&`, siehe [Der Testbefehl](README.md#der-testbefehl) |
+| Die Freigabe für den Testbefehl ist sein erstes Wort: Aus `make test` wird `shell(make:*)` | Die Freigabe ist der ganze Befehl als Anfang. Der Befehl ist ein Wort, etwa `./run-tests`, oder zwei bei `npm`, `yarn` und `go`, etwa `npm test`: Längere passt Copilot nie. Für `make test` schreibt ihr ein Skript. Vor jedem Build prüft das Skript den Befehl, etwa auf `bash -c` oder `&&`, siehe [Der Testbefehl](README.md#der-testbefehl) |
 | `build_rules` und jede Liste `build_tools` nennen `./bin/phpunit` | `build_rules` hat den Platzhalter `{test_command}`. `build_tools` nennt keinen Testbefehl: Das Skript hängt ihn an |
 | `stack_hint` in `local.json` ersetzt „Use the existing Symfony 7 / PHP stack and PHPUnit“ im Plan-Prompt von Spec Kit | Der Plan-Prompt sagt „Use the existing stack and test setup; no new dependencies.“ Euren Stack beschreibt ihr in `AGENTS.md` |
 | `local.json`: `test_command`, `stack_hint`, `model`, `copilot` | `local.json`: `model`, `copilot`, `jira_mcp_server`, `jira_site`. Ein alter Schlüssel stoppt das Skript |
@@ -141,7 +141,7 @@ Ihr habt `local.py` mit `config.json`, `readiness.md` und vielleicht `local.json
    [agentic-factory] STOP: …/factory/local.json: stack_hint moved to AGENTS.md (describe the stack there), test_command moved to config.json (key test_command); remove it from local.json
    ```
 
-5. Tragt die Werte um, wie die Tabelle unten sagt. `test_command` kommt als Text in `config.json`, etwa `"test_command": "make test"`. Den Text von `stack_hint` schreibt ihr in `AGENTS.md`. Dann löscht ihr beide Schlüssel aus `local.json`. Eure Änderungen an `config.json` übertragt ihr von Hand in die neue Datei.
+5. Tragt die Werte um, wie die Tabelle unten sagt. `test_command` kommt als Text in `config.json`, ein Wort oder zwei bei `npm`, `yarn` und `go`, etwa `"test_command": "./run-tests"`. War es `make test`, schreibt ihr dafür ein Skript, siehe [Der Testbefehl](README.md#der-testbefehl). Den Text von `stack_hint` schreibt ihr in `AGENTS.md`. Dann löscht ihr beide Schlüssel aus `local.json`. Eure Änderungen an `config.json` übertragt ihr von Hand in die neue Datei.
 6. Startet `python3 -I factory/agentic-factory.py init --print-only` noch einmal. Jetzt zeigt es den Copilot-Befehl und endet mit Exit-Code 0.
 7. Startet `init` ohne `--print-only` und lest den Bericht. Passt er, startet `init --apply`. Das schreibt genau diese Vorschläge in `config.json` und `readiness.md`, ohne neuen Aufruf. Der Lauf ohne `--apply` kostet bis zu 40 Credits, `--apply` kostet nichts. Dann `git diff factory/`. Mehr steht unter [Erste Einrichtung mit `init`](README.md#erste-einrichtung-mit-init).
 8. Richtet den Jira-MCP ein, einmal pro Rechner. Das ist neu für euch, `local.py` kannte nur REST:
@@ -161,7 +161,7 @@ Läuft in eurem Repo die Pipeline von factory-base aus demselben Ordner `factory
 
 | Alter Schlüssel | Neuer Ort |
 |---|---|
-| `local.json` `test_command`, etwa `"make test"` | `config.json` `test_command`, als Text. Die Freigabe wird `shell(make test:*)` statt `shell(make:*)` |
+| `local.json` `test_command`, etwa `"make test"` | `config.json` `test_command`, als Text: ein Skript wie `./run-tests`, das `make test` startet. Die Freigabe wird `shell(./run-tests:*)` statt `shell(make:*)` |
 | `local.json` `stack_hint` | `AGENTS.md` |
 | `local.json` `model`, `copilot` | Bleiben in `local.json` |
 | – | `local.json` `jira_mcp_server` (Standard `atlassian`) und `jira_site`, für `--jira mcp` |
@@ -248,7 +248,7 @@ Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test
 - **Tickets aus der früheren Vorlage (B).** Ein Spec-Kommentar von damals hat keine `Spec-Prüfsumme`. Eine Überarbeitung klappt trotzdem. Änderungen von Hand erkennt das Skript dann aber nicht: `note: comment … has no Spec-Prüfsumme, so hand edits since then can't be told`. Die Kopie der Spec fehlt auch, der Kommentar zeigt die ganze Spec ohne Diff. Ein Build-Kommentar von damals hat keinen `Start-Commit`. Ein neuer `build` stoppt deshalb: `the build comment … names no Start-Commit, so the first build can't be found; run build --fresh`.
 - **Alte Schlüssel stoppen.** `test_command` oder `stack_hint` in `local.json` stoppen jeden Lauf, wie in Schritt 4. Ein Block `rules` in `config.json` auch (B).
 - **`build` braucht `test_command`.** Ohne ihn stoppt er mit `set test_command in config.json (or run init)`.
-- **Die Freigabe für den Testbefehl ist enger:** `shell(make test:*)` statt `shell(make:*)`. Weil sie auf `:*` endet, darf der Agent aber Argumente anhängen.
+- **Die Freigabe für den Testbefehl ist enger:** `shell(./run-tests:*)` statt `shell(make:*)`. Der Testbefehl ist ein Wort, oder zwei bei `npm`, `yarn` und `go`. Weil die Freigabe auf `:*` endet, darf der Agent Argumente anhängen; euer Skript ignoriert sie.
 - **`spec` und `build` dürfen lesende Befehle starten:** die `read_tools`, also `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `pwd`, `diff`, `stat` und `cd`.
 - **`npm test` geht jetzt.** `npm install` bleibt verboten. `composer` verbietet die Vorlage nicht mehr.
 - **Abgelehnte Aufrufe sammeln sich** in `~/.factory-local/<repo>/blocked.jsonl`. Gebt die Datei an `init` oder an die Person, die `config.json` pflegt.

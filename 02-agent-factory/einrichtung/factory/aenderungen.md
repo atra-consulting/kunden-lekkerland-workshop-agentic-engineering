@@ -112,6 +112,20 @@ Die frühere `agentic-factory.py` hatte schon Kommentare in Jira, `clarify`, die
 - **Neu:** `init`, `blocked.jsonl`, `read_tools`, das Überarbeiten von Spec und Build und `--fresh`.
 - **Die `[KI]`-Kommentare von `spec` und `build`** haben neue Zeilen: `Spec-Prüfsumme`, bei `build` auch `Start-Commit`, bei Überarbeitungen `Bearbeitet`. Neue Marker: `spec überarbeitung=<n>` und `build überarbeitung=<n>`.
 
+### Nach dem OroCommerce-Test (26. November 2026)
+
+Ein Test auf OroCommerce 7.0.4 mit echten Jira-Tickets hat Fehler gezeigt. Was sich dadurch geändert hat:
+
+- **Der Ordner heißt `factory/`,** im Workshop-Repo wie in eurem Projekt. Das Skript läuft nur aus `factory/` im Wurzelordner des Repos. Sonst stoppt es vor jedem Aufruf. `--repo` ist weg.
+- **Der Testbefehl ist ein Wort, oder zwei bei `npm`, `yarn` und `go`.** Copilot CLI 1.0.115 passt `shell(make test:*)` nie: Im Test lief kein einziger Test, der Build lief trotzdem weiter. `build` stoppt jetzt vor dem Aufruf. Habt ihr `make test` oder `uv run pytest` eingetragen, schreibt ein Skript wie `./run-tests`, siehe [Der Testbefehl](README.md#der-testbefehl). `init` schlägt solche Befehle und Werkzeuge nicht mehr vor.
+- **Abgelehnte Tests heißen so.** Lehnt Copilot den Testbefehl ab, sagt der Kommentar `abgelehnt, nicht ausgeführt` statt `fehlgeschlagen`, und das Skript warnt.
+- **Die Marker von `clarify` zählen nur unbearbeitet und vom Konto der Runde 1.** Ein bearbeiteter Übergabe-Kommentar hielt im Test die Klärung an.
+- **`build` nimmt den Change aus dem Spec-Kommentar,** wenn es mehrere Spec-Ordner gibt.
+- **Eine abgelaufene Jira-Anmeldung** nennt das Skript jetzt beim Namen, statt `no result`.
+- **`agent_timeout_s` beendet den ganzen Aufruf,** auch Prozesse, die Copilot gestartet hat. Im Test lief ein Aufruf 1.699 statt 1.200 Sekunden.
+- **Die Doku zu Kosten:** `--print-only` und „nichts Neues“ kosten über den Jira-MCP die Jira-Aufrufe.
+
+
 ## Umsteigen
 
 Beide Wege enden gleich: `factory/` hat die Dateien dieser Vorlage und eure Werte, `init` ist einmal gelaufen, ein Testlauf ohne Jira hat geklappt. `<dieser Ordner>` steht für diesen Ordner im Workshop-Repo. Für den Testlauf braucht ihr eine Ticket-Datei, etwa `~/factory-tickets/LL-123.json`:

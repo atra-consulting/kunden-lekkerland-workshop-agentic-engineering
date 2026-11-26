@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -633,3 +634,22 @@ class AgentsMd(unittest.TestCase):
         cfg = {**FULL_CFG, "protected_paths": ["^tools/"]}  # as init may add it, without (?i)
         self.assertEqual(copilot.protected_hits(cfg, ["Tools/x.sh", "src/tools/x", "FACTORY-QUESTIONS.md"]),
                          ["Tools/x.sh"])
+
+
+@unittest.skipIf(os.name == "nt", "process groups are POSIX")
+class RunCallTimeout(unittest.TestCase):
+    """agent_timeout_s ends the whole call: in the OroCommerce test a stalled call ran 1,699 s past its 1,200 s limit.
+    A child of Copilot that keeps stdout open must not keep the read loop alive."""
+
+    def test_timeout_kills_the_children_too(self):
+        d = Path(tempfile.mkdtemp(prefix="af-timeout-"))
+        self.addCleanup(shutil.rmtree, d, True)
+        fake = d / "copilot.py"
+        fake.write_text("import subprocess, sys, time\n"
+                        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])  # inherits stdout\n"
+                        "print('{\"type\": \"session.start\", \"data\": {}}', flush=True)\n"
+                        "time.sleep(60)\n", encoding="utf-8")
+        start = time.monotonic()
+        rc, _, _ = copilot.run_call([sys.executable, str(fake)], d, dict(os.environ), d / "events.jsonl", 1)
+        self.assertLess(time.monotonic() - start, 15)
+        self.assertEqual(rc, "timeout")

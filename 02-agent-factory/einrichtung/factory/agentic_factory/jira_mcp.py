@@ -166,7 +166,11 @@ def check_jira_call(ev, expect, hook_log_path):
         if not isinstance(got, str) or got.rstrip("\n") != want.rstrip("\n"):
             raise config.Stop(f"the body {tool} sent as {expect['body_arg']} differs from {expect['body_file']}{suffix}")
     if not c["ok"]:
-        raise config.Stop(copied.redact(f"{tool} failed for {who}: {str(c['raw'] or 'no result')[:300]}") + suffix)
+        why = c.get("raw") or c.get("error") or "no result"
+        if c.get("failure") == "auth_required":
+            suffix = ("; the Atlassian login of Copilot has expired: run copilot, then /mcp, the server, Authenticate, "
+                      "and /exit, and start again") + suffix
+        raise config.Stop(copied.redact(f"{tool} failed for {who}: {str(why)[:300]}") + suffix)
     return raw_json(c["raw"])
 
 

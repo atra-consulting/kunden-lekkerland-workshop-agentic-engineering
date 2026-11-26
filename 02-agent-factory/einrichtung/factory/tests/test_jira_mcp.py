@@ -306,12 +306,32 @@ class McpEvents(unittest.TestCase):
         self.assertEqual(ev["version"], "1.0.999")
         self.assertEqual(ev["calls"], [
             {"id": "a", "tool": "tool_search_tool", "args": {"pattern": "x"}, "ok": True, "raw": "found x",
-             "denied": False},
+             "denied": False, "error": None, "failure": None},
             {"id": "b", "tool": "atlassian-getJiraIssue", "args": {"k": 1}, "ok": True, "raw": '{"id": "2"}',
-             "denied": False},
-            {"id": "c", "tool": "bash", "args": {"command": "ls"}, "ok": False, "raw": None, "denied": False},
-            {"id": "d", "tool": "bash", "args": {"command": "rm"}, "ok": False, "raw": None, "denied": True}])
+             "denied": False, "error": None, "failure": None},
+            {"id": "c", "tool": "bash", "args": {"command": "ls"}, "ok": False, "raw": None, "denied": False,
+             "error": None, "failure": None},
+            {"id": "d", "tool": "bash", "args": {"command": "rm"}, "ok": False, "raw": None, "denied": True,
+             "error": "denied", "failure": None}])
         self.assertNotIn("[cost:", json.dumps(ev))
+
+    def test_expired_login_names_the_cause(self):  # OroCommerce test, F16: it said only "no result"
+        lines = [start("b", "atlassian-getJiraIssue", {"cloudId": "https://example.atlassian.net",
+                                                       "issueIdOrKey": MKEY}),
+                 ev_line("tool.execution_complete", toolCallId="b", success=False,
+                         error={"code": "failure", "message": 'MCP server "atlassian" requires authentication.'},
+                         toolTelemetry={"properties": {"failure_category": "auth_required"}})]
+        ev = copilot.mcp_events(write_events(self.d / "events.jsonl", lines))
+        self.assertEqual((ev["calls"][0]["error"], ev["calls"][0]["failure"]),
+                         ('MCP server "atlassian" requires authentication.', "auth_required"))
+        auth = [start("u", USER, {}),
+                ev_line("tool.execution_complete", toolCallId="u", success=False,
+                        error={"code": "failure", "message": 'MCP server "atlassian" requires authentication.'},
+                        toolTelemetry={"properties": {"failure_category": "auth_required"}})]
+        with self.assertRaisesRegex(config.Stop, r'atlassianUserInfo failed for the running account: MCP server '
+                                                 r'"atlassian" requires authentication\.; the Atlassian login of Copilot '
+                                                 r'has expired: run copilot, then /mcp'):
+            self.check(auth, dict(USER_EXPECT))
 
     def raw_of(self, result):
         lines = [start("a", "atlassian-getJiraIssue", {"k": 1}),

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import threading
 
@@ -404,12 +405,26 @@ def resolve_copilot(local):
     return [exe]
 
 
+def _kill_call(p, group):
+    """Ends a Copilot call: the whole process group, so a child that holds stdout (a launcher's real process, a test
+    run) can't keep the read loop waiting past the timeout. Without process groups (Windows) only the process."""
+    try:
+        if group:
+            os.killpg(p.pid, signal.SIGKILL)
+        else:
+            p.kill()
+    except OSError:
+        pass
+
+
 def run_call(argv, repo, env, events_path, timeout):
     """Start Copilot, show its tool calls live, keep the JSON events. Returns (exit code, final message, denied)."""
     final, denied = "", 0
+    group = hasattr(os, "killpg")  # POSIX: Copilot and every process it starts in a group of their own
     with open(events_path, "wb") as log, subprocess.Popen(argv, cwd=repo, env=env, stdin=subprocess.DEVNULL,
-                                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as p:
-        timer = threading.Timer(timeout, p.kill)
+                                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                                          start_new_session=group) as p:
+        timer = threading.Timer(timeout, _kill_call, (p, group))
         timer.start()
         try:
             for raw in p.stdout:
@@ -433,6 +448,8 @@ def run_call(argv, repo, env, events_path, timeout):
         finally:
             timed_out = not timer.is_alive()
             timer.cancel()
+            if p.poll() is None:  # interrupted (Ctrl-C reaches only this process now) or an error while reading
+                _kill_call(p, group)
     return ("timeout" if timed_out and rc != 0 else rc), final, denied
 
 
@@ -446,8 +463,9 @@ def credits_of(usage_file):
 # --- a call's JSON events: its tool calls, and the shell backstop -----------------------------------------------------
 
 def mcp_events(events_path):
-    """{"version", "calls": [{"id", "tool", "args", "ok", "raw", "denied"}]} from a call's JSON events. Start and
-    complete pair by toolCallId. denied: Copilot refused the call (error code "denied"), so it did nothing.
+    """{"version", "calls": [{"id", "tool", "args", "ok", "raw", "denied", "error", "failure"}]} from a call's JSON
+    events. Start and complete pair by toolCallId. denied: Copilot refused the call (error code "denied"), so it did
+    nothing. error: the failed call's error message; failure: Copilot's failure_category, such as auth_required.
     raw is the tool's own text: the text items of result.contents joined in order (the MCP server's complete answer).
     result.detailedContent is only the fallback (older Copilot): Copilot 1.0.115 cuts it off at about 10 KB, so a long
     ticket would not parse. result.content is never used: it has Copilot's cost note added.
@@ -477,18 +495,23 @@ def mcp_events(events_path):
                 except ValueError:
                     pass
             c = {"id": d.get("toolCallId"), "tool": d.get("toolName"), "args": args, "ok": False, "raw": None,
-                 "denied": False}
+                 "denied": False, "error": None, "failure": None}
             calls.append(c)
             by_id[c["id"]] = c
         elif t == "tool.execution_complete":
             c = by_id.pop(d.get("toolCallId"), None)
             if c is None:
-                c = {"id": d.get("toolCallId"), "tool": None, "args": None, "ok": False, "raw": None, "denied": False}
+                c = {"id": d.get("toolCallId"), "tool": None, "args": None, "ok": False, "raw": None, "denied": False,
+                     "error": None, "failure": None}
                 calls.append(c)
             res = d.get("result") if isinstance(d.get("result"), dict) else {}
             c["ok"] = d.get("success") is True
             err = d.get("error") if isinstance(d.get("error"), dict) else {}
             c["denied"] = not c["ok"] and err.get("code") == "denied"
+            tel = d.get("toolTelemetry") if isinstance(d.get("toolTelemetry"), dict) else {}
+            props = tel.get("properties") if isinstance(tel.get("properties"), dict) else {}
+            c["error"] = err.get("message") if not c["ok"] and isinstance(err.get("message"), str) else None
+            c["failure"] = props.get("failure_category") if isinstance(props.get("failure_category"), str) else None
             items = res.get("contents") if isinstance(res.get("contents"), list) else []
             texts = [i["text"] for i in items if isinstance(i, dict) and i.get("type") == "text"
                      and isinstance(i.get("text"), str)]

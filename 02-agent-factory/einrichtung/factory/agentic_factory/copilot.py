@@ -177,7 +177,7 @@ def rules_of(cfg, name):
     AGENTS.md sentence and with the lab's PHP test command."""
     rules = cfg.get(name)
     if not isinstance(rules, str) or not rules:
-        raise config.Stop(f"config.json has no {name}: copy it from the template's config.json")
+        raise config.Stop(f"config.json has no {name}: copy it from the workshop's factory/config.json")
     return rules
 
 
@@ -212,7 +212,7 @@ def revise_plan(cfg, key, fw, ticket, change, comments_block):
     and its extra environment. The spec rules name the change's own folder."""
     F = cfg["frameworks"][fw]
     if not isinstance(F.get("revise_prompt"), str) or not F["revise_prompt"]:
-        raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the template's config.json")
+        raise config.Stop(f"config.json has no frameworks.{fw}.revise_prompt: copy it from the workshop's factory/config.json")
     root = F["spec_root"].format(change=change)
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
             "spec_root": root, "spec_rules": rules_of(cfg, "spec_rules").format(folder=root), "key": key}
@@ -227,7 +227,7 @@ def amend_plan(cfg, key, fw, ticket, change, comments_block, task_file, revision
     and into the change's spec documents, see feedback.amend_paths)."""
     F = cfg["frameworks"][fw]
     if not isinstance(F.get("amend_prompt"), str) or not F["amend_prompt"]:
-        raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the template's config.json")
+        raise config.Stop(f"config.json has no frameworks.{fw}.amend_prompt: copy it from the workshop's factory/config.json")
     vals = {"ticket_block": ticket_mod.ticket_block(ticket), "comments_block": comments_block, "change": change,
             "task_file": task_file, "revision": revision, "key": key, "spec_root": F["spec_root"].format(change=change)}
     prompt = fill(F["amend_prompt"], vals, f"{fw} amend_prompt")

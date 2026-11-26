@@ -184,7 +184,7 @@ class RequiredKeys(unittest.TestCase):
         for key in config.REQUIRED_KEYS:
             cfg = {k: v for k, v in FULL_CFG.items() if k != key}
             with self.subTest(key=key), self.assertRaisesRegex(config.Stop, f"config.json has no key {key}; copy it "
-                                                                            "from the template's config.json"):
+                                                                            "from the workshop's factory/config.json"):
                 config.check_required(cfg, "config.json")
 
     def test_not_an_object(self):

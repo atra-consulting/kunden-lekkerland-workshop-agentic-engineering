@@ -52,7 +52,7 @@ cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/factory/{agentic-
 cp factory/local.example.json factory/local.json
 ```
 
-`agentic-factory.py` braucht nur die Python-Standardbibliothek. Aus der Factory importiert es nur sein eigenes Paket, den Ordner `agentic_factory/` daneben. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
+Der Ordner muss `factory/` heißen und im Wurzelordner eures Repos liegen. Sonst stoppt das Skript vor jedem Aufruf. `agentic-factory.py` braucht nur die Python-Standardbibliothek. Aus der Factory importiert es nur sein eigenes Paket, den Ordner `agentic_factory/` daneben. Es liest diese Dateien, und zwar neben sich, nicht im aktuellen Ordner:
 
 | Datei | Nötig? | Ohne sie |
 |---|---|---|

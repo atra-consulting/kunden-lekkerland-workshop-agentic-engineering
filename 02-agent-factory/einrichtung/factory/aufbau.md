@@ -202,7 +202,7 @@ Was ihr nach jedem Lauf prüft, steht unter [Sicherheit: Was ihr wissen müsst](
 | `agentic_factory/__init__.py` | Macht den Ordner zum Paket. Kein Code |
 | `agentic_factory/main.py` | Die Kommandozeile: Optionen, Modus und Schritt wählen, Exit-Codes |
 | `agentic_factory/config.py` | Die Basis für alle: `Stop`, `say`, gemeinsame Konstanten, `config.json` und `local.json` lesen, den Jira-Weg wählen |
-| `agentic_factory/fetch.py` | Was die drei Schritte teilen (`Run`, `in/` und `out/`), dazu der Schritt `fetch` und `me` |
+| `agentic_factory/fetch.py` | Was die drei Schritte teilen (`Run`, `in/` und `out/`), das Projekt um `factory/` (`project_of`), dazu der Schritt `fetch` und `me` |
 | `agentic_factory/agent.py` | Der Schritt `agent`: die Arbeitsaufrufe planen und starten, die Kontrolle nach jedem Aufruf, die Ergebnisse nach `out/` |
 | `agentic_factory/post.py` | Der Schritt `post`: `out/` gegen `in/` prüfen, den Kommentar bauen und posten |
 | `agentic_factory/copilot.py` | Die Copilot-Aufrufe: Prompts, Freigaben und Flags, Umgebung, Start, Ereignisse lesen, was sich im Projekt geändert hat |

@@ -1,8 +1,9 @@
 """agentic-factory.py: run the factory's Copilot calls for one Jira ticket, in your own project, and post the result
 on the ticket as a comment that starts with [KI].
 
-Usage (from anywhere inside the project's git repository; the ticket is its key or its Jira URL, such as
-https://example.atlassian.net/browse/LL-123; --key LL-123 is the long form):
+Usage (agentic-factory.py lives in factory/ at the top of the project's git repository and works on that project,
+from any folder; the ticket is its key or its Jira URL, such as https://example.atlassian.net/browse/LL-123;
+--key LL-123 is the long form):
   python3 agentic-factory.py assess  LL-123                readiness check (needs an "assess" block in config.json)
   python3 agentic-factory.py spec    LL-123 [--framework speckit] [--no-assess]
   python3 agentic-factory.py build   LL-123 [--change <name>] [--framework speckit]
@@ -79,7 +80,6 @@ def parse(argv):
     ap.add_argument("--local", default=str(config.HERE / "local.json"), help="this machine's settings (default: local.json here)")
     ap.add_argument("--readiness", help="the criteria file for both assess and clarify (default: their "
                     "criteria_file next to config.json)")
-    ap.add_argument("--repo", default=".", help="the project (default: the git repository around the current folder)")
     return ap.parse_args(argv)
 
 

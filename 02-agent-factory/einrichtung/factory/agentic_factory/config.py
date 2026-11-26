@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent  # the folder with agentic-factory.py, config.json, and agentic_factory/
+FACTORY_FOLDER = "factory"  # HERE must be <project>/factory/: fetch.project_of
 LOCAL_KEYS = {"model", "copilot", "jira_mcp_server", "jira_site"}  # machine settings only
 MOVED_KEYS = {"test_command": "config.json (key test_command)", "stack_hint": "AGENTS.md (describe the stack there)"}
 JIRA_MCP_SERVER = re.compile(r"[A-Za-z0-9_.-]{1,64}")  # local.json jira_mcp_server, default "atlassian"
@@ -40,7 +41,7 @@ def check_required(cfg, path):
         raise Stop(f"{path} must be a JSON object")
     for k in REQUIRED_KEYS:
         if k not in cfg:
-            raise Stop(f"{path} has no key {k}; copy it from the template's config.json")
+            raise Stop(f"{path} has no key {k}; copy it from the workshop's factory/config.json")
 
 
 def test_command(cfg):

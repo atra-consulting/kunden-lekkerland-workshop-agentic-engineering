@@ -48,7 +48,7 @@ Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen 
 
 ## Einrichten
 
-1. Lege in deinem Projekt den Ordner `factory/` an. Dort sucht auch der Skill `schreibe-ticket` nach `agentic-factory.py` und `readiness.md`.
+1. Lege im Wurzelordner deines Projekts den Ordner `factory/` an. Nur dort läuft `agentic-factory.py`: Liegt es in einem anderen Ordner oder tiefer im Repo, stoppt es vor jedem Aufruf. Dort sucht auch der Skill `schreibe-ticket` nach `agentic-factory.py` und `readiness.md`.
 2. Kopiere `agentic-factory.py`, `config.json`, `readiness.md`, `local.example.json` und die Ordner `agentic_factory/` und `agentic-factory-plugin/` nach `factory/`. Am einfachsten aus der [Vorlage](../einrichtung/factory/README.md) in diesem Repo:
 
    ```bash
@@ -271,7 +271,6 @@ python3 -I factory/agentic-factory.py spec    LL-123 --print-only         # nur 
 | `--step fetch`, `agent`, `post` oder `all` | Die Schritte einzeln, für die Pipeline. Standard `all`. Siehe [In der Pipeline](#in-der-pipeline-fetch-agent-post) |
 | `--io-dir <Ordner>` | Übergabe-Ordner der Schritte, mit `in/` und `out/` |
 | `--config`, `--local`, `--readiness` | Andere `config.json`, `local.json` oder `readiness.md` als die neben dem Skript |
-| `--repo <Ordner>` | Das Projekt, wenn nicht das Git-Repository um den aktuellen Ordner |
 
 - `assess` braucht kein Framework-Label. Es schreibt `FACTORY-ASSESSMENT.json` ins Repository und zeigt das Urteil. Ist es „nicht bereit“, bleibt die Datei liegen. Committe sie nicht.
 - `spec` schreibt die Spec in den Ordner des Frameworks. Danach liest du sie, änderst sie bei Bedarf und committest sie von Hand. Ein zweiter Lauf überarbeitet sie, siehe [Spec und Build überarbeiten](#spec-und-build-überarbeiten).

@@ -31,6 +31,72 @@ class EndToEnd(E2E, unittest.TestCase):
         self.assertIn("building change lower-tags", out)
         self.assertIn("src/New.php", out)
 
+    def test_instruction_files_are_listed(self):
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("instruction files Copilot loads: ['AGENTS.md']", out)
+
+    def test_personal_instructions_warn(self):
+        (self.d / "fake-instructions.json").write_text(json.dumps([
+            {"location": "repository", "sourcePath": "AGENTS.md"},
+            {"location": "User home", "sourcePath": "/home/me/.copilot/copilot-instructions.md"}]), encoding="utf-8")
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("WARNING: Copilot also loads instruction files from outside the project", out)
+        self.assertIn("/home/me/.copilot/copilot-instructions.md", out)
+
+    def test_instruction_list_failure_warns_and_runs(self):
+        (self.d / "fake-instructions.json").write_text("fail", encoding="utf-8")
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("WARNING: can't list the instruction files", out)
+
+    def test_changed_agents_md_stops_before_the_next_call(self):
+        """A later call would load the changed AGENTS.md, so the run stops after the call that changed it."""
+        cfg = {k: v for k, v in CFG.items() if k != "assess"}
+        cfg["test_command"] = "./bin/phpunit"
+        fw = cfg["frameworks"]["openspec"]
+        cfg["frameworks"] = {**cfg["frameworks"], "openspec": {**fw, "spec_prompts": [*fw["spec_prompts"]] * 2}}
+        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed protected paths or files AGENTS.md links to "
+                                                 r"\['AGENTS.md'\]; the next call"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="agents", cfg=cfg)
+        self.assertEqual(len((self.d / "calls.jsonl").read_text(encoding="utf-8").splitlines()), 1)
+
+    def two_spec_calls(self):
+        cfg = {k: v for k, v in CFG.items() if k != "assess"}
+        cfg["test_command"] = "./bin/phpunit"
+        fw = cfg["frameworks"]["openspec"]
+        cfg["frameworks"] = {**cfg["frameworks"], "openspec": {**fw, "spec_prompts": [*fw["spec_prompts"]] * 2}}
+        return cfg
+
+    def test_changed_linked_file_stops_before_the_next_call(self):
+        """The prompts tell the agent to follow the files AGENTS.md links to, so they count like AGENTS.md."""
+        (self.repo / "AGENTS.md").write_text("See [rules](docs/rules.md) and [web](https://x.example/a.md).\n",
+                                             encoding="utf-8")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs/rules.md").write_text("Be careful.\n", encoding="utf-8")
+        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed protected paths or files AGENTS.md links to "
+                                                 r"\['docs/rules.md'\]"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="linked", cfg=self.two_spec_calls())
+        shutil.rmtree(self.repo / "openspec/changes/lower-tags")
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf), mode="linked")  # one call: a warning
+        self.assertEqual(rc, 0, out)
+        self.assertIn("WARNING: files AGENTS.md links to changed: ['docs/rules.md']", out)
+
+    def test_changed_instruction_list_stops_before_the_next_call(self):
+        with self.assertRaisesRegex(config.Stop, r"call 1/2 changed the instruction files Copilot loads"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="new-instructions", cfg=self.two_spec_calls())
+
+    def test_committed_path_with_non_ascii_name_is_checked(self):
+        """git quotes such a path without -z, and a quoted path would slip past the protected patterns."""
+        with self.assertRaisesRegex(config.Stop, "call 1/2 changed protected paths .*src/\u00e4/agents.md"):
+            self.run_main("spec", "--ticket-file", str(self.tf), mode="commit-unicode", cfg=self.two_spec_calls())
+
+    def test_changed_agents_md_in_the_last_call_warns(self):
+        rc, out = self.run_main("spec", "--ticket-file", str(self.tf), mode="agents")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("WARNING: protected paths changed (the factory's check step would refuse): ['AGENTS.md']", out)
+
     def test_old_list_test_command_stops_build_before_any_call(self):
         self.run_main("spec", "--ticket-file", str(self.tf))
         (self.d / "calls.jsonl").unlink()

@@ -131,10 +131,13 @@ Braucht euer Test mehr, schreibt ein Skript oder ein Make-Ziel und tragt das ein
 
 ## Hinweise des Teams gehören in `AGENTS.md`
 
-Regeln eures Teams, etwa „minimale Änderungen, kein Refactoring nebenbei“, schreibt ihr in `AGENTS.md` im Wurzelordner eures Repos. Copilot lädt die Datei in jedem Arbeitsaufruf selbst, und die Regeln für `spec` und `build` in `config.json` sagen dem Agenten, dass er sie befolgen soll. Dort beschreibt ihr auch euren Stack: Der Plan-Prompt von Spec Kit sagt nur „Use the existing stack and test setup; no new dependencies.“
+Regeln eures Teams, etwa „minimale Änderungen, kein Refactoring nebenbei“, schreibt ihr in `AGENTS.md` im Wurzelordner eures Repos. Copilot lädt die Datei in jedem Arbeitsaufruf selbst. Die Regeln jedes Arbeitsaufrufs in `config.json` sagen dem Agenten, dass er sie und die Dateien, auf die sie verlinkt, befolgen soll, und dass bei einem Widerspruch die Regeln der Factory gewinnen. Verlinkte Dateien lädt Copilot nicht selbst: Der Agent liest sie, weil der Prompt es sagt. Dort beschreibt ihr auch euren Stack: Der Plan-Prompt von Spec Kit sagt nur „Use the existing stack and test setup; no new dependencies.“
 
 - Hat eure `config.json` noch einen Block `rules`, stoppt das Skript: `config.json has a rules block: team rules were removed; move them to AGENTS.md`.
-- `AGENTS.md` ist ein geschützter Pfad. Ändert der Agent die Datei, warnt das Skript nach dem Lauf.
+- `AGENTS.md` ist ein geschützter Pfad, auch in Unterordnern und in jeder Schreibweise. Ändert ein Aufruf sie, einen anderen geschützten Pfad oder eine Datei, auf die `AGENTS.md` verlinkt, und folgt noch ein Aufruf, stoppt das Skript vor diesem: Er würde die geänderte Datei befolgen. Es stoppt auch, wenn Copilot danach andere Anweisungs-Dateien lädt als vorher. Nach dem letzten Aufruf warnt es.
+- Copilot lädt außer `AGENTS.md` auch `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` und `.github/instructions/*.instructions.md`, auch kleingeschrieben wie `agents.md`. Haltet sie gleich oder löscht, was veraltet ist. Vor jedem Lauf nennt das Skript die Dateien, die Copilot lädt (`copilot instruction list --json`). Lädt Copilot auch Dateien von außerhalb des Projekts, etwa eure persönlichen in `~/.copilot/`, warnt es: Der Container der Factory hat sie nicht.
+- `AGENTS.md` in Unterordnern lädt Copilot nicht. Schreibt alles in die Datei im Wurzelordner oder verlinkt von dort.
+- `--no-custom-instructions` schaltet `AGENTS.md` ab. Das Skript stoppt, wenn das Flag im Befehl steht, auch mit einer alten `config.json`.
 - `init` liest `AGENTS.md` und die Dateien, auf die sie verlinkt.
 
 ## Erste Einrichtung mit `init`

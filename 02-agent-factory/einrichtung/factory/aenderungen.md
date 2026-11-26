@@ -198,7 +198,7 @@ Die Pfade von Symfony und PHP, wie factory-base sie hatte, zum Einfügen in `pro
 Ihr habt die frühere Vorlage in `factory/` kopiert, mit `regeln/` und mit `test_command` in `local.json`. Am Weg zu Jira ändert sich nichts.
 
 1. Committet alles. `git status` zeigt danach nichts mehr.
-2. Schreibt auf, was ihr übernehmt: `test_command` und `stack_hint` aus `factory/local.json`, den Text der Dateien in `factory/regeln/`, dazu eure Änderungen an `factory/config.json`. Die frühere Vorlage zeigt `git show 414cf25:02-agent-factory/einrichtung/template/config.json` im Workshop-Repo. Speichert sie, etwa als `config-alt.json`, und vergleicht: `diff config-alt.json factory/config.json`.
+2. Schreibt auf, was ihr übernehmt: `test_command` und `stack_hint` aus `factory/local.json`, den Text der Dateien in `factory/regeln/`, dazu eure Änderungen an `factory/config.json`. Die frühere Vorlage zeigt `git show 414cf25:02-agent-factory/einrichtung/factory/config.json` im Workshop-Repo. Speichert sie, etwa als `config-alt.json`, und vergleicht: `diff config-alt.json factory/config.json`.
 3. Entfernt den alten Code und die Regeln, dann kopiert die Vorlage:
 
    Löscht `agentic_factory/` vorher, sonst bleibt das alte `rules.py` liegen. Die Befehle tun das:

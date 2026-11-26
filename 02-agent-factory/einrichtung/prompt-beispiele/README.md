@@ -1,6 +1,6 @@
 # Prompt-Beispiele: die Copilot-Aufrufe der Factory
 
-Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus dem Lab, [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md): Bereitschaft prüfen, Spec schreiben, bauen, mit OpenSpec, Spec Kit und BMad. Sie zeigen, was die [Vorlage](../template/README.md) `agentic-factory.py` an Copilot schickt. Die Pipeline von `factory-base` baut dieselben Aufrufe, mit den Unterschieden unten.
+Diese Seiten zeigen jeden Copilot-Aufruf der Factory für ein echtes Ticket aus dem Lab, [FLAB-41](../../../01-erstworkshop/tag-2/demo-durchlauf.md): Bereitschaft prüfen, Spec schreiben, bauen, mit OpenSpec, Spec Kit und BMad. Sie zeigen, was die [Vorlage](../factory/README.md) `agentic-factory.py` an Copilot schickt. Die Pipeline von `factory-base` baut dieselben Aufrufe, mit den Unterschieden unten.
 
 - **Quelle:** die Ausgabe von `agentic-factory.py --print-only` aus der Vorlage in diesem Repo, mit `"test_command": "./bin/phpunit"` in `config.json`, dem Testbefehl des Labs.
 - **Stand:** 25. November 2026, Modell `claude-sonnet-5.5`.
@@ -61,7 +61,7 @@ Die rohe Ausgabe jedes Laufs liegt in [`roh/`](roh/), genau so, wie `agentic-fac
 
 ## So sind die Prompts gebaut
 
-- **Bereitschaftsprüfung:** Der Prompt enthält das Ticket und die Kriterien aus [`readiness.md`](../template/readiness.md), zwischen `<<<CRITERIA` und `CRITERIA>>>`. Der Agent darf nur lesen und eine Datei schreiben, `FACTORY-ASSESSMENT.json`. Bei `spec` ist sie immer Aufruf 1. Lautet das Urteil „nicht bereit“, startet kein weiterer Aufruf.
+- **Bereitschaftsprüfung:** Der Prompt enthält das Ticket und die Kriterien aus [`readiness.md`](../factory/readiness.md), zwischen `<<<CRITERIA` und `CRITERIA>>>`. Der Agent darf nur lesen und eine Datei schreiben, `FACTORY-ASSESSMENT.json`. Bei `spec` ist sie immer Aufruf 1. Lautet das Urteil „nicht bereit“, startet kein weiterer Aufruf.
 - **Spec:** Der erste Aufruf des Frameworks startet dessen Skill als Slash-Befehl und bekommt das Ticket zwischen `<<<TICKET` und `TICKET>>>`, ausdrücklich als Daten, nicht als Anweisung. Die folgenden Aufrufe, etwa `/speckit-plan` oder `/bmad-spec`, bekommen das Ticket nicht noch einmal. Sie arbeiten mit den Dateien, die der Aufruf davor geschrieben hat.
 - **Factory rules:** Jeder Prompt endet mit Regeln aus `config.json` (`spec_rules`, `build_rules`): in welchen Ordner der Agent schreiben darf, keine Shell-Skripte zum Bearbeiten, bei Unklarheit `FACTORY-QUESTIONS.md` statt einer Spec. Beim Bauen: genau die freigegebene Spec umsetzen, Tests mit genau dem Befehl aus `test_command`, hier `./bin/phpunit`.
 - **Bauen:** Der Prompt enthält keinen Ticket-Text und keinen Spec-Text. Er nennt nur den Spec-Ordner oder die Spec-Datei, BMad dazu den Schlüssel des Tickets. Den Inhalt liest der Agent selbst im Repo.
@@ -117,7 +117,7 @@ Alle Aufrufe dürfen `read` und `write`. Dazu:
 | Spec | `shell(openspec:*)`, `shell(mkdir:*)`, die `read_tools` | `shell(mkdir:*)` und die Skripte `create-new-feature.sh`, `setup-plan.sh`, `setup-tasks.sh`, `check-prerequisites.sh`, `resolve-template.sh` unter `.specify/scripts/bash/`, die `read_tools` | `shell(uv:*)`, `shell(mkdir:*)`, die `read_tools` |
 | Bauen | `shell(openspec:*)`, `shell(mkdir:*)`, die `read_tools`, `shell(./bin/phpunit:*)` | `shell(mkdir:*)`, `check-prerequisites.sh`, `resolve-template.sh`, die `read_tools`, `shell(./bin/phpunit:*)` | `shell(uv:*)`, `shell(mkdir:*)`, `shell(git add:*)`, `shell(git commit:*)`, `shell(git status:*)`, `shell(git diff:*)`, die `read_tools`, `shell(./bin/phpunit:*)` |
 
-- Die `read_tools` aus `config.json`: `shell(ls:*)`, `shell(cat:*)`, `shell(head:*)`, `shell(tail:*)`, `shell(wc:*)`, `shell(grep:*)`, `shell(pwd:*)`, `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`. Warum genau diese, steht in der [Vorlage](../template/README.md#sicherheit-was-ihr-wissen-müsst).
+- Die `read_tools` aus `config.json`: `shell(ls:*)`, `shell(cat:*)`, `shell(head:*)`, `shell(tail:*)`, `shell(wc:*)`, `shell(grep:*)`, `shell(pwd:*)`, `shell(diff:*)`, `shell(stat:*)`, `shell(cd:*)`. Warum genau diese, steht in der [Vorlage](../factory/README.md#sicherheit-was-ihr-wissen-müsst).
 - `shell(./bin/phpunit:*)` ist der Testbefehl aus `test_command` in `config.json`, als ganzer Befehl. Aus `make test` würde `shell(make test:*)`. In der Vorlage ist `test_command` leer: Dann stoppt `build`.
 - `shell(uv:*)` erlaubt BMad, beliebigen Python-Code zu starten. BMad darf beim Bauen auch selbst committen.
 

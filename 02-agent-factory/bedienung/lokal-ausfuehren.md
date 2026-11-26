@@ -21,7 +21,7 @@ Stand: 25. November 2026, Copilot CLI 1.0.115. Die Schritte `assess`, `spec` und
 
 - **Copilot läuft als du,** mit deinen Dateirechten. Kein eigener Benutzer, kein Container. Der Agent sieht alles, was du siehst.
 - **Keine Prüfung danach** (`check.py`). Nichts lehnt Änderungen an geschützten Pfaden ab, und nichts sucht nach Secrets oder unsichtbaren Zeichen im Diff. Das Skript warnt nur, wenn geschützte Pfade aus `config.json` geändert wurden. Lies jeden Diff mit `git diff`.
-- **Keine Freigabe zwischen Spec und Bau.** Du bist das Gate: Lies die Spec, bevor du `build` startest. Ein `[KI]`-Kommentar ist nie eine Freigabe. Die Freigabe des Codes bleibt der Review im Pull Request, wie bei Code von Hand. Siehe [Nach dem Build](../einrichtung/template/README.md#nach-dem-build-branch-pull-request-review).
+- **Keine Freigabe zwischen Spec und Bau.** Du bist das Gate: Lies die Spec, bevor du `build` startest. Ein `[KI]`-Kommentar ist nie eine Freigabe. Die Freigabe des Codes bleibt der Review im Pull Request, wie bei Code von Hand. Siehe [Nach dem Build](../einrichtung/factory/README.md#nach-dem-build-branch-pull-request-review).
 - **Keine Status-Übergänge, keine Labels, keine Branches, keine Pull Requests.** Das Ticket bekommt nur Kommentare.
 
 Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen und dorthin wechseln. Im Lab hat der Agent es nicht aufgerufen und direkt in `specs/001-…/` geschrieben. BMad darf beim Bauen eigene Commits machen. In der Factory passiert beides in einer Wegwerf-Kopie. Lokal passiert es in deinem Repo. Starte deshalb auf einem eigenen Branch.
@@ -49,15 +49,15 @@ Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen 
 ## Einrichten
 
 1. Lege in deinem Projekt den Ordner `factory/` an. Dort sucht auch der Skill `schreibe-ticket` nach `agentic-factory.py` und `readiness.md`.
-2. Kopiere `agentic-factory.py`, `config.json`, `readiness.md`, `local.example.json` und die Ordner `agentic_factory/` und `agentic-factory-plugin/` nach `factory/`. Am einfachsten aus der [Vorlage](../einrichtung/template/README.md) in diesem Repo:
+2. Kopiere `agentic-factory.py`, `config.json`, `readiness.md`, `local.example.json` und die Ordner `agentic_factory/` und `agentic-factory-plugin/` nach `factory/`. Am einfachsten aus der [Vorlage](../einrichtung/factory/README.md) in diesem Repo:
 
    ```bash
    git clone https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering.git ~/workshop-agentic-engineering
-   cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic_factory,agentic-factory-plugin} factory/
-   cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/template/{agentic-factory.py,config.json,readiness.md,local.example.json} factory/
+   cp -R ~/workshop-agentic-engineering/02-agent-factory/einrichtung/factory/{agentic_factory,agentic-factory-plugin} factory/
+   cp ~/workshop-agentic-engineering/02-agent-factory/einrichtung/factory/{agentic-factory.py,config.json,readiness.md,local.example.json} factory/
    ```
 
-   Hat dein Team schon eine eigene Pipeline, nimm deren `config.json` und `readiness.md` statt der aus der Vorlage, damit Prompts und Kriterien gleich sind. Aus der Vorlage braucht die `config.json` dann: den Block `clarify` für `clarify`, den Block `init` für `init`, `test_command` für `build` und je Framework `revise_prompt` und `amend_prompt` für das Überarbeiten. `read_tools` ist freiwillig. Lies vor dem ersten Lauf den Abschnitt [Sicherheit](../einrichtung/template/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage.
+   Hat dein Team schon eine eigene Pipeline, nimm deren `config.json` und `readiness.md` statt der aus der Vorlage, damit Prompts und Kriterien gleich sind. Aus der Vorlage braucht die `config.json` dann: den Block `clarify` für `clarify`, den Block `init` für `init`, `test_command` für `build` und je Framework `revise_prompt` und `amend_prompt` für das Überarbeiten. `read_tools` ist freiwillig. Lies vor dem ersten Lauf den Abschnitt [Sicherheit](../einrichtung/factory/README.md#sicherheit-was-ihr-wissen-müsst) der Vorlage.
 3. Kopiere `local.example.json` nach `local.json` und passe sie an. Sie hat nur Einstellungen deines Rechners:
 
 | Schlüssel | Bedeutung | Beispiel |
@@ -67,11 +67,11 @@ Dazu: Das Spec-Kit-Skript `create-new-feature.sh` darf einen Git-Branch anlegen 
 | `jira_mcp_server` | Name deines Jira-MCP-Servers in `copilot mcp list`. Fehlt er, gilt `atlassian` | `"atlassian"` |
 | `jira_site` | Adresse deiner Jira-Cloud-Site, ohne Pfad. Kein Geheimnis. Fehlt sie, nimmt das Skript `JIRA_BASE_URL`. Nur für `--jira mcp` | `"https://example.atlassian.net"` |
 
-   Der Testbefehl gehört nicht mehr hierher. Steht ein älterer Schlüssel wie `test_command` noch in `local.json`, stoppt das Skript und sagt, wohin der Wert gehört. Andere unbekannte Schlüssel stoppen es auch. Wie du eine ältere Einrichtung umstellst, steht in [`aenderungen.md`](../einrichtung/template/aenderungen.md).
+   Der Testbefehl gehört nicht mehr hierher. Steht ein älterer Schlüssel wie `test_command` noch in `local.json`, stoppt das Skript und sagt, wohin der Wert gehört. Andere unbekannte Schlüssel stoppen es auch. Wie du eine ältere Einrichtung umstellst, steht in [`aenderungen.md`](../einrichtung/factory/aenderungen.md).
 
 4. Trag deinen Testbefehl in `config.json` ein, als `test_command`, etwa `"make test"`. In der Vorlage ist er leer. Ohne ihn stoppt `build` mit `set test_command in config.json (or run init)`. Den Vorschlag macht dir auch `init`, siehe [Einrichten mit `init`](#einrichten-mit-init).
 
-   Aus dem Testbefehl wird eine Freigabe für den ganzen Befehl: Aus `make test` wird `shell(make test:*)`, aus `docker compose run --rm app make test` wird `shell(docker compose run --rm app make test:*)`. Das ist enger als `shell(make:*)`. Weil die Freigabe auf `:*` endet, darf der Agent aber Argumente anhängen, bei Make also auch weitere Ziele. Code im Befehl (`bash -c …`, `python3 -c …`), Zeichen wie `&&` oder `|`, Anführungszeichen und eine Variable davor (`CI=1 make test`) lehnt das Skript ab. Optionen eines Wrappers wie `timeout` nur als `--opt=value`. Brauchst du so etwas, schreib ein Make-Ziel oder ein Skript. Und die Tests führen Code aus, den der Agent geschrieben hat. Mehr dazu unter [Sicherheit](../einrichtung/template/README.md#sicherheit-was-ihr-wissen-müsst) in der Vorlage.
+   Aus dem Testbefehl wird eine Freigabe für den ganzen Befehl: Aus `make test` wird `shell(make test:*)`, aus `docker compose run --rm app make test` wird `shell(docker compose run --rm app make test:*)`. Das ist enger als `shell(make:*)`. Weil die Freigabe auf `:*` endet, darf der Agent aber Argumente anhängen, bei Make also auch weitere Ziele. Code im Befehl (`bash -c …`, `python3 -c …`), Zeichen wie `&&` oder `|`, Anführungszeichen und eine Variable davor (`CI=1 make test`) lehnt das Skript ab. Optionen eines Wrappers wie `timeout` nur als `--opt=value`. Brauchst du so etwas, schreib ein Make-Ziel oder ein Skript. Und die Tests führen Code aus, den der Agent geschrieben hat. Mehr dazu unter [Sicherheit](../einrichtung/factory/README.md#sicherheit-was-ihr-wissen-müsst) in der Vorlage.
 
 5. Richte den Weg zu Jira ein, wie im Abschnitt [Zwei Wege zu Jira](#zwei-wege-zu-jira---jira) beschrieben.
 
@@ -84,7 +84,7 @@ python3 -I factory/agentic-factory.py init           # Bericht und Diff, nichts 
 python3 -I factory/agentic-factory.py init --apply   # neuer Aufruf, dann config.json und readiness.md schreiben
 ```
 
-`init` darf nur hinzufügen oder verschärfen. Was es liest, was es vorschlagen darf und was das Skript ablehnt, steht in der [Vorlage](../einrichtung/template/README.md#erste-einrichtung-mit-init). `--apply` startet einen neuen Aufruf: Lies dessen Bericht und `git diff`, dann committe von Hand.
+`init` darf nur hinzufügen oder verschärfen. Was es liest, was es vorschlagen darf und was das Skript ablehnt, steht in der [Vorlage](../einrichtung/factory/README.md#erste-einrichtung-mit-init). `--apply` startet einen neuen Aufruf: Lies dessen Bericht und `git diff`, dann committe von Hand.
 
 ## Regeln deines Teams: `AGENTS.md`
 
@@ -278,7 +278,7 @@ python3 -I factory/agentic-factory.py spec    LL-123 --print-only         # nur 
 - `build` findet die Spec selbst, wenn es genau einen Spec-Ordner gibt oder genau einen mit nicht committeten Änderungen. Sonst nennst du ihn mit `--change`. Das Framework kommt wieder vom Label oder von `--framework`.
 - `--print-only` liest das Ticket trotzdem. Mit `--jira mcp` kostet das einen Jira-Aufruf, etwa 4 bis 9 Credits. Die Prüfung deines Kontos bei `clarify --apply` macht `--print-only` nicht, auf keinem der beiden Wege. Die macht erst der echte Lauf, bevor er etwas setzt. Mit `--ticket-file` kostet es nichts.
 - Nach jedem Lauf zeigt das Skript Credits, Dauer, geänderte Dateien und Commits des Agenten. Die Protokolle liegen unter `~/.factory-local/<Projekt>/`.
-- Die letzte Zeile eines Laufs mit Copilot-Aufrufen nennt die abgelehnten Werkzeug-Aufrufe, etwa `2 blocked call(s), see …/blocked.jsonl`. Die Datei sammelt sie über alle Läufe. Was drin steht und wie du sie weitergibst: [Vorlage](../einrichtung/template/README.md#blockierte-aufrufe-blockedjsonl).
+- Die letzte Zeile eines Laufs mit Copilot-Aufrufen nennt die abgelehnten Werkzeug-Aufrufe, etwa `2 blocked call(s), see …/blocked.jsonl`. Die Datei sammelt sie über alle Läufe. Was drin steht und wie du sie weitergibst: [Vorlage](../einrichtung/factory/README.md#blockierte-aufrufe-blockedjsonl).
 
 Ausgaben aus dem Lab, gekürzt (`…`). Die Zeilen mit vier Leerzeichen sind Werkzeug-Aufrufe des Agenten. Aufgenommen am 23. November mit `local.py`: `agentic-factory.py` schreibt `[agentic-factory]` statt `[local]` und beginnt mit einer Zeile zum Jira-Weg.
 
@@ -348,7 +348,7 @@ Ein zweiter Lauf von `spec` oder `build` für dasselbe Ticket liest, was seit de
 - **Nichts Neues:** Der Lauf endet vor jedem Aufruf mit `nothing new since comment …`, Exit-Code 0, ohne Credits.
 - **`--fresh`** übergeht die früheren Ergebnisse und läuft wie beim ersten Mal.
 
-Als Ergebnis zählen nur `[KI]`-Kommentare des Kontos, mit dem das Skript läuft, und nur unbearbeitete. Die Kopien der Spec für den Diff liegen unter `~/.factory-local/<Projekt>/specs/`. Den Ablauf Schritt für Schritt, alle Stopps und was in den Kommentaren steht, beschreibt die [Vorlage](../einrichtung/template/README.md#feedback-zu-spec-und-build).
+Als Ergebnis zählen nur `[KI]`-Kommentare des Kontos, mit dem das Skript läuft, und nur unbearbeitete. Die Kopien der Spec für den Diff liegen unter `~/.factory-local/<Projekt>/specs/`. Den Ablauf Schritt für Schritt, alle Stopps und was in den Kommentaren steht, beschreibt die [Vorlage](../einrichtung/factory/README.md#feedback-zu-spec-und-build).
 
 ## Klärung: `clarify`
 
@@ -425,7 +425,7 @@ Kosten: Der Klärungsaufruf hat eine Obergrenze von 40 Credits, die Bereitschaft
 
 ### Beispiel: Jira Automation startet die nächste Runde
 
-Ein Beispiel, das du selbst einrichtest. Nichts in diesem Repo richtet es ein, und niemand hat es getestet. Der Flow startet die Pipeline `agentic-clarify` aus [`pipelines.example.yml`](../einrichtung/template/pipelines.example.yml), sobald jemand mit `[Mensch]` antwortet.
+Ein Beispiel, das du selbst einrichtest. Nichts in diesem Repo richtet es ein, und niemand hat es getestet. Der Flow startet die Pipeline `agentic-clarify` aus [`pipelines.example.yml`](../einrichtung/factory/pipelines.example.yml), sobald jemand mit `[Mensch]` antwortet.
 
 | Einstellung | Wert |
 |---|---|
@@ -493,7 +493,7 @@ Ein Lauf hat drei Schritte. Lokal laufen sie nacheinander in einem Prozess (`--s
 | `agent` | nur `COPILOT_GITHUB_TOKEN` | Macht die Copilot-Aufrufe, schreibt die Ergebnisse nach `agentic-io/out/`. Spricht nicht mit Jira |
 | `post` | nur Jira | Prüft `out/` noch einmal gegen `in/`, baut den Kommentar und postet ihn. Mit `APPLY=1` setzt es bei `clarify` zuerst die Beschreibung |
 
-Das Beispiel [`pipelines.example.yml`](../einrichtung/template/pipelines.example.yml) hat zwei Custom-Pipelines: `agentic-clarify` mit den Variablen `JIRA_KEY` und `APPLY`, und `agentic-assess` mit `JIRA_KEY`. Kopiere sie als `bitbucket-pipelines.yml` ins Repo oder füge sie ein. Das Beispiel ist nicht in Bitbucket gelaufen. Nur Tests prüfen seine Form.
+Das Beispiel [`pipelines.example.yml`](../einrichtung/factory/pipelines.example.yml) hat zwei Custom-Pipelines: `agentic-clarify` mit den Variablen `JIRA_KEY` und `APPLY`, und `agentic-assess` mit `JIRA_KEY`. Kopiere sie als `bitbucket-pipelines.yml` ins Repo oder füge sie ein. Das Beispiel ist nicht in Bitbucket gelaufen. Nur Tests prüfen seine Form.
 
 - **Secrets nur als gesicherte Deployment-Variablen** der drei Umgebungen: `JIRA_API_TOKEN` in `agentic-jira` und `agentic-post`, `COPILOT_GITHUB_TOKEN` in `agentic-agent`. Dazu ungesichert in `agentic-jira` und `agentic-post`: `JIRA_BASE_URL` und, für Jira Cloud, `JIRA_EMAIL`. **Nie als Repository- oder Workspace-Variablen:** Die erreichen jeden Schritt, auch den Agenten. Wie das in der Lab-Factory aussieht, steht in [Bitbucket einrichten, Schritt 8](../einrichtung/bitbucket.md#schritt-8-benutzer-tokens-und-umgebungen-anlegen).
 - **`--no-post` nur beim `post`-Schritt** reicht bei `clarify --apply` nach einem Vorschlag nicht: Hat der `agent`-Schritt schon geprüft, stoppt `post` mit `holds results … makes no call` und postet nichts. Gib `--no-post` schon beim `fetch`-Schritt an.
@@ -508,7 +508,7 @@ Starten von Hand: in Bitbucket „Run pipeline“, die Custom-Pipeline wählen u
 
 ## Die Copilot-Befehle für die Pipeline
 
-`--print-only` startet keinen Arbeitsaufruf. Es liest das Ticket, über den Jira-MCP mit einem Jira-Aufruf, und zeigt die Arbeitsaufrufe genau so, wie das Skript sie starten würde, mit fertig eingesetztem Ticket. Die Pipeline aus [`pipelines.example.yml`](../einrichtung/template/pipelines.example.yml) startet das Skript selbst. Wer eine eigene Pipeline ohne das Skript baut, übernimmt diese Befehle.
+`--print-only` startet keinen Arbeitsaufruf. Es liest das Ticket, über den Jira-MCP mit einem Jira-Aufruf, und zeigt die Arbeitsaufrufe genau so, wie das Skript sie starten würde, mit fertig eingesetztem Ticket. Die Pipeline aus [`pipelines.example.yml`](../einrichtung/factory/pipelines.example.yml) startet das Skript selbst. Wer eine eigene Pipeline ohne das Skript baut, übernimmt diese Befehle.
 
 Beispiel aus dem Lab, OpenSpec, gekürzt, noch mit `local.py`. Aufruf 1 ist die Bereitschaftsprüfung, Aufruf 2 der Spec-Schritt. Bei Spec Kit folgen auf `/speckit-specify` noch `/speckit-plan` und `/speckit-tasks`, bei BMad auf `/bmad-prd` noch `/bmad-spec`. Bei `clarify` ist Aufruf 1 der Klärungsaufruf. Die Bereitschaftsprüfung folgt nur, wenn alles bestätigt ist. Bei `--apply` nach einem Vorschlag macht das Skript keinen Klärungsaufruf: Aufruf 1 ist dann die Bereitschaftsprüfung.
 
@@ -613,7 +613,7 @@ Jeder Stopp beginnt mit `[agentic-factory] STOP:` und endet mit Exit-Code 2.
 | `init is refused in a pipeline` | `init` nur lokal |
 | `the init call changed files although it may only read` | Der `init`-Aufruf hat trotzdem etwas geändert. Nichts wurde vorgeschlagen oder geschrieben. `git status` prüfen |
 | `the init call returned no JSON object` | Die Antwort von `init` war kein JSON. Neu starten |
-| `a build exists for …`, `the first build is gone`, `the spec folder … is missing`, `the comment … can't be trusted` und andere beim zweiten Lauf | Siehe [Wann das Skript stoppt](../einrichtung/template/README.md#wann-das-skript-stoppt) in der Vorlage. Der Ausweg ist meist `--fresh` |
+| `a build exists for …`, `the first build is gone`, `the spec folder … is missing`, `the comment … can't be trusted` und andere beim zweiten Lauf | Siehe [Wann das Skript stoppt](../einrichtung/factory/README.md#wann-das-skript-stoppt) in der Vorlage. Der Ausweg ist meist `--fresh` |
 | `the mcp route needs jira_site in local.json` | `jira_site` in `local.json` eintragen oder `JIRA_BASE_URL` setzen |
 | `… is not a Jira Cloud address with no path` | `jira_site` oder `JIRA_BASE_URL` hat einen Pfad, etwa die Gateway-Adresse. `jira_site` auf `https://<site>.atlassian.net` setzen |
 | `your Copilot has no MCP server named 'atlassian'` | Server auf Benutzerebene anlegen ([Jira über den MCP-Server](#jira-über-den-mcp-server)) oder `jira_mcp_server` setzen |

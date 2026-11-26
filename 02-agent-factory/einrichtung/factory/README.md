@@ -49,7 +49,7 @@ python3 -I factory/agentic-factory.py init --apply        # die geprüften Vorsc
 python3 -I factory/agentic-factory.py spec --ticket-file ~/factory-tickets/LL-123.json --print-only
 ```
 
-- `<dieser Ordner>` ist dieser Ordner im Workshop-Repo: `02-agent-factory/einrichtung/template/`.
+- `<dieser Ordner>` ist dieser Ordner im Workshop-Repo: `02-agent-factory/einrichtung/factory/`.
 - Eine Ticket-Datei ist JSON mit `key`, `summary`, `description` und `labels`. Ein Muster: [`ticket-FLAB-41.json`](../prompt-beispiele/ticket-FLAB-41.json).
 - Nur Läufe mit `--print-only` starten keinen Copilot-Aufruf und kosten nichts. `init` ohne `--print-only` kostet bis zu 40 Credits.
 - Das Ticket nennt ihr direkt nach dem Modus, als Schlüssel oder als URL aus dem Browser: `spec LL-123` oder `spec https://example.atlassian.net/browse/LL-123`. Der Host der URL muss zu eurer Jira-Seite passen (`jira_site` in `local.json` oder `JIRA_BASE_URL`), sonst stoppt das Skript. `--key LL-123` ist die lange Form und geht weiter.
@@ -473,14 +473,14 @@ Seht ihr in `.git/config` etwas Fremdes, etwa `fsmonitor`, `hooksPath`, einen Fi
 Die Tests brauchen nur die Python-Standardbibliothek. Sie rufen weder Jira noch Copilot auf: Ein Ersatz-`copilot` und ein lokaler Test-Server stehen dafür. Im Workshop-Repo:
 
 ```bash
-python3 -I -B -m unittest discover -s 02-agent-factory/einrichtung/template/tests -t 02-agent-factory/einrichtung/template
+python3 -I -B -m unittest discover -s 02-agent-factory/einrichtung/factory/tests -t 02-agent-factory/einrichtung/factory
 ```
 
 Ein Teil der Tests vergleicht den Code mit `factory-base`: Prompts und Flags mit `agent.py`, die kopierten Prüfungen mit `common.py` und die eigenen Kommentare mit dem Marker von `guard.py`. Prompts und Flags vergleichen sie mit einer Konfiguration wie der des Labs (`LAB_CFG` in `tests/fakes.py`): mit `./bin/phpunit`, ohne `read_tools`, mit dem alten Plan-Prompt von Spec Kit und den alten Texten der Bereitschaftsprüfung und der Regeln. Die `config.json` der Vorlage weicht davon ab. Diese Tests brauchen einen Klon des Lab-Repos. Ohne `FACTORY_BASE` überspringen sie sich:
 
 ```bash
 git clone --depth 1 --branch factory-base https://bitbucket.org/factory-lab/factory-lab.git /tmp/factory-lab
-FACTORY_BASE=/tmp/factory-lab/factory python3 -I -B -m unittest discover -s 02-agent-factory/einrichtung/template/tests -t 02-agent-factory/einrichtung/template
+FACTORY_BASE=/tmp/factory-lab/factory python3 -I -B -m unittest discover -s 02-agent-factory/einrichtung/factory/tests -t 02-agent-factory/einrichtung/factory
 ```
 
 ## Aktualisieren

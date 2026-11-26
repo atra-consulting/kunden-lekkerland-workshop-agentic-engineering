@@ -95,7 +95,7 @@ Die Kriterien stehen in einer Datei: `factory/readiness.md` auf `factory-base`. 
 
 1. Lege einen Branch von `factory-base` an. Ändere `factory/readiness.md` und, falls nötig, `factory/config.json`.
 2. Prüfe lokal: `python3 -I -B -m unittest discover -s factory/tests`. Der Test erwartet die sechs IDs aus dem Lab. Passe die Liste in `test_six_ids_from_readiness_md` an deine IDs an.
-3. Probiere die Kriterien an echten Tickets aus, ohne Pipeline. Das geht in einem Projekt, in dem die [Vorlage](../einrichtung/template/README.md) aus diesem Repo in `factory/` liegt (auf dem Branch von `factory-base` heißt das Skript `local.py`). Kopiere die geänderte `readiness.md` neben `agentic-factory.py` und starte `python3 -I factory/agentic-factory.py assess --key <KEY>`, siehe [Lokal ausführen](lokal-ausfuehren.md).
+3. Probiere die Kriterien an echten Tickets aus, ohne Pipeline. Das geht in einem Projekt, in dem die [Vorlage](../einrichtung/factory/README.md) aus diesem Repo in `factory/` liegt (auf dem Branch von `factory-base` heißt das Skript `local.py`). Kopiere die geänderte `readiness.md` neben `agentic-factory.py` und starte `python3 -I factory/agentic-factory.py assess --key <KEY>`, siehe [Lokal ausführen](lokal-ausfuehren.md).
 4. Baue das Factory-Image neu und schiebe es in eure Registry. Die Kriterien stecken im Image, nicht im Arbeitsverzeichnis des Laufs.
 5. Ersetze den Digest in `bitbucket-pipelines.yml` (Vorlage: `factory/pipelines.template.yml`) durch den neuen.
 6. Pull Request auf `factory-base`, Review durch eine zweite Person, zusammenführen.

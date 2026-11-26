@@ -30,6 +30,8 @@ def work_plan(run, req, ticket, comments=()):
     if mode == "clarify":
         checks.clarify_config(cfg)
         state = clarify.clarify_state(comments, key)
+        if clarify.ignored_note(state):
+            config.say(clarify.ignored_note(state))
         applying = fetch.apply_wanted(run) and fetch.can_post(run, req)
         p.update(state=state, pause=fetch.clarify_pause_of(run, req, state), crit=run.criteria("clarify"), proposal=None)
         if clarify.applies_proposal(state, applying):  # --apply on a posted proposal: only the readiness check on its text

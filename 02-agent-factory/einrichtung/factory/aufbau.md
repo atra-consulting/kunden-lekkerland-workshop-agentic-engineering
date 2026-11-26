@@ -160,6 +160,7 @@ Die ganze Liste steht in der [README](README.md#erste-einrichtung-mit-init).
 
 - Andere `[KI]`-Kommentare, die wie ein Ergebnis aussehen, nennt das Skript in einer Notiz und lässt sie weg.
 - Für den Vorschlag von `clarify` gilt dasselbe. Dazu muss er vom Konto der Runde kommen.
+- Die übrigen Marker von `clarify` (Runde, Übergabe, „bereit“) zählen nur unbearbeitet und vom Konto, das Runde 1 gepostet hat. Andere lässt das Skript weg und nennt sie in einer Notiz (`clarify.marker_doubt`). Es stoppt nicht: Sonst könnte jeder mit einem Kommentar die Klärung anhalten.
 - Fehlt `updated`, gilt ein Kommentar als unbearbeitet.
 - Kommentare von `clarify` und `assess` prüft das Skript für `spec` und `build` nicht.
 

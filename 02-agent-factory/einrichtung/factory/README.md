@@ -86,7 +86,8 @@ Was das Skript mit diesen Dateien an Copilot schickt: [Prompt-Beispiele](../prom
 | [`readiness.md`](readiness.md) | Die Kriterien der Bereitschaftsprüfung. `clarify` nutzt sie auch. `init` kann Änderungen vorschlagen | Für `assess`, `clarify` und `spec` mit Bereitschaftsprüfung |
 | [`local.example.json`](local.example.json) | Vorlage für `local.json`, nur für euren Rechner: `model`, `copilot` (der Befehl, der Copilot startet), `jira_mcp_server` und `jira_site` | Nein. Ohne `local.json` gelten die Werte aus `config.json`. `--jira mcp` braucht `jira_site` oder `JIRA_BASE_URL` |
 | [`agentic-factory-plugin/`](agentic-factory-plugin/) | Der Hook für die Jira-Aufrufe über MCP. Er lässt nur den einen erwarteten Aufruf durch. Liegt **neben dem Skript**. Das Skript lädt ihn von dort, nie aus `.github/` | Für `--jira mcp`. Copilot 1.0.115 führt ihn nicht aus, siehe [Sicherheit](#sicherheit-was-ihr-wissen-müsst) |
-| [`pipelines.example.yml`](pipelines.example.yml) | Beispiel für Bitbucket Pipelines: `agentic-clarify` und `agentic-assess`, je mit den Schritten `fetch`, `agent` und `post` | Nein. Nur für die Pipeline |
+| [`pipelines.example.yml`](pipelines.example.yml) | Beispiel für Bitbucket Pipelines: `agentic-clarify` und `agentic-assess`, je mit den Schritten `fetch`, `agent` und `post`. Die Einrichtung: [Pipeline-Anleitung](factory-bitbucket-pipeline-guide.md) | Nein. Nur für die Pipeline |
+| [`factory-bitbucket-pipeline-guide.md`](factory-bitbucket-pipeline-guide.md) | Wie ihr `assess` und `clarify` in einer Bitbucket-Pipeline laufen lasst, gestartet von Jira Automation | Nein. Nur für die Pipeline |
 | [`tests/`](tests/) | Die Tests, meist eine Datei pro Modul, siehe [Tests](#tests) | Nein |
 | [`aenderungen.md`](aenderungen.md) | Was neu ist gegenüber `local.py` und der früheren Vorlage, und wie ihr umsteigt | Nein |
 | [`aufbau.md`](aufbau.md) | Ziel, Design, Leitplanken und Hooks der Vorlage, und welche Datei was tut | Nein |

@@ -4,7 +4,7 @@
 
 **Stand.** Die `agentic-*`-Pipelines liefen bisher nie in Bitbucket. Die Vorlage ist [`factory-base` aus dem Lab in `factory-lab/factory-lab`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/), mit dem [Jira-Space `FLAB`](https://betterprojectsfaster.atlassian.net/jira/software/c/projects/FLAB/boards/3).
 
-Kennzeichen: (S-nnnn) ist ein Beleg des Herstellers. S-7113 ist ein Forenbeitrag. (intern) ist der Code der Factory oder die Workshop-Doku. (Lab) ist, was das Lab getan oder gesehen hat. (ungetestet) ist eine Wahl, die niemand ausprobiert hat. Zitate aus den Belegen bleiben englisch.
+Kennzeichen: (S-nnnn) ist ein Beleg des Herstellers. (intern) ist der Code der Factory oder die Workshop-Doku. (Lab) ist, was das Lab getan oder gesehen hat. (ungetestet) ist eine Wahl, die niemand ausprobiert hat. Zitate aus den Belegen bleiben englisch.
 
 ## Voraussetzungen
 
@@ -265,9 +265,8 @@ Prüft mit „Validate your web request configuration“ an einem Ticket, das ei
 ## Offene Lücken
 
 - Ob die Secrets pro Deployment getrennt bleiben, ist nicht geprüft (Schritt 6).
-- Ein Forenbeitrag sagt, Starts mit eigenen Variablen lieferten HTTP 400 (S-7113, nicht geprüft). Euer erster Start über die API zeigt es.
+- Ein Forenbeitrag sagt, Starts mit eigenen Variablen lieferten HTTP 400. Euer erster Start über die API zeigt es.
 - Die Belege sagen nicht, ob ein Start-Request Deployment-Variablen überschreiben kann (Schritt 5).
-- Die Belege nennen keinen Weg für eigene Deployment-Umgebungen oder dafür, sie auf einen Branch zu beschränken.
 - Es gibt kein Dockerfile. Die Belege decken weder die Installation von Copilot CLI noch den Zugang zu einer privaten Registry ab.
 - Das Beispiel führt das Skript aus dem Arbeitsverzeichnis aus. Liegt es im Image, scheitert die Prüfung des Ablageorts (intern).
 - Die Belege nennen nicht den Scope, den `GET /myself` braucht. `APPLY=1` nutzt ihn und braucht außerdem Bearbeitungsrechte.

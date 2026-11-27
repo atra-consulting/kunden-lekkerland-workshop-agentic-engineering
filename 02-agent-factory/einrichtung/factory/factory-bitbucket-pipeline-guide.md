@@ -1,39 +1,34 @@
-# Run the Agentic Factory in a Bitbucket Pipeline, Started by Jira Automation
+# Die Agentic Factory in einer Bitbucket-Pipeline laufen lassen, gestartet von Jira Automation
 
-**Status.** The `agentic-*` pipelines never ran in Bitbucket. The Automation rule is an untested sketch. Nobody read the FLAB rules page. Lab details come from `02-agent-factory/einrichtung/jira.md`, Part B. Secret isolation per step is unverified: no record says a step without a deployment can't see that deployment's variables.
-The blueprint is the lab's `factory-base` in `factory-lab/factory-lab`, with Jira space `FLAB` on `betterprojectsfaster.atlassian.net`. The full version with the reasoning, and the records behind each S-ID, are in the Almanach repository: [factory-bitbucket-pipeline-guide-long.md](https://github.com/atra-consulting/almanach/blob/main/briefs/factory-bitbucket-pipeline-guide-long.md) and its `records/` folder.
+**Ein Weg von mehreren.** Diese Anleitung zeigt einen Weg, die Factory in Bitbucket zu betreiben. Es ist nicht der einzige. Ihr könnt sie auch anders aufsetzen, etwa mit einem anderen CI-System, einem anderen Auslöser oder einer anderen Aufteilung der Secrets. Passt die Schritte an euer Projekt an.
 
-Tags: (S-nnnn) is a vendor record. S-7113 is a forum post. (internal) is the factory's code or the workshop docs. (lab) is what the lab did or saw. (untested) is a choice nobody has tried.
+**Stand.** Die `agentic-*`-Pipelines liefen bisher nie in Bitbucket. Die Vorlage ist [`factory-base` aus dem Lab in `factory-lab/factory-lab`](https://bitbucket.org/factory-lab/factory-lab/src/factory-base/factory/), mit dem [Jira-Space `FLAB`](https://betterprojectsfaster.atlassian.net/jira/software/c/projects/FLAB/boards/3).
 
-## Prerequisites
+Kennzeichen: (S-nnnn) ist ein Beleg des Herstellers. S-7113 ist ein Forenbeitrag. (intern) ist der Code der Factory oder die Workshop-Doku. (Lab) ist, was das Lab getan oder gesehen hat. (ungetestet) ist eine Wahl, die niemand ausprobiert hat. Zitate aus den Belegen bleiben englisch.
 
-1. **Bitbucket Cloud repository with Pipelines on.** From the repository admin. No documented path.
-2. **A runner.** Atlassian's runners, or a self-hosted runner and its labels, from the repository admin.
-3. **An image, and the Dockerfile you write for it.** It needs `python3` 3.9 or newer, `git`, and Copilot CLI, tested with 1.0.115 (internal). No Dockerfile exists. The predecessor's `factory/image/Dockerfile` is a starting point (lab).
-4. **A registry** the runner pulls from without credentials, or with a pull-only credential (untested). No documented way to authenticate a private registry.
-5. **A technical Jira user,** `<bot-email>`, from the Jira admin. Role: view and "Add comments", no edit (lab). Adding a comment needs "Browse projects and Add comments project permission" (S-7123).
-6. **A Jira API token** for that user, with scopes `read:jira-work` and `write:jira-work` (lab). "Once you create an API token, you can't modify its scopes." (S-7534, service-account tokens). No documented path for a regular user's token.
-7. **The cloud ID** of your Jira site. S-7534 says: "Locate the string after /s/ in your admin URL or response". Don't use the Organization ID (S-7534).
-8. **A Copilot fine-grained PAT** from the Copilot seat holder. It "Must be owned by your personal account (not an organization) with the Copilot Requests account permission" (S-7538). "Classic personal access tokens (ghp_) are not supported." (S-7540).
-9. **Bitbucket repository access tokens** with "Pipelines: Write" only (S-7527). You need one trigger token for the rule and one start token per starter. No documented path.
-10. **Three deployment environments,** `agentic-jira`, `agentic-agent` and `agentic-post`, and their deployment permissions. No documented path for custom environments. The records don't confirm how deployment permissions behave for branches or token-started runs.
-11. **An opt-in label,** `<opt-in-label>`, such as `agentic`. The Jira admin picks it.
-12. **Named people:**
-    - a repository admin
-    - a Jira admin and a backup admin
-    - starters, who already have repository write access
-    - a first responder, who holds a start token
-    - a token coordinator
+## Voraussetzungen
 
-## Installation Steps
+1. **Ein Bitbucket-Cloud-Repository mit eingeschalteten Pipelines.** Vom Repository-Admin. Kein dokumentierter Weg.
+2. **Ein Runner.** Die Runner von Atlassian, oder ein selbst gehosteter Runner mit seinen Labels, vom Repository-Admin.
+3. **Ein Image und das Dockerfile, das ihr dafür schreibt.** Es braucht `python3` ab 3.9, `git` und Copilot CLI, getestet mit 1.0.115 (intern).
+4. **Eine Registry,** aus der der Runner ohne Zugangsdaten zieht, oder mit Zugangsdaten nur zum Lesen (ungetestet).
+5. **Ein technischer Jira-User,** `<bot-email>`, vom Jira-Admin. Rolle: lesen und „Add comments“, nicht bearbeiten (Lab). Einen Kommentar anzulegen braucht „Browse projects and Add comments project permission“ (S-7123).
+6. **Ein Jira-API-Token** für diesen User, mit den Scopes `read:jira-work` und `write:jira-work` (Lab). „Once you create an API token, you can't modify its scopes.“ (S-7534, Tokens für Service-Accounts). Kein dokumentierter Weg für das Token eines normalen Users.
+7. **Die Cloud-ID** eurer Jira-Site.
+8. **Ein feingranulares Copilot-PAT** vom Copilot-Nutzer. 
+9. **Bitbucket-Repository-Access-Tokens** nur mit „Pipelines: Write“. Ihr braucht ein Auslöse-Token für die Regel und ein Start-Token pro Starter.
+10. **Drei Deployment-Umgebungen,** `agentic-jira`, `agentic-agent` und `agentic-post`, mit ihren Deployment-Rechten.
+11. **Ein Opt-in-Label,** `<opt-in-label>`, etwa `agentic`. Der Jira-Admin wählt es.
 
-`assess` checks whether a ticket is ready for a spec. It comments only when the ticket isn't ready. `clarify` posts one round of questions and assumptions per run. People answer in a comment that starts with `[Mensch]`, and the factory's comments start with `[KI]`. The texts are German (internal).
+## Einrichtung
 
-### 1. Check the Repository
+`assess` prüft, ob ein Ticket reif für eine Spec ist. Es kommentiert nur, wenn das Ticket nicht reif ist. `clarify` postet pro Lauf eine Runde mit Fragen und Annahmen. Menschen antworten mit einem Kommentar, der mit `[Mensch]` beginnt. Die Kommentare der Factory beginnen mit `[KI]`. Die Texte sind deutsch (intern).
 
-- If `bitbucket-pipelines.yml` exists, you merge into it in step 7.
-- Look at "Workspace Settings → Pipelines → Workspace variables" and "Repository Settings → Pipelines → Repository variables" (S-7114). They reach every step, the agent too (internal). Move what an existing build needs into a deployment the agent doesn't use.
-- List the custom pipelines on all branches and tags. The trigger token can start each of them (lab). Protect the ones that use deployment secrets with deployment permissions, or move them out (untested).
+### 1. Das Repository prüfen
+
+- Gibt es schon `bitbucket-pipelines.yml`, führt ihr die Datei in Schritt 7 zusammen.
+- Schaut unter „Workspace Settings → Pipelines → Workspace variables“ und „Repository Settings → Pipelines → Repository variables“ nach. Diese Variablen erreichen jeden Step, auch den Agenten (intern). Verschiebt, was ein bestehender Build braucht, in ein Deployment, das der Agent nicht nutzt.
+- Listet die Custom-Pipelines auf allen Branches und Tags auf. Das Auslöse-Token kann jede davon starten (Lab). Schützt die, die Deployment-Secrets nutzen, mit Deployment-Rechten, oder verschiebt sie (ungetestet).
 
 ```bash
 git fetch origin --tags
@@ -42,15 +37,15 @@ for b in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin refs
 done
 ```
 
-### 2. Protect the Start Branch
+### 2. Den Start-Branch schützen
 
-Pick `<start-branch>`. Allow no direct push, and merges only through a pull request by named people. Forbid deletion and history rewrites (lab). Check that a direct push fails. Do this before you store any secret.
+Wählt `<start-branch>`. Erlaubt keinen direkten Push und Merges nur per Pull Request durch benannte Personen. Verbietet Löschen und das Umschreiben der Historie (Lab). Prüft, dass ein direkter Push scheitert. Tut das, bevor ihr ein Secret speichert.
 
-Branch protection doesn't protect the secrets. Anyone with write access may use the deployments from another branch (untested). Limit all three deployments to `<start-branch>` with deployment permissions (untested). The records don't confirm that this works.
+Der Branch-Schutz schützt die Secrets nicht. Jeder mit Schreibrechten kann die Deployments von einem anderen Branch aus nutzen (ungetestet). Beschränkt alle drei Deployments mit Deployment-Rechten auf `<start-branch>` (ungetestet). Die Belege bestätigen nicht, dass das wirkt.
 
-### 3. Copy `factory/`
+### 3. `factory/` kopieren
 
-The script runs only from `factory/agentic-factory.py` at the top of the git clone (internal). A pipeline refuses `build` and `init` (internal). Open one pull request now, and merge it in step 7. From your repository's top folder:
+Das Skript läuft nur als [`factory/agentic-factory.py`](https://github.com/atra-consulting/kunden-lekkerland-workshop-agentic-engineering/blob/main/02-agent-factory/einrichtung/factory/agentic-factory.py) im obersten Ordner des Git-Klons. In einer Pipeline verweigert es `build` und `init`. Öffnet jetzt einen Pull Request und merged ihn in Schritt 7. Aus dem obersten Ordner eures Repositorys:
 
 ```bash
 F=<workshop>/02-agent-factory/einrichtung/factory
@@ -58,59 +53,59 @@ mkdir -p factory
 cp -R "$F/agentic_factory" factory/
 cp "$F"/{agentic-factory.py,config.json,readiness.md,.gitignore} factory/
 if [ -e bitbucket-pipelines.yml ]; then
-  cp "$F/pipelines.example.yml" pipelines.agentic.yml   # merge by hand in step 7, then delete it
+  cp "$F/pipelines.example.yml" pipelines.agentic.yml   # in Schritt 7 von Hand zusammenführen, dann löschen
 else
   cp "$F/pipelines.example.yml" bitbucket-pipelines.yml
 fi
 ```
 
-Adapt `config.json` and `readiness.md` to your project. To do so, run `init` locally (internal).
+Passt `config.json` und `readiness.md` an euer Projekt an. Dazu führt ihr `init` lokal aus (intern).
 
-### 4. Set the Runner and Build the Image
+### 4. Den Runner festlegen und das Image bauen
 
-- **Atlassian's runners:** delete every `runs-on:` line in step 7, and build for amd64 (lab).
-- **A self-hosted runner:** use its labels. "A runs-on parameter must contain a self.hosted label." (S-7520). The records don't confirm `linux.arm64` as a label.
-- Build the image, push it to `<registry>`, and pin it as `<registry>/<image>@sha256:<digest>` (lab).
-- Check that `copilot --version` runs inside the image.
+- **Runner von Atlassian:** Löscht in Schritt 7 jede Zeile `runs-on:` und baut für amd64 (Lab).
+- **Ein selbst gehosteter Runner:** Nehmt seine Labels. „A runs-on parameter must contain a self.hosted label.“ (S-7520). Die Belege bestätigen `linux.arm64` als Label nicht.
+- Baut das Image, pusht es nach `<registry>` und pinnt es als `<registry>/<image>@sha256:<digest>` (Lab).
+- Prüft, dass `copilot --version` im Image läuft.
 
-### 5. Create the Tokens
+### 5. Die Tokens anlegen
 
-- Create the Jira token and the Copilot token. Store them only in deployments (step 6).
-- Create the trigger token. Store it only as the rule's hidden header (step 9).
-- Give start tokens only to starters, who already have write access (untested). A start request may override deployment variables: "Pipeline > Deployment > Repository > Workspace" (S-7114). The records don't say whether that works for undeclared names such as `JIRA_BASE_URL`.
-- Never start runs with a personal or admin token (lab).
-- Hand tokens over through a password manager, never through a ticket or a chat.
+- Legt das Jira-Token und das Copilot-Token an. Speichert sie nur in Deployments (Schritt 6).
+- Legt das Auslöse-Token an. Speichert es nur als verborgenen Header der Regel (Schritt 9).
+- Gebt Start-Tokens nur Startern, die schon Schreibrechte haben (ungetestet). Ein Start-Request kann Deployment-Variablen überschreiben: „Pipeline > Deployment > Repository > Workspace“. Die Belege sagen nicht, ob das auch für nicht deklarierte Namen wie `JIRA_BASE_URL` gilt.
+- Startet Läufe nie mit einem persönlichen Token oder einem Admin-Token (Lab).
+- Übergebt Tokens über einen Passwort-Manager, nie über ein Ticket oder einen Chat.
 
-### 6. Create the Deployments and Their Variables
+### 6. Die Deployments und ihre Variablen anlegen
 
-Create the environments under "Repository Settings → Pipelines → Deployments" (S-7114). Never use repository or workspace variables for these (internal).
+Legt die Umgebungen unter „Repository Settings → Pipelines → Deployments“ an. Nehmt dafür nie Repository- oder Workspace-Variablen (intern).
 
-| Environment | Secured | Not secured |
+| Umgebung | Secured | Nicht secured |
 |---|---|---|
 | `agentic-jira` | `JIRA_API_TOKEN` | `JIRA_BASE_URL`, `JIRA_EMAIL` |
 | `agentic-agent` | `COPILOT_GITHUB_TOKEN` | – |
 | `agentic-post` | `JIRA_API_TOKEN` | `JIRA_BASE_URL`, `JIRA_EMAIL` |
 
-`JIRA_BASE_URL` is `https://api.atlassian.com/ex/jira/<cloud-id>` (lab). S-7534 shows this form for service-account tokens. `JIRA_EMAIL` is `<bot-email>`. The script stops if `fetch` or `post` sees the Copilot token, or if `agent` sees the Jira token (internal).
+`JIRA_BASE_URL` ist `https://api.atlassian.com/ex/jira/<cloud-id>` (Lab). `JIRA_EMAIL` ist `<bot-email>`. Das Skript stoppt, wenn `fetch` oder `post` das Copilot-Token sieht oder `agent` das Jira-Token (intern).
 
-### 7. Finish `bitbucket-pipelines.yml` and Merge
+### 7. `bitbucket-pipelines.yml` fertigstellen und mergen
 
-Add `agentic-assess-dryrun` to the file (untested). It is `agentic-assess` with `--no-post` on fetch and post. `agentic-assess` from the example stays as it is, apart from the image and `runs-on` edits. Its agent step keeps `max-time: 25`, because assess makes one call (internal).
+Ergänzt `agentic-assess-dryrun` in der Datei (ungetestet). Das ist `agentic-assess` mit `--no-post` bei fetch und post. `agentic-assess` aus dem Beispiel bleibt, wie es ist, bis auf die Änderungen an Image und `runs-on`. Sein Agent-Step behält `max-time: 25`, weil assess nur einen Aufruf macht (intern).
 
 ```yaml
 image:
   name: <registry>/<image>@sha256:<digest>
 options:
-  max-time: 45                                # example: 30 (untested)
+  max-time: 45                                # Beispiel: 30 (ungetestet)
 pipelines:
   custom:
     agentic-clarify:
       - variables:
           - name: JIRA_KEY
-          - name: APPLY                       # set only by hand, never in the rule
+          - name: APPLY                       # nur von Hand setzen, nie in der Regel
       - step:
           name: fetch (Jira token only)
-          runs-on: [self.hosted, linux.arm64] # your labels, or delete for Atlassian's runners
+          runs-on: [self.hosted, linux.arm64] # eure Labels, oder löschen für Runner von Atlassian
           deployment: agentic-jira
           concurrency-group: agentic
           max-time: 5
@@ -123,7 +118,7 @@ pipelines:
           runs-on: [self.hosted, linux.arm64]
           deployment: agentic-agent
           concurrency-group: agentic
-          max-time: 45                        # example: 25 (untested)
+          max-time: 45                        # Beispiel: 25 (ungetestet)
           auth: { system: { scopes: [read:git:bitbucket] } }
           script:
             - python3 -I factory/agentic-factory.py clarify --key "$JIRA_KEY" --step agent
@@ -137,7 +132,7 @@ pipelines:
           auth: { system: { scopes: [read:git:bitbucket] } }
           script:
             - python3 -I factory/agentic-factory.py clarify --key "$JIRA_KEY" --step post
-    agentic-assess-dryrun:                    # untested; delete after run 1 passes
+    agentic-assess-dryrun:                    # ungetestet; löschen, wenn Lauf 1 klappt
       - variables:
           - name: JIRA_KEY
       - step:
@@ -169,23 +164,23 @@ pipelines:
           auth: { system: { scopes: [read:git:bitbucket] } }
           script:
             - python3 -I factory/agentic-factory.py assess --key "$JIRA_KEY" --step post --no-post
-          artifacts: [agentic-io/out/**]      # keeps comment-1.txt
+          artifacts: [agentic-io/out/**]      # behält comment-1.txt
 ```
 
-**`max-time`.** Each Copilot call may run 20 minutes (`agent_timeout_s` 1200, internal). A `clarify` run can make two calls. So the agent step gets 45: two calls plus 5 minutes of margin (untested). Allowed values: "A positive integer between 1 and 720" (S-7117).
+**`max-time`.** Jeder Copilot-Aufruf darf 20 Minuten laufen (`agent_timeout_s` 1200, intern). Ein `clarify`-Lauf kann zwei Aufrufe machen. Deshalb bekommt der Agent-Step 45: zwei Aufrufe plus 5 Minuten Puffer (ungetestet). Erlaubte Werte: „A positive integer between 1 and 720“ (S-7117).
 
-**Merge case.** If the file already existed, follow this checklist (untested):
+**Zusammenführen.** Gab es die Datei schon, folgt dieser Checkliste (ungetestet):
 
-- Don't copy `image` or `options`.
-- Check that any existing global `max-time` is at least 45.
-- On every agentic step, add `image: name: <registry>/<image>@sha256:<digest>`. The records don't confirm a step-level `image`.
-- Keep each step's own `max-time`.
+- Kopiert `image` und `options` nicht.
+- Prüft, dass ein bestehendes globales `max-time` mindestens 45 ist.
+- Ergänzt in jedem Agentic-Step `image: name: <registry>/<image>@sha256:<digest>`. Die Belege bestätigen ein `image` auf Step-Ebene nicht.
+- Behaltet das eigene `max-time` jedes Steps.
 
-Merge after step 6 is done, and re-check against other edits to the file.
+Merged erst, wenn Schritt 6 fertig ist, und prüft gegen andere Änderungen an der Datei.
 
-### 8. Test by Hand
+### 8. Von Hand testen
 
-Use a test ticket `PROJ-123` that isn't ready and holds no personal or customer data. It needs no opt-in label. Start runs with "Run pipeline" in Bitbucket (internal), or with a start token and the API (lab):
+Nehmt ein Testticket `PROJ-123`, das nicht reif ist und keine personenbezogenen Daten oder Kundendaten enthält. Es braucht kein Opt-in-Label. Startet Läufe mit „Run pipeline“ in Bitbucket (intern) oder mit einem Start-Token über die API (Lab):
 
 ```bash
 printf 'Token: '; read -rs TOKEN; echo
@@ -196,86 +191,86 @@ printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | curl -sS -w '\nHTTP %{
 unset TOKEN
 ```
 
-Expect `HTTP 201`. S-7529 lists 201, 400 and 404 for this call. Run in order (untested):
+Erwartet `HTTP 201`. S-7529 nennt 201, 400 und 404 für diesen Aufruf. Lauft in dieser Reihenfolge (ungetestet):
 
-| # | Pipeline | Expected line or result (internal) |
+| # | Pipeline | Erwartete Zeile oder Ergebnis (intern) |
 |---|---|---|
-| 1 | `agentic-assess-dryrun` | post: `comment not posted (--no-post)`. The text is in the run's artifacts |
-| 2 | `agentic-assess` | A `[KI] agentic-factory assess` comment in the ticket |
+| 1 | `agentic-assess-dryrun` | post: `comment not posted (--no-post)`. Der Text liegt in den Artefakten des Laufs |
+| 2 | `agentic-assess` | Ein Kommentar `[KI] agentic-factory assess` im Ticket |
 | 3 | `agentic-clarify` | `[KI] agentic-factory klärung runde=1 key=PROJ-123` |
-| 4 | Optional: `agentic-clarify` with `{"key":"APPLY","value":"1"}`, after a proposal | `PROJ-123: description set`. It likely stops, because the lab role can't edit (untested) |
+| 4 | Optional: `agentic-clarify` mit `{"key":"APPLY","value":"1"}`, nach einem Vorschlag | `PROJ-123: description set`. Wahrscheinlich stoppt es, weil die Lab-Rolle nicht bearbeiten darf (ungetestet) |
 
-A green pipeline doesn't mean "ready". The steps exit 0 unless they hit an error. Read the agent line: `exit code 0` means ready, 4 not ready, 5 questions or waiting for answers (internal).
+Eine grüne Pipeline heißt nicht „reif“. Die Steps enden mit 0, außer bei einem Fehler. Lest die Agent-Zeile: `exit code 0` heißt reif, 4 nicht reif, 5 Fragen oder warten auf Antworten (intern).
 
-### 9. Create the Automation Rule
+### 9. Die Automation-Regel anlegen
 
-The rule starts the next `clarify` round when someone answers with `[Mensch]`. Round 1 is a hand start (step 8). The starter adds `<opt-in-label>` first.
+Die Regel startet die nächste `clarify`-Runde, wenn jemand mit `[Mensch]` antwortet. Runde 1 startet ihr von Hand (Schritt 8). Der Starter setzt vorher `<opt-in-label>`.
 
-| Setting | Value |
+| Einstellung | Wert |
 |---|---|
-| Trigger | Comment added. "Editing a comment will not trigger this flow." (S-7533) |
-| Action | "Send web request", `POST https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pipelines` (lab) |
-| Headers | Hidden `Authorization: Bearer <trigger-token>`, normal `Content-Type: application/json` (lab) |
-| Body | `{"target": {"type": "pipeline_ref_target", "ref_type": "branch", "ref_name": "<start-branch>", "selector": {"type": "custom", "pattern": "agentic-clarify"}}, "variables": [{"key": "JIRA_KEY", "value": "{{issue.key}}"}]}`. Never `APPLY` |
-| Scope and actor | This project only, "Automation for Jira" (lab) |
-| Trigger and edit | "Only user actions can trigger this flow", "Private" (lab) |
-| Response | Wait for the response, stop on an error response. Email the first responder on errors (lab) |
+| Trigger | Comment added. „Editing a comment will not trigger this flow.“ (S-7533) |
+| Aktion | „Send web request“, `POST https://api.bitbucket.org/2.0/repositories/<workspace>/<repo>/pipelines` (Lab) |
+| Header | Verborgen `Authorization: Bearer <trigger-token>`, normal `Content-Type: application/json` (Lab) |
+| Body | `{"target": {"type": "pipeline_ref_target", "ref_type": "branch", "ref_name": "<start-branch>", "selector": {"type": "custom", "pattern": "agentic-clarify"}}, "variables": [{"key": "JIRA_KEY", "value": "{{issue.key}}"}]}`. Nie `APPLY` |
+| Geltungsbereich und Akteur | Nur dieses Projekt, „Automation for Jira“ (Lab) |
+| Auslösen und Bearbeiten | „Only user actions can trigger this flow“, „Private“ (Lab) |
+| Antwort | Auf die Antwort warten, bei einer Fehlerantwort stoppen. Bei Fehlern den Ersthelfer per E-Mail benachrichtigen (Lab) |
 
-Conditions (untested; no record gives the syntax):
+Bedingungen (ungetestet; kein Beleg nennt die Syntax):
 
-1. The comment starts with `[Mensch]`. The sketch: `{{comment.body.trim().startsWith("[Mensch]")}}` equals `true` (internal).
-2. The ticket has `<opt-in-label>`.
-3. The comment's author is in a named group or project role.
-4. The comment's author is not `<bot-email>`.
+1. Der Kommentar beginnt mit `[Mensch]`. Die Skizze: `{{comment.body.trim().startsWith("[Mensch]")}}` ist gleich `true` (intern).
+2. Das Ticket hat `<opt-in-label>`.
+3. Der Autor des Kommentars ist in einer benannten Gruppe oder Projektrolle.
+4. Der Autor des Kommentars ist nicht `<bot-email>`.
 
-Treat everyone who can edit the rule as holding the trigger token (untested).
+Behandelt jeden, der die Regel bearbeiten darf, so, als hätte er das Auslöse-Token (ungetestet).
 
-Validate with "Validate your web request configuration" on a ticket that has a `[KI]` round and no newer `[Mensch]` answer. That starts a real run (lab), which ends with `waiting for answers` and no Copilot call (internal). Create each rule fresh, without copying. After any edit, re-enter the hidden header (lab).
+Prüft mit „Validate your web request configuration“ an einem Ticket, das eine `[KI]`-Runde und keine neuere `[Mensch]`-Antwort hat. Das startet einen echten Lauf (Lab). Er endet mit `waiting for answers` und ohne Copilot-Aufruf (intern). Legt jede Regel neu an, ohne zu kopieren. Gebt nach jeder Änderung den verborgenen Header neu ein (Lab).
 
-**Loop test.** Answer the round once with `[Mensch] …`. Confirm that exactly one run starts. If more start, the first responder alerts the Jira admin, who turns the rule off. A loop, repeated `[Mensch]` comments, or unwanted rounds start unwanted runs, post unwanted comments, and send ticket text to Copilot. Conditions 2 and 3 limit who can start them.
+**Schleifentest.** Beantwortet die Runde einmal mit `[Mensch] …`. Prüft, dass genau ein Lauf startet. Starten mehr, alarmiert der Ersthelfer den Jira-Admin, und der schaltet die Regel ab. Eine Schleife, wiederholte `[Mensch]`-Kommentare oder ungewollte Runden starten ungewollte Läufe, posten ungewollte Kommentare und schicken Tickettext an Copilot. Die Bedingungen 2 und 3 begrenzen, wer sie starten kann.
 
-### 10. Go Live on a Pilot Ticket
+### 10. Mit einem Pilotticket live gehen
 
-1. Turn the rule on for one pilot ticket with `<opt-in-label>`.
-2. Check that runs 1 to 3 passed and the loop test passed.
-3. Read the rule's audit log after each change. Rules fail silently (lab).
-4. Delete `agentic-assess-dryrun` in a pull request.
+1. Schaltet die Regel für ein Pilotticket mit `<opt-in-label>` ein.
+2. Prüft, dass die Läufe 1 bis 3 und der Schleifentest geklappt haben.
+3. Lest nach jeder Änderung das Audit-Log der Regel. Regeln scheitern still (Lab).
+4. Löscht `agentic-assess-dryrun` per Pull Request.
 
-**Rotation and rollback** (untested):
+**Tokens tauschen und zurückrollen** (ungetestet):
 
-- **Rotate** the Jira, Copilot and trigger tokens:
-  1. Pause the rule, and wait until no run is active or queued.
-  2. Put in the new token, and run step 8 run 2 as a smoke test.
-  3. Revoke the old token. Then resume the rule.
-- **Roll back:**
-  1. The Jira admin turns the rule off.
-  2. The repository admin revokes the trigger and start tokens and deletes the deployment variables.
-  3. The token coordinator has the Jira and Copilot tokens revoked.
+- **Tauscht** das Jira-, Copilot- und Auslöse-Token:
+  1. Pausiert die Regel und wartet, bis kein Lauf mehr läuft oder in der Warteschlange steht.
+  2. Tragt das neue Token ein und macht Lauf 2 aus Schritt 8 als Smoke-Test.
+  3. Widerruft das alte Token. Dann setzt die Regel fort.
+- **Rollt zurück:**
+  1. Der Jira-Admin schaltet die Regel ab.
+  2. Der Repository-Admin widerruft das Auslöse-Token und die Start-Tokens und löscht die Deployment-Variablen.
+  3. Der Token-Koordinator lässt das Jira- und das Copilot-Token widerrufen.
 
-## If Something Fails
+## Wenn etwas scheitert
 
-| Message or symptom | Fix |
+| Meldung oder Symptom | Lösung |
 |---|---|
-| `… not in a folder named factory/` or `… is not the top folder of a git repository` | Put `factory/` at the top of the clone (step 3, internal) |
-| `--step agent must not see JIRA_API_TOKEN`, or `--step fetch must not see COPILOT_GITHUB_TOKEN` | Keep each token only in its own deployment (step 6, internal) |
-| `the api route needs JIRA_BASE_URL and JIRA_API_TOKEN` | Add the variables to `agentic-jira` and `agentic-post` (internal) |
-| `Jira … HTTP 401` | Check `JIRA_EMAIL` and `JIRA_API_TOKEN` (internal) |
-| `Jira … HTTP 404` | Check `JIRA_BASE_URL`: use the cloud ID, not the Organization ID (S-7534) |
-| `copilot exited with timeout`, or the agent step hit `max-time` | Raise `agent_timeout_s` in `config.json`, and `max-time` with it (internal) |
-| Step fails at start: no runner | Fix `runs-on`. "If you don't have any online runners in your repository that match all your labels, the step will fail." (S-7520) |
-| "The system scopes provided contains unsupported scopes." (S-7521) | Check the scope spelling. For a first test only, delete the `auth` block. Until 2027-04-30 the step then gets wider scopes (S-7118) |
-| Copilot refuses to start | Use a fine-grained PAT, not a classic `ghp_` token (S-7539, S-7540) |
-| Start request returns 404, or the rule ran but no pipeline started | Check the token, then the URL. Re-enter the hidden header (lab) |
+| `… not in a folder named factory/` oder `… is not the top folder of a git repository` | Legt `factory/` in den obersten Ordner des Klons (Schritt 3, intern) |
+| `--step agent must not see JIRA_API_TOKEN` oder `--step fetch must not see COPILOT_GITHUB_TOKEN` | Haltet jedes Token nur in seinem eigenen Deployment (Schritt 6, intern) |
+| `the api route needs JIRA_BASE_URL and JIRA_API_TOKEN` | Ergänzt die Variablen in `agentic-jira` und `agentic-post` (intern) |
+| `Jira … HTTP 401` | Prüft `JIRA_EMAIL` und `JIRA_API_TOKEN` (intern) |
+| `Jira … HTTP 404` | Prüft `JIRA_BASE_URL`: Nehmt die Cloud-ID, nicht die Organization ID (S-7534) |
+| `copilot exited with timeout`, oder der Agent-Step hat `max-time` erreicht | Erhöht `agent_timeout_s` in `config.json` und `max-time` gleich mit (intern) |
+| Step scheitert beim Start: kein Runner | Korrigiert `runs-on`. „If you don't have any online runners in your repository that match all your labels, the step will fail.“ (S-7520) |
+| „The system scopes provided contains unsupported scopes.“ (S-7521) | Prüft die Schreibweise der Scopes. Nur für einen ersten Test: Löscht den Block `auth`. Bis 30.04.2027 bekommt der Step dann weitere Scopes (S-7118) |
+| Copilot startet nicht | Nehmt ein feingranulares PAT, kein klassisches `ghp_`-Token (S-7539, S-7540) |
+| Der Start-Request liefert 404, oder die Regel lief, aber keine Pipeline startete | Prüft das Token, dann die URL. Gebt den verborgenen Header neu ein (Lab) |
 
-## Open Gaps
+## Offene Lücken
 
-- Secret isolation per deployment is unverified (step 6).
-- A forum report says starts with custom variables returned HTTP 400 (S-7113, unverified). Your first API start shows it.
-- The records don't say whether a start request can override deployment variables (step 5).
-- The records give no path for custom deployment environments, or for limiting them to a branch.
-- No Dockerfile exists, and the records don't cover installing Copilot CLI or private-registry access.
-- The example runs the script from the working tree. Moving it into the image fails the location check (internal).
-- The records don't give the scope that `GET /myself` needs. `APPLY=1` uses it, and also needs edit rights.
-- No Cloud record shows POST, a custom body, hidden headers or the condition syntax for "Send web request".
-- The records don't say whether the factory's own comments fire the trigger.
-- The records don't confirm `read:git:bitbucket`, the `auth` YAML nesting, or the `linux.arm64` label.
+- Ob die Secrets pro Deployment getrennt bleiben, ist nicht geprüft (Schritt 6).
+- Ein Forenbeitrag sagt, Starts mit eigenen Variablen lieferten HTTP 400 (S-7113, nicht geprüft). Euer erster Start über die API zeigt es.
+- Die Belege sagen nicht, ob ein Start-Request Deployment-Variablen überschreiben kann (Schritt 5).
+- Die Belege nennen keinen Weg für eigene Deployment-Umgebungen oder dafür, sie auf einen Branch zu beschränken.
+- Es gibt kein Dockerfile. Die Belege decken weder die Installation von Copilot CLI noch den Zugang zu einer privaten Registry ab.
+- Das Beispiel führt das Skript aus dem Arbeitsverzeichnis aus. Liegt es im Image, scheitert die Prüfung des Ablageorts (intern).
+- Die Belege nennen nicht den Scope, den `GET /myself` braucht. `APPLY=1` nutzt ihn und braucht außerdem Bearbeitungsrechte.
+- Kein Cloud-Beleg zeigt POST, einen eigenen Body, verborgene Header oder die Syntax der Bedingungen für „Send web request“.
+- Die Belege sagen nicht, ob die eigenen Kommentare der Factory den Trigger auslösen.
+- Die Belege bestätigen weder `read:git:bitbucket` noch die Verschachtelung von `auth` im YAML noch das Label `linux.arm64`.
